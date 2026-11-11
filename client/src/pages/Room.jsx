@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Play, Share2, Users, MessageSquare, Menu } from "lucide-react";
@@ -27,6 +27,7 @@ export default function Room() {
   const [rightTab, setRightTab] = useState("participants");
   const [mobilePanel, setMobilePanel] = useState(null);
   const [showShare, setShowShare] = useState(false);
+  const editorRef = useRef(null);
   const username = user?.username;
 
   // Load room + join, fetch chat history
@@ -75,13 +76,19 @@ export default function Room() {
   }, []);
 
   const handleRun = useCallback(async () => {
+    const currentSourceCode = editorRef.current?.getValue() ?? sourceCode;
+    if (!currentSourceCode.trim()) {
+      toast.error("Add some code before running");
+      return;
+    }
+
     setRunning(true);
     setResult(null);
     socket?.emit("execution-started", { roomId });
     try {
       const { data } = await api.post(`/rooms/${roomId}/execute`, {
         language,
-        sourceCode,
+        sourceCode: currentSourceCode,
         stdin: "",
       });
       setResult(data.result);
@@ -171,6 +178,11 @@ export default function Room() {
                 language={monacoLangFor(language)}
                 username={username || "Guest"}
                 onConnectionChange={() => {}}
+                onSourceCodeChange={setSourceCode}
+                onEditorReady={(editor) => {
+                  editorRef.current = editor;
+                  setSourceCode(editor.getValue());
+                }}
               />
             )}
           </div>

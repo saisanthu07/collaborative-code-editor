@@ -20,6 +20,8 @@ each other's cursors, chat, and execute code in an isolated sandbox (Judge0).
 - Password hashing (bcrypt), Zod validation (incl. path-traversal-safe file
   name validation), rate limiting, Helmet, CORS
 - Room creation, join-by-link, guest access, starring, recent rooms
+- Authenticated users can join private rooms by link; unauthenticated guests
+  can join public rooms only
 - Real-time collaborative editor: Monaco + Yjs CRDT sync over a dedicated
   y-websocket relay (isolated from Socket.IO)
 - Live cursors & presence via Yjs Awareness, participant list
@@ -154,15 +156,19 @@ instance — everything still works, just single-instance.
 
 ## 8. Local development
 
+Install dependencies once in each application directory:
+
 ```bash
-# Terminal 1
 cd server
 npm install
-npm run dev
-
-# Terminal 2
-cd client
+cd ../client
 npm install
+cd ..
+```
+
+Then start the frontend and backend together from the repository root:
+
+```bash
 npm run dev
 ```
 

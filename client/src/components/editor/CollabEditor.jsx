@@ -9,7 +9,15 @@ import { colorForUser } from "../../utils/color.js";
 // This is the CRDT-based sync described in the spec: NOT plain Socket.IO
 // text broadcasting. Each room's Y.Doc is isolated by roomId (used as the
 // y-websocket "docName"), and concurrent edits merge via Yjs automatically.
-export default function CollabEditor({ roomId, fileName, language, username, onConnectionChange }) {
+export default function CollabEditor({
+  roomId,
+  fileName,
+  language,
+  username,
+  onConnectionChange,
+  onSourceCodeChange,
+  onEditorReady,
+}) {
   const editorRef = useRef(null);
   const [status, setStatus] = useState("connecting"); // connecting | connected | disconnected
   const bindingRef = useRef(null);
@@ -48,6 +56,7 @@ export default function CollabEditor({ roomId, fileName, language, username, onC
 
   function handleMount(editor) {
     editorRef.current = editor;
+    onEditorReady?.(editor);
     const ydoc = ydocRef.current;
     const provider = providerRef.current;
     const yText = ydoc.getText("monaco");
@@ -78,6 +87,7 @@ export default function CollabEditor({ roomId, fileName, language, username, onC
         theme="vs-dark"
         language={language}
         onMount={handleMount}
+        onChange={(value) => onSourceCodeChange?.(value ?? "")}
         options={{
           fontSize: 14,
           minimap: { enabled: true },

@@ -10,8 +10,10 @@ export async function roomAccessMiddleware(req, res, next) {
     const userId = req.user?._id?.toString();
     const isOwner = userId && room.ownerId.toString() === userId;
     const isMember = userId && room.members.some((m) => m.userId?.toString() === userId);
+    const isAuthenticatedJoin =
+      req.method === "POST" && req.path.endsWith("/join") && Boolean(userId);
 
-    if (room.visibility === "PRIVATE" && !isOwner && !isMember) {
+    if (room.visibility === "PRIVATE" && !isOwner && !isMember && !isAuthenticatedJoin) {
       return res.status(403).json({ error: "You don't have access to this room" });
     }
 
