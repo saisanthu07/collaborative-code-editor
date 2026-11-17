@@ -28,6 +28,11 @@ import ParticipantsPanel from "../components/room/ParticipantsPanel.jsx";
 import ShareModal from "../components/room/ShareModal.jsx";
 import EndRoomModal from "../components/room/EndRoomModal.jsx";
 import LeaveRoomModal from "../components/room/LeaveRoomModal.jsx";
+import NewFileModal from "../components/room/NewFileModal.jsx";
+import RenameFileModal from "../components/room/RenameFileModal.jsx";
+import DeleteFileModal from "../components/room/DeleteFileModal.jsx";
+import FileTabs from "../components/editor/FileTabs.jsx";
+import FileExplorer from "../components/editor/FileExplorer.jsx";
 import PageLoading from "../components/common/PageLoading.jsx";
 import { LANGUAGES, monacoLangFor } from "../constants/languages.js";
 
@@ -47,6 +52,16 @@ export default function Room() {
   const [activeFileName, setActiveFileName] = useState("");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
+  const [stdin, setStdin] = useState("");
+
+  // Multi-file tabs & File Explorer state
+  const [fileExplorerOpen, setFileExplorerOpen] = useState(false);
+  const [showNewFileModal, setShowNewFileModal] = useState(false);
+  const [renameTargetFile, setRenameTargetFile] = useState(null);
+  const [deleteTargetFile, setDeleteTargetFile] = useState(null);
+  const [creatingFile, setCreatingFile] = useState(false);
+  const [renamingFile, setRenamingFile] = useState(false);
+  const [deletingFile, setDeletingFile] = useState(false);
 
   // Desktop side panel: "participants" | "chat"
   const [rightTab, setRightTab] = useState("participants");
@@ -153,6 +168,17 @@ export default function Room() {
     user &&
       room &&
       (room.ownerId?.toString() === user._id?.toString() || room.ownerId === user._id)
+  );
+  const memberRecord = room?.members?.find(
+    (m) =>
+      (user?._id && m.userId?.toString() === user._id.toString()) ||
+      m.username === resolvedUsername
+  );
+  const userRole = isHost
+    ? "HOST"
+    : memberRecord?.role || (user ? room?.settings?.defaultRole : "GUEST");
+  const canManageFiles = Boolean(
+    isHost || userRole === "EDITOR" || (userRole === "GUEST" && room?.settings?.allowGuestEdit)
   );
 
   // Socket event callbacks
@@ -309,6 +335,109 @@ export default function Room() {
     }
   }, [roomId, resolvedUsername, socket, user, navigate]);
 
+  // Format Document (Monaco / Prettier format)
+  const handleFormatDocument = useCallback(() => {
+    if (!editorRef.current) return;
+    try {
+      const action = editorRef.current.getAction("editor.action.formatDocument");
+      if (action) {
+        action.run();
+        toast.success("Document formatted", { id: "format-doc" });
+      } else {
+        toast("Formatting not available for this language", { icon: "ℹ️" });
+      }
+    } catch {
+      toast.error("Could not format document");
+    }
+  }, []);
+
+  // File Operations: Select, Create, Rename, Delete
+  const handleSelectFile = useCallback((fileName) => {
+    setActiveFileName(fileName);
+  }, []);
+
+  const handleCreateFile = useCallback(
+    async ({ name, language }) => {
+      setCreatingFile(true);
+      try {
+        const { data } = await api.post(`/rooms/${roomId}/files`, {
+          name,
+          language,
+          content: "",
+        });
+        const createdFile = data.file || { name, language, content: "" };
+        setRoom((prev) => {
+          if (!prev) return prev;
+          if (prev.files?.some((f) => f.name === name)) return prev;
+          return { ...prev, files: [...(prev.files || []), createdFile] };
+        });
+        setActiveFileName(name);
+        socket?.emit("file-created", { roomId, file: createdFile });
+        setShowNewFileModal(false);
+        toast.success(`Created ${name}`);
+      } catch (err) {
+        toast.error(err.response?.data?.error || "Could not create file");
+      } finally {
+        setCreatingFile(false);
+      }
+    },
+    [roomId, socket]
+  );
+
+  const handleRenameFile = useCallback(
+    async ({ oldName, newName }) => {
+      setRenamingFile(true);
+      try {
+        await api.patch(`/rooms/${roomId}/files/${encodeURIComponent(oldName)}`, {
+          newName,
+        });
+        setRoom((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            files: (prev.files || []).map((f) =>
+              f.name === oldName ? { ...f, name: newName } : f
+            ),
+          };
+        });
+        setActiveFileName((curr) => (curr === oldName ? newName : curr));
+        socket?.emit("file-renamed", { roomId, oldName, newName });
+        setRenameTargetFile(null);
+        toast.success(`Renamed to ${newName}`);
+      } catch (err) {
+        toast.error(err.response?.data?.error || "Could not rename file");
+      } finally {
+        setRenamingFile(false);
+      }
+    },
+    [roomId, socket]
+  );
+
+  const handleDeleteFile = useCallback(async () => {
+    if (!deleteTargetFile) return;
+    setDeletingFile(true);
+    try {
+      await api.delete(`/rooms/${roomId}/files/${encodeURIComponent(deleteTargetFile)}`);
+      setRoom((prev) => {
+        if (!prev) return prev;
+        const remaining = (prev.files || []).filter((f) => f.name !== deleteTargetFile);
+        return { ...prev, files: remaining };
+      });
+      setActiveFileName((curr) => {
+        if (curr !== deleteTargetFile) return curr;
+        const remaining = (room?.files || []).filter((f) => f.name !== deleteTargetFile);
+        return remaining[0]?.name || "";
+      });
+      socket?.emit("file-deleted", { roomId, fileName: deleteTargetFile });
+      setDeleteTargetFile(null);
+      toast.success(`Deleted ${deleteTargetFile}`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Could not delete file");
+    } finally {
+      setDeletingFile(false);
+    }
+  }, [roomId, deleteTargetFile, room?.files, socket]);
+
   // Execute code
   const handleRun = useCallback(async () => {
     const currentCode = editorRef.current?.getValue() || "";
@@ -325,7 +454,7 @@ export default function Room() {
       const { data } = await api.post(`/rooms/${roomId}/execute`, {
         language: activeLanguage,
         sourceCode: currentCode,
-        stdin: "",
+        stdin: stdin || "",
       });
       setResult(data.result);
       if (window.innerWidth < 768) {
@@ -338,7 +467,7 @@ export default function Room() {
     } finally {
       setRunning(false);
     }
-  }, [roomId, activeLanguage, socket]);
+  }, [roomId, activeLanguage, stdin, socket]);
 
   // Update file language (Host and Editors only)
   const handleLanguageChange = useCallback(
@@ -720,12 +849,40 @@ export default function Room() {
 
       {/* Main Content Workspace */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
+        {/* Desktop Collapsible File Explorer */}
+        {fileExplorerOpen && (
+          <div className="hidden md:block h-full">
+            <FileExplorer
+              files={room?.files || []}
+              activeFileName={activeFileName}
+              onSelectFile={handleSelectFile}
+              onNewFile={() => setShowNewFileModal(true)}
+              onRenameFile={(name) => setRenameTargetFile(name)}
+              onDeleteFile={(name) => setDeleteTargetFile(name)}
+              canManageFiles={canManageFiles}
+            />
+          </div>
+        )}
+
         {/* Editor and Output Area */}
         <div
           className={`flex-1 flex flex-col min-w-0 ${
             mobileTab !== "editor" && mobileTab !== "output" ? "hidden md:flex" : "flex"
           }`}
         >
+          {/* Horizontal File Tabs Bar */}
+          <FileTabs
+            files={room?.files || []}
+            activeFileName={activeFileName}
+            onSelectFile={handleSelectFile}
+            onNewFile={() => setShowNewFileModal(true)}
+            onCloseFile={(name) => setDeleteTargetFile(name)}
+            canManageFiles={canManageFiles}
+            onFormatDocument={handleFormatDocument}
+            fileExplorerOpen={fileExplorerOpen}
+            onToggleFileExplorer={() => setFileExplorerOpen((prev) => !prev)}
+          />
+
           {/* Editor Container */}
           <div
             className={`flex-1 min-h-0 ${
@@ -734,6 +891,7 @@ export default function Room() {
           >
             {activeFileName && (
               <CollabEditor
+                key={`${roomId}:${activeFileName}`}
                 roomId={roomId}
                 fileName={activeFileName}
                 language={monacoLangFor(activeLanguage)}
@@ -744,15 +902,21 @@ export default function Room() {
             )}
           </div>
 
-          {/* Output Console (Desktop lower panel / Mobile Output tab) */}
+          {/* Output Console with STDIN (Desktop lower panel / Mobile Output tab) */}
           <div
             className={`border-t border-border bg-[#0b0e14] ${
               mobileTab === "output"
                 ? "flex-1 min-h-0"
-                : "hidden md:block h-44 shrink-0"
+                : "hidden md:block h-48 shrink-0"
             }`}
           >
-            <OutputConsole running={running} result={result} />
+            <OutputConsole
+              running={running}
+              result={result}
+              stdin={stdin}
+              setStdin={setStdin}
+              onClearOutput={() => setResult(null)}
+            />
           </div>
         </div>
 
@@ -859,6 +1023,37 @@ export default function Room() {
           onConfirm={handleLeaveRoom}
           onClose={() => setShowLeaveModal(false)}
           loading={leavingRoom}
+        />
+      )}
+
+      {/* Create New File Modal */}
+      {showNewFileModal && (
+        <NewFileModal
+          existingFiles={room?.files || []}
+          onCreate={handleCreateFile}
+          onClose={() => setShowNewFileModal(false)}
+          loading={creatingFile}
+        />
+      )}
+
+      {/* Rename File Modal */}
+      {renameTargetFile && (
+        <RenameFileModal
+          currentName={renameTargetFile}
+          existingFiles={room?.files || []}
+          onRename={handleRenameFile}
+          onClose={() => setRenameTargetFile(null)}
+          loading={renamingFile}
+        />
+      )}
+
+      {/* Delete File Confirmation Modal */}
+      {deleteTargetFile && (
+        <DeleteFileModal
+          fileName={deleteTargetFile}
+          onDelete={handleDeleteFile}
+          onClose={() => setDeleteTargetFile(null)}
+          loading={deletingFile}
         />
       )}
     </div>
