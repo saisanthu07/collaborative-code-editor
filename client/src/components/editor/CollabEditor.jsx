@@ -18,12 +18,12 @@ function CollabEditor({
   onConnectionChange,
   onEditorReady,
 }) {
-  const [editorInstance, setEditorInstance] = useState(null);
   const [status, setStatus] = useState("connecting"); // connecting | connected | disconnected | reconnecting
   const [isMdScreen, setIsMdScreen] = useState(
     typeof window !== "undefined" ? window.innerWidth >= 768 : true
   );
 
+  const editorRef = useRef(null);
   const bindingRef = useRef(null);
   const providerRef = useRef(null);
   const ydocRef = useRef(null);
@@ -135,12 +135,12 @@ function CollabEditor({
     });
 
     // Wire binding if editor is already mounted
-    if (editorInstance) {
+    if (editorRef.current && !bindingRef.current) {
       const yText = ydoc.getText("monaco");
       bindingRef.current = new MonacoBinding(
         yText,
-        editorInstance.getModel(),
-        new Set([editorInstance]),
+        editorRef.current.getModel(),
+        new Set([editorRef.current]),
         provider.awareness
       );
     }
@@ -160,12 +160,22 @@ function CollabEditor({
         styleElRef.current = null;
       }
     };
-    // Re-run ONLY when roomId, fileName, or editorInstance changes
-  }, [roomId, fileName, editorInstance, guestToken, username]);
+  }, [roomId, fileName, guestToken, username]);
 
   function handleMount(editor) {
-    setEditorInstance(editor);
+    editorRef.current = editor;
     onEditorReadyRef.current?.(editor);
+
+    // If provider and ydoc are already ready, bind Monaco immediately
+    if (!bindingRef.current && ydocRef.current && providerRef.current) {
+      const yText = ydocRef.current.getText("monaco");
+      bindingRef.current = new MonacoBinding(
+        yText,
+        editor.getModel(),
+        new Set([editor]),
+        providerRef.current.awareness
+      );
+    }
   }
 
   return (

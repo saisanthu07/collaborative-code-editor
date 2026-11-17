@@ -192,6 +192,13 @@ function OutputConsole({
                     <span>{result.memory}</span>
                   </span>
                 )}
+
+                {result.engine && (
+                  <span className="flex items-center gap-1 text-gray-400">
+                    <span className="text-gray-500">Engine:</span>
+                    <span className="text-gray-300 font-medium">{result.engine}</span>
+                  </span>
+                )}
               </div>
             </div>
           )}
