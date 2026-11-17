@@ -17,6 +17,7 @@ export const updateRoomSchema = z.object({
   settings: z
     .object({
       allowGuestEdit: z.boolean().optional(),
+      defaultRole: z.enum(["EDITOR", "VIEWER"]).optional(),
       locked: z.boolean().optional(),
       chatMuted: z.boolean().optional(),
     })
@@ -33,6 +34,11 @@ export const messageSchema = z.object({
   text: z.string().min(1).max(2000),
 });
 
+export const getMessagesQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  before: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid before message ID").optional(),
+});
+
 const fileNamePattern = /^[a-zA-Z0-9_.\-\/]{1,120}$/;
 
 function isSafeFileName(name) {
@@ -42,7 +48,7 @@ function isSafeFileName(name) {
   return true;
 }
 
-const safeFileName = z.string().refine(isSafeFileName, { message: "Invalid file name" });
+export const safeFileName = z.string().refine(isSafeFileName, { message: "Invalid file name" });
 
 export const createFileSchema = z.object({
   name: safeFileName,
@@ -55,7 +61,8 @@ export const renameFileSchema = z.object({
 });
 
 export const saveFileSchema = z.object({
-  content: z.string().max(500_000),
+  content: z.string().max(500_000).optional(),
+  language: z.enum(languageKeys).optional(),
 });
 
 export const permissionChangeSchema = z.object({

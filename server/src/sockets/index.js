@@ -1,27 +1,42 @@
 import { verifyToken } from "../utils/jwt.js";
+import { verifyGuestToken } from "../utils/guestToken.js";
 import User from "../models/User.js";
 import Room from "../models/Room.js";
 import Message from "../models/Message.js";
-import { logEvent } from "../utils/logger.js";
+import { logEvent, logError } from "../utils/logger.js";
+import { resolveRole, canEdit, canChat } from "../services/roomService.js";
+import {
+  joinRoomSchema,
+  heartbeatSchema,
+  chatMessageSchema,
+  presenceIdleSchema,
+  permissionChangeSchema,
+  fileCreatedSchema,
+  fileDeletedSchema,
+  fileRenamedSchema,
+  fileLanguageSchema,
+  executionStartedSchema,
+} from "../validators/socketValidators.js";
 
-// Presence storage: when Redis is available (multi-instance deployments),
-// presence lives in Redis so every node sees the same participant list.
-// Otherwise it falls back to an in-memory Map, fine for a single instance.
-const localPresence = new Map(); // roomId -> Map(socketId -> presenceRecord)
+const localPresence = new Map(); // roomId -> Map(socketId -> record)
 
-function makePresenceStore(redisClient) {
+export function makePresenceStore(redisClient) {
   const key = (roomId) => `presence:${roomId}`;
 
   if (!redisClient) {
     return {
       async set(roomId, socketId, record) {
         if (!localPresence.has(roomId)) localPresence.set(roomId, new Map());
-        localPresence.get(roomId).set(socketId, record);
+        localPresence.get(roomId).set(socketId, {
+          ...record,
+          lastSeen: record.lastSeen || Date.now(),
+        });
       },
       async update(roomId, socketId, patch) {
-        const existing = localPresence.get(roomId)?.get(socketId);
+        const room = localPresence.get(roomId);
+        const existing = room?.get(socketId);
         if (!existing) return;
-        Object.assign(existing, patch);
+        Object.assign(existing, patch, { lastSeen: Date.now() });
       },
       async remove(roomId, socketId) {
         const room = localPresence.get(roomId);
@@ -30,172 +45,517 @@ function makePresenceStore(redisClient) {
         if (room.size === 0) localPresence.delete(roomId);
       },
       async list(roomId) {
-        return Array.from(localPresence.get(roomId)?.values() || []);
+        const room = localPresence.get(roomId);
+        if (!room) return [];
+        const now = Date.now();
+        const records = [];
+
+        for (const [sId, r] of room.entries()) {
+          if (now - (r.lastSeen || 0) > 60_000) {
+            room.delete(sId);
+          } else {
+            records.push(r);
+          }
+        }
+        if (room.size === 0) localPresence.delete(roomId);
+
+        return deduplicateParticipants(records);
+      },
+      async rawRecords(roomId) {
+        const room = localPresence.get(roomId);
+        return room ? Array.from(room.values()) : [];
       },
     };
   }
 
   return {
     async set(roomId, socketId, record) {
-      await redisClient.hSet(key(roomId), socketId, JSON.stringify(record));
+      const fullRecord = { ...record, lastSeen: record.lastSeen || Date.now() };
+      await redisClient.hSet(key(roomId), socketId, JSON.stringify(fullRecord));
+      await redisClient.expire(key(roomId), 120);
     },
     async update(roomId, socketId, patch) {
       const raw = await redisClient.hGet(key(roomId), socketId);
       if (!raw) return;
-      const merged = { ...JSON.parse(raw), ...patch };
+      const merged = { ...JSON.parse(raw), ...patch, lastSeen: Date.now() };
       await redisClient.hSet(key(roomId), socketId, JSON.stringify(merged));
+      await redisClient.expire(key(roomId), 120);
     },
     async remove(roomId, socketId) {
       await redisClient.hDel(key(roomId), socketId);
+      const remainingCount = await redisClient.hLen(key(roomId));
+      if (remainingCount === 0) {
+        await redisClient.del(key(roomId));
+      }
     },
     async list(roomId) {
       const all = await redisClient.hGetAll(key(roomId));
-      return Object.values(all).map((v) => JSON.parse(v));
+      const now = Date.now();
+      const records = [];
+      const staleSocketIds = [];
+
+      for (const [sId, str] of Object.entries(all)) {
+        try {
+          const r = JSON.parse(str);
+          if (now - (r.lastSeen || 0) > 60_000) {
+            staleSocketIds.push(sId);
+          } else {
+            records.push(r);
+          }
+        } catch {
+          staleSocketIds.push(sId);
+        }
+      }
+
+      if (staleSocketIds.length > 0) {
+        await redisClient.hDel(key(roomId), ...staleSocketIds);
+        const rem = await redisClient.hLen(key(roomId));
+        if (rem === 0) {
+          await redisClient.del(key(roomId));
+        } else {
+          await redisClient.expire(key(roomId), 120);
+        }
+      }
+
+      return deduplicateParticipants(records);
+    },
+    async rawRecords(roomId) {
+      const all = await redisClient.hGetAll(key(roomId));
+      return Object.values(all).map((str) => JSON.parse(str));
     },
   };
 }
 
-async function resolveIdentity(socket) {
-  const token = socket.handshake.auth?.token;
-  if (!token) return { username: socket.handshake.auth?.guestName || "Guest", userId: null };
-  try {
-    const decoded = verifyToken(token);
-    const user = await User.findById(decoded.sub);
-    if (user) return { username: user.username, userId: user._id.toString() };
-  } catch {
-    // fall through to guest identity
+// Deduplicates active socket records by identity (userId or guestId)
+export function deduplicateParticipants(records) {
+  const map = new Map();
+
+  for (const r of records) {
+    const idKey = r.userId ? `u:${r.userId}` : `g:${r.guestId || r.username}`;
+    const existing = map.get(idKey);
+
+    if (!existing) {
+      map.set(idKey, {
+        username: r.username,
+        userId: r.userId || null,
+        guestId: r.guestId || null,
+        status: r.status,
+        connections: 1,
+      });
+    } else {
+      existing.connections += 1;
+      // Best status: ONLINE beats AWAY
+      if (r.status === "ONLINE") {
+        existing.status = "ONLINE";
+      }
+    }
   }
-  return { username: socket.handshake.auth?.guestName || "Guest", userId: null };
+
+  return Array.from(map.values());
 }
 
-async function isRoomHost(roomId, userId) {
-  if (!userId) return false;
-  const room = await Room.findOne({ roomId }, { ownerId: 1 });
-  return Boolean(room && room.ownerId.toString() === userId);
+function makeRateLimiter() {
+  const buckets = {
+    chat: { tokens: 5, max: 5, refillPerSec: 0.5, last: Date.now() },       // 5 per 10s
+    files: { tokens: 10, max: 10, refillPerSec: 10 / 60, last: Date.now() }, // 10 per min
+    heartbeat: { tokens: 5, max: 5, refillPerSec: 1, last: Date.now() },     // 5 per 5s
+  };
+
+  return function checkLimit(category) {
+    const b = buckets[category];
+    if (!b) return true;
+    const now = Date.now();
+    const elapsed = (now - b.last) / 1000;
+    b.tokens = Math.min(b.max, b.tokens + elapsed * b.refillPerSec);
+    b.last = now;
+    if (b.tokens >= 1) {
+      b.tokens -= 1;
+      return true;
+    }
+    return false;
+  };
 }
 
-// redisClient: an already-connected node-redis client, or null to use
-// in-memory presence (see config/redis.js).
-export function registerSocketHandlers(io, redisClient = null) {
-  const presence = makePresenceStore(redisClient);
+function safeHandler(socket, schema, fn, options = {}) {
+  return async (rawPayload) => {
+    try {
+      if (options.rateLimit) {
+        if (!socket.data.rateLimiter || !socket.data.rateLimiter(options.rateLimit)) {
+          socket.emit("error-event", { error: `Rate limit exceeded for ${options.rateLimit}` });
+          return;
+        }
+      }
 
-  io.on("connection", async (socket) => {
-    const identity = await resolveIdentity(socket);
-    socket.data.identity = identity;
-
-    socket.on("join-room", async ({ roomId }) => {
-      socket.join(roomId);
-      socket.data.roomId = roomId;
-
-      await presence.set(roomId, socket.id, {
-        socketId: socket.id,
-        username: identity.username,
-        userId: identity.userId,
-        status: "ONLINE",
-        cursor: null,
-      });
-
-      io.to(roomId).emit("presence-update", { participants: await presence.list(roomId) });
-
-      socket.to(roomId).emit("chat-message", {
-        system: true,
-        text: `${identity.username} joined the room`,
-        createdAt: new Date().toISOString(),
-      });
-
-      logEvent("ROOM_SOCKET_JOIN", { roomId, username: identity.username });
-    });
-
-    socket.on("leave-room", () => handleLeave(socket, io, presence));
-
-    socket.on("cursor-update", async ({ roomId, cursor }) => {
-      await presence.update(roomId, socket.id, { cursor });
-      socket.to(roomId).emit("cursor-update", { socketId: socket.id, username: identity.username, cursor });
-    });
-
-    socket.on("presence-idle", async ({ roomId, status }) => {
-      await presence.update(roomId, socket.id, { status });
-      io.to(roomId).emit("presence-update", { participants: await presence.list(roomId) });
-    });
-
-    socket.on("chat-message", async ({ roomId, text }) => {
-      if (!text || !text.trim()) return;
-      const room = await Room.findOne({ roomId });
-      if (!room || room.settings?.chatMuted) return;
-
-      const message = await Message.create({
-        roomId,
-        userId: identity.userId || undefined,
-        username: identity.username,
-        text: text.slice(0, 2000),
-      });
-
-      io.to(roomId).emit("chat-message", {
-        _id: message._id,
-        username: message.username,
-        text: message.text,
-        createdAt: message.createdAt,
-      });
-    });
-
-    // Host-only: server re-checks ownership before applying a role change,
-    // rather than trusting the client's claim that it's allowed to do this.
-    socket.on("permission-change", async ({ roomId, targetUsername, role }) => {
-      const allowedRoles = ["EDITOR", "VIEWER", "GUEST"];
-      if (!allowedRoles.includes(role)) return;
-
-      const hostOk = await isRoomHost(roomId, identity.userId);
-      if (!hostOk) {
-        socket.emit("permission-denied", { reason: "Only the room host can change permissions" });
+      const parsed = schema.safeParse(rawPayload);
+      if (!parsed.success) {
+        logError("SOCKET_VALIDATION", parsed.error);
+        socket.emit("error-event", {
+          error: "Invalid payload",
+          details: parsed.error.issues,
+        });
         return;
       }
 
-      const room = await Room.findOne({ roomId });
-      if (!room) return;
-      const member = room.members.find((m) => m.username === targetUsername);
-      if (!member) return;
-      member.role = role;
-      await room.save();
+      const payload = parsed.data;
 
-      io.to(roomId).emit("permission-change", { targetUsername, role });
-      logEvent("ROOM_PERMISSION_CHANGE", { roomId, targetUsername, role, changedBy: identity.username });
-    });
+      if (options.requireInRoom) {
+        if (!socket.rooms.has(payload.roomId) || socket.data.roomId !== payload.roomId) {
+          socket.emit("error-event", { error: "You are not in this room" });
+          return;
+        }
+      }
 
-    // File events: broadcast for live UI sync AND persist to the room's
-    // file list so reloading/rejoining doesn't lose the file tree.
-    socket.on("file-created", async ({ roomId, file }) => {
-      if (!file?.name) return;
-      const room = await Room.findOne({ roomId });
-      if (!room) return;
-      if (room.files.some((f) => f.name === file.name)) return; // avoid duplicates
-      room.files.push({ name: file.name, content: file.content || "", language: file.language || "javascript" });
-      room.lastActiveAt = new Date();
-      await room.save();
-      socket.to(roomId).emit("file-created", { file });
-    });
+      if (options.allowedRoles) {
+        const userRole = socket.data.role;
+        if (!options.allowedRoles.includes(userRole)) {
+          socket.emit("error-event", { error: "Permission denied for this action" });
+          return;
+        }
+      }
 
-    socket.on("file-deleted", async ({ roomId, fileName }) => {
-      const room = await Room.findOne({ roomId });
-      if (!room) return;
-      room.files = room.files.filter((f) => f.name !== fileName);
-      await room.save();
-      socket.to(roomId).emit("file-deleted", { fileName });
-    });
+      await fn(payload);
+    } catch (err) {
+      logError("SOCKET_HANDLER_ERROR", err);
+      socket.emit("error-event", { error: err.message || "Internal socket error" });
+    }
+  };
+}
 
-    socket.on("file-renamed", async ({ roomId, oldName, newName }) => {
-      if (!newName) return;
-      const room = await Room.findOne({ roomId });
-      if (!room) return;
-      const file = room.files.find((f) => f.name === oldName);
-      if (!file) return;
-      file.name = newName;
-      await room.save();
-      socket.to(roomId).emit("file-renamed", { oldName, newName });
-    });
+export function registerSocketHandlers(io, redisClient = null) {
+  const presence = makePresenceStore(redisClient);
 
-    socket.on("execution-started", ({ roomId }) => socket.to(roomId).emit("execution-started"));
-    socket.on("execution-completed", ({ roomId, result }) =>
-      socket.to(roomId).emit("execution-completed", { result })
+  // Background sweeper every 30s to clean stale presence records for local rooms
+  const sweeper = setInterval(async () => {
+    try {
+      for (const roomId of localPresence.keys()) {
+        const participants = await presence.list(roomId);
+        io.to(roomId).emit("presence-update", { participants });
+      }
+    } catch (err) {
+      logError("PRESENCE_SWEEPER", err);
+    }
+  }, 30_000);
+  sweeper.unref();
+
+  // Handshake authentication middleware — accept valid user token or guest token only
+  io.use(async (socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) {
+      return next(new Error("AUTH_REQUIRED"));
+    }
+
+    // 1. Try regular access token
+    try {
+      const decoded = verifyToken(token);
+      const user = await User.findById(decoded.sub);
+      if (!user || user.status === "SUSPENDED") {
+        return next(new Error("TOKEN_EXPIRED"));
+      }
+      socket.data.identity = { username: user.username, userId: user._id.toString(), guestId: null };
+      return next();
+    } catch {
+      // 2. Try guest token
+      try {
+        const decodedGuest = verifyGuestToken(token);
+        socket.data.identity = {
+          username: decodedGuest.username,
+          userId: null,
+          guestId: decodedGuest.guestId,
+          guestRoomId: decodedGuest.roomId,
+        };
+        return next();
+      } catch {
+        return next(new Error("TOKEN_EXPIRED"));
+      }
+    }
+  });
+
+  io.on("connection", (socket) => {
+    socket.data.rateLimiter = makeRateLimiter();
+    const identity = socket.data.identity;
+
+    socket.on(
+      "join-room",
+      safeHandler(socket, joinRoomSchema, async ({ roomId }) => {
+        // If this is a guest token, ensure it was issued specifically for this room
+        if (identity.guestId && identity.guestRoomId !== roomId) {
+          socket.emit("error-event", { error: "Guest token was not issued for this room" });
+          return;
+        }
+
+        // Leave previous room if already joined somewhere else
+        if (socket.data.roomId && socket.data.roomId !== roomId) {
+          await handleLeave(socket, io, presence);
+        }
+
+        const room = await Room.findOne({ roomId });
+        if (!room) {
+          socket.emit("error-event", { error: "Room not found" });
+          return;
+        }
+
+        const userId = identity.userId;
+        const isOwner = userId && room.ownerId.toString() === userId;
+        const isMember = userId && room.members.some((m) => m.userId?.toString() === userId);
+
+        // Check banned list
+        if (
+          (userId && room.bannedUserIds?.some((id) => id.toString() === userId)) ||
+          room.bannedUsernames?.includes(identity.username)
+        ) {
+          socket.emit("error-event", { error: "You are banned from this room" });
+          return;
+        }
+
+        // Room lock check
+        if ((room.settings?.locked || room.settings?.lockedByAdmin) && !isOwner && !isMember) {
+          socket.emit("error-event", { error: "This room is locked" });
+          return;
+        }
+
+        // Access check for private rooms
+        if (room.visibility === "PRIVATE" && !isOwner && !isMember && !userId) {
+          socket.emit("error-event", { error: "You don't have access to this room" });
+          return;
+        }
+
+        // Resolve role using single source of truth helper
+        const role = resolveRole(room, identity.userId ? { userId: identity.userId } : { guestId: identity.guestId });
+
+        socket.join(roomId);
+        socket.data.roomId = roomId;
+        socket.data.role = role;
+
+        // Check if user already had connections before this join
+        const beforeList = await presence.list(roomId);
+        const wasAlreadyPresent = beforeList.some((p) =>
+          identity.userId ? p.userId === identity.userId : p.guestId === identity.guestId
+        );
+
+        await presence.set(roomId, socket.id, {
+          socketId: socket.id,
+          username: identity.username,
+          userId: identity.userId,
+          guestId: identity.guestId,
+          status: "ONLINE",
+          lastSeen: Date.now(),
+        });
+
+        const participants = await presence.list(roomId);
+        io.to(roomId).emit("presence-update", { participants });
+
+        // Only emit "joined the room" if this is their first connection
+        if (!wasAlreadyPresent) {
+          socket.to(roomId).emit("chat-message", {
+            system: true,
+            text: `${identity.username} joined the room`,
+            createdAt: new Date().toISOString(),
+          });
+        }
+
+        logEvent("ROOM_SOCKET_JOIN", { roomId, username: identity.username });
+      })
+    );
+
+    socket.on("leave-room", () => handleLeave(socket, io, presence));
+
+    socket.on(
+      "heartbeat",
+      safeHandler(
+        socket,
+        heartbeatSchema,
+        async ({ roomId }) => {
+          await presence.update(roomId, socket.id, {});
+        },
+        { requireInRoom: true, rateLimit: "heartbeat" }
+      )
+    );
+
+    socket.on(
+      "presence-idle",
+      safeHandler(
+        socket,
+        presenceIdleSchema,
+        async ({ roomId, status }) => {
+          await presence.update(roomId, socket.id, { status });
+          io.to(roomId).emit("presence-update", { participants: await presence.list(roomId) });
+        },
+        { requireInRoom: true }
+      )
+    );
+
+    socket.on(
+      "chat-message",
+      safeHandler(
+        socket,
+        chatMessageSchema,
+        async ({ roomId, text }) => {
+          const trimmed = text.trim();
+          if (!trimmed) return;
+
+          const room = await Room.findOne({ roomId });
+          if (!room) return;
+
+          if (!canChat(socket.data.role, room)) {
+            socket.emit("error-event", { error: "Chat is muted by the host" });
+            return;
+          }
+
+          const message = await Message.create({
+            roomId,
+            userId: identity.userId || undefined,
+            username: identity.username,
+            text: trimmed.slice(0, 2000),
+          });
+
+          io.to(roomId).emit("chat-message", {
+            _id: message._id,
+            username: message.username,
+            text: message.text,
+            createdAt: message.createdAt,
+          });
+        },
+        { requireInRoom: true, rateLimit: "chat" }
+      )
+    );
+
+    socket.on(
+      "permission-change",
+      safeHandler(
+        socket,
+        permissionChangeSchema,
+        async ({ roomId, targetUsername, role }) => {
+          if (socket.data.role !== "HOST") {
+            socket.emit("error-event", { error: "Only the room host can change permissions" });
+            return;
+          }
+
+          const room = await Room.findOne({ roomId });
+          if (!room) return;
+          const member = room.members.find((m) => m.username === targetUsername);
+          if (!member) return;
+          member.role = role;
+          await room.save();
+
+          io.to(roomId).emit("permission-change", { targetUsername, role });
+          logEvent("ROOM_PERMISSION_CHANGE", { roomId, targetUsername, role, changedBy: identity.username });
+        },
+        { requireInRoom: true }
+      )
+    );
+
+    socket.on(
+      "file-created",
+      safeHandler(
+        socket,
+        fileCreatedSchema,
+        async ({ roomId, file }) => {
+          const room = await Room.findOne({ roomId });
+          if (!room) return;
+          if (!canEdit(socket.data.role, room)) {
+            socket.emit("error-event", { error: "Permission denied for this action" });
+            return;
+          }
+          if (room.files.some((f) => f.name === file.name)) {
+            socket.emit("error-event", { error: "A file with this name already exists" });
+            return;
+          }
+          room.files.push({ name: file.name, content: file.content || "", language: file.language || "javascript" });
+          room.lastActiveAt = new Date();
+          await room.save();
+          socket.to(roomId).emit("file-created", { file });
+        },
+        { requireInRoom: true, rateLimit: "files" }
+      )
+    );
+
+    socket.on(
+      "file-deleted",
+      safeHandler(
+        socket,
+        fileDeletedSchema,
+        async ({ roomId, fileName }) => {
+          const room = await Room.findOne({ roomId });
+          if (!room) return;
+          if (!canEdit(socket.data.role, room)) {
+            socket.emit("error-event", { error: "Permission denied for this action" });
+            return;
+          }
+          if (room.files.length <= 1) {
+            socket.emit("error-event", { error: "A room must have at least one file" });
+            return;
+          }
+          room.files = room.files.filter((f) => f.name !== fileName);
+          await room.save();
+          socket.to(roomId).emit("file-deleted", { fileName });
+        },
+        { requireInRoom: true, rateLimit: "files" }
+      )
+    );
+
+    socket.on(
+      "file-renamed",
+      safeHandler(
+        socket,
+        fileRenamedSchema,
+        async ({ roomId, oldName, newName }) => {
+          const room = await Room.findOne({ roomId });
+          if (!room) return;
+          if (!canEdit(socket.data.role, room)) {
+            socket.emit("error-event", { error: "Permission denied for this action" });
+            return;
+          }
+          const file = room.files.find((f) => f.name === oldName);
+          if (!file) return;
+          if (room.files.some((f) => f.name === newName)) {
+            socket.emit("error-event", { error: "A file with this name already exists" });
+            return;
+          }
+          file.name = newName;
+          await room.save();
+          socket.to(roomId).emit("file-renamed", { oldName, newName });
+        },
+        { requireInRoom: true, rateLimit: "files" }
+      )
+    );
+
+    socket.on(
+      "file-language-change",
+      safeHandler(
+        socket,
+        fileLanguageSchema,
+        async ({ roomId, fileName, language }) => {
+          const room = await Room.findOne({ roomId });
+          if (!room) return;
+          if (!canEdit(socket.data.role, room)) {
+            socket.emit("error-event", { error: "Permission denied for this action" });
+            return;
+          }
+          const file = room.files.find((f) => f.name === fileName);
+          if (!file) return;
+          file.language = language;
+          await room.save();
+          io.to(roomId).emit("file-language-changed", { fileName, language });
+        },
+        { requireInRoom: true }
+      )
+    );
+
+    socket.on(
+      "execution-started",
+      safeHandler(
+        socket,
+        executionStartedSchema,
+        async ({ roomId }) => {
+          const room = await Room.findOne({ roomId });
+          if (!room || !canEdit(socket.data.role, room)) {
+            socket.emit("error-event", { error: "Permission denied for this action" });
+            return;
+          }
+          socket.to(roomId).emit("execution-started");
+        },
+        { requireInRoom: true }
+      )
     );
 
     socket.on("disconnect", () => handleLeave(socket, io, presence));
@@ -205,13 +565,26 @@ export function registerSocketHandlers(io, redisClient = null) {
 async function handleLeave(socket, io, presence) {
   const roomId = socket.data.roomId;
   if (!roomId) return;
+  const identity = socket.data.identity;
+  socket.data.roomId = null;
+  socket.data.role = null;
+
   await presence.remove(roomId, socket.id);
   const remaining = await presence.list(roomId);
   io.to(roomId).emit("presence-update", { participants: remaining });
-  socket.to(roomId).emit("chat-message", {
-    system: true,
-    text: `${socket.data.identity?.username || "Someone"} left the room`,
-    createdAt: new Date().toISOString(),
-  });
+
+  // Only emit "left the room" if identity has no other active tabs in the room
+  const stillInRoom = remaining.some((p) =>
+    identity?.userId ? p.userId === identity.userId : p.guestId === identity?.guestId
+  );
+
+  if (!stillInRoom && identity) {
+    socket.to(roomId).emit("chat-message", {
+      system: true,
+      text: `${identity.username} left the room`,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
   socket.leave(roomId);
 }

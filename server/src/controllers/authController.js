@@ -5,13 +5,7 @@ import { logEvent } from "../utils/logger.js";
 
 const isProd = () => process.env.NODE_ENV === "production";
 
-function setAuthCookies(res, accessToken, refreshToken) {
-  res.cookie("accessToken", accessToken, {
-    httpOnly: true,
-    secure: isProd(),
-    sameSite: isProd() ? "none" : "lax",
-    maxAge: 15 * 60 * 1000, // short-lived access token
-  });
+function setRefreshTokenCookie(res, refreshToken) {
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
     secure: isProd(),
@@ -25,9 +19,9 @@ export async function register(req, res, next) {
   try {
     const { user, token } = await registerUser(req.body);
     const refreshToken = await issueRefreshToken(user._id, req.headers["user-agent"] || "");
-    setAuthCookies(res, token, refreshToken);
+    setRefreshTokenCookie(res, refreshToken);
     logEvent("AUTH_REGISTER", { userId: user._id.toString() });
-    res.status(201).json({ user, token, refreshToken });
+    res.status(201).json({ user, token });
   } catch (err) {
     next(err);
   }
@@ -37,36 +31,40 @@ export async function login(req, res, next) {
   try {
     const { user, token } = await loginUser(req.body);
     const refreshToken = await issueRefreshToken(user._id, req.headers["user-agent"] || "");
-    setAuthCookies(res, token, refreshToken);
+    setRefreshTokenCookie(res, refreshToken);
     logEvent("AUTH_LOGIN", { userId: user._id.toString() });
-    res.json({ user, token, refreshToken });
+    res.json({ user, token });
   } catch (err) {
     next(err);
   }
 }
 
-// Exchanges a valid, non-revoked refresh token for a new short-lived access
-// token plus a rotated refresh token (rotation detects theft/replay).
+// Exchanges a valid, non-revoked refresh token cookie for a new short-lived
+// access token plus a rotated refresh token cookie.
 export async function refresh(req, res, next) {
   try {
-    const raw = req.cookies?.refreshToken || req.body?.refreshToken;
+    const raw = req.cookies?.refreshToken;
     if (!raw) return res.status(401).json({ error: "No refresh token provided" });
 
     const { newRawToken, userId } = await rotateRefreshToken(raw, req.headers["user-agent"] || "");
     const accessToken = signToken({ sub: userId });
 
-    setAuthCookies(res, accessToken, newRawToken);
-    res.json({ token: accessToken, refreshToken: newRawToken });
+    setRefreshTokenCookie(res, newRawToken);
+    res.json({ token: accessToken });
   } catch (err) {
     next(err);
   }
 }
 
 export async function logout(req, res) {
-  const raw = req.cookies?.refreshToken || req.body?.refreshToken;
+  const raw = req.cookies?.refreshToken;
   if (raw) await revokeRefreshToken(raw);
-  res.clearCookie("accessToken");
-  res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: isProd(),
+    sameSite: isProd() ? "none" : "lax",
+    path: "/api/auth/refresh",
+  });
   res.json({ success: true });
 }
 

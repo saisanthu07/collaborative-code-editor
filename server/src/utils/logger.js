@@ -1,6 +1,5 @@
-// Minimal structured logger. Deliberately never accepts raw request bodies
-// or credential-shaped fields — callers must pass only the fields they want
-// logged, never `password`, `passwordHash`, tokens, or API keys.
+import ActivityLog from "../models/ActivityLog.js";
+
 const REDACTED_KEYS = new Set([
   "password",
   "passwordHash",
@@ -22,12 +21,26 @@ function sanitize(meta = {}) {
 }
 
 export function logEvent(type, meta = {}) {
+  const sanitized = sanitize(meta);
   const entry = {
     type,
     time: new Date().toISOString(),
-    ...sanitize(meta),
+    ...sanitized,
   };
   console.log(`[event] ${JSON.stringify(entry)}`);
+
+  // Fire-and-forget persistence to ActivityLog (never throws)
+  try {
+    const { userId, roomId, ...rest } = sanitized;
+    ActivityLog.create({
+      type,
+      userId: userId || undefined,
+      roomId: roomId || undefined,
+      meta: rest,
+    }).catch(() => {});
+  } catch {
+    // Ignore error
+  }
 }
 
 export function logError(context, err) {

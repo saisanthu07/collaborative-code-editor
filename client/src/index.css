@@ -20,3 +20,28 @@ html, body, #root {
 ::-webkit-scrollbar-thumb:hover {
   background: #3b4048;
 }
+
+/* Remote cursor & selection styling for Yjs / y-monaco */
+.yRemoteSelection {
+  background-color: var(--remote-sel, rgba(59, 130, 246, 0.3));
+}
+
+.yRemoteSelectionHead {
+  position: absolute;
+  border-left: 2px solid var(--remote-color, #3b82f6);
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.yRemoteSelectionHead::after {
+  content: attr(data-name);
+  position: absolute;
+  top: -1.4em;
+  left: -2px;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--remote-color, #3b82f6);
+  color: #fff;
+  white-space: nowrap;
+}

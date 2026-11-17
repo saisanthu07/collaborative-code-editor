@@ -1,23 +1,36 @@
 import { io } from "socket.io-client";
 
-let socket = null;
+let socketInstance = null;
+let currentToken = null;
 
-// One shared Socket.IO connection for chat, presence, cursors and room
-// events (kept separate from the Yjs y-websocket connection, which handles
-// only document CRDT sync).
-export function getSocket(token, guestName) {
-  if (socket) return socket;
+export function getSocket(token) {
   const url = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
-  socket = io(url, {
+
+  if (socketInstance) {
+    if (token && token !== currentToken) {
+      currentToken = token;
+      socketInstance.auth = { token };
+    }
+    return socketInstance;
+  }
+
+  currentToken = token;
+  socketInstance = io(url, {
     withCredentials: true,
-    auth: { token, guestName },
+    auth: { token },
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
   });
-  return socket;
+
+  return socketInstance;
 }
 
 export function disconnectSocket() {
-  if (socket) {
-    socket.disconnect();
-    socket = null;
+  if (socketInstance) {
+    socketInstance.disconnect();
+    socketInstance = null;
+    currentToken = null;
   }
 }

@@ -2,8 +2,11 @@ import express from "express";
 import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import mongoose from "mongoose";
 import { generalLimiter } from "./middleware/rateLimiter.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { getRedisHealthStatus } from "./config/redis.js";
+import { isServerShuttingDown } from "./lifecycle.js";
 
 import authRoutes from "./routes/authRoutes.js";
 import roomRoutes from "./routes/roomRoutes.js";
@@ -11,6 +14,8 @@ import adminRoutes from "./routes/adminRoutes.js";
 
 export function createApp() {
   const app = express();
+
+  app.set("trust proxy", 1);
 
   app.use(helmet());
   app.use(
@@ -23,8 +28,25 @@ export function createApp() {
   app.use(cookieParser());
   app.use(generalLimiter);
 
+  // Cheap, unauthenticated health check endpoint
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", time: new Date().toISOString() });
+    const shuttingDown = isServerShuttingDown();
+    const dbStatus = mongoose.connection.readyState === 1 ? "up" : "down";
+    const redisStatus = getRedisHealthStatus();
+    const isHealthy = !shuttingDown && dbStatus === "up";
+
+    const payload = {
+      status: isHealthy ? "ok" : shuttingDown ? "shutting_down" : "degraded",
+      time: new Date().toISOString(),
+      db: dbStatus,
+      redis: redisStatus,
+      uptime: process.uptime(),
+    };
+
+    if (!isHealthy) {
+      return res.status(503).json(payload);
+    }
+    res.json(payload);
   });
 
   app.use("/api/auth", authRoutes);

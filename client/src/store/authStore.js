@@ -1,34 +1,27 @@
 import { create } from "zustand";
 
-const STORAGE_KEY = "collab-editor-auth";
-
-function loadInitial() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : { user: null, token: null, refreshToken: null };
-  } catch {
-    return { user: null, token: null, refreshToken: null };
-  }
-}
-
 export const useAuthStore = create((set) => ({
-  ...loadInitial(),
+  user: null,
+  token: null,
+  isInitialized: false,
 
-  setAuth: (user, token, refreshToken) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, token, refreshToken }));
-    set({ user, token, refreshToken });
+  setAuth: (user, token) => {
+    set({ user, token, isInitialized: true });
+  },
+
+  setToken: (token) => {
+    set({ token });
   },
 
   updateUser: (user) => {
-    set((state) => {
-      const next = { user, token: state.token, refreshToken: state.refreshToken };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    set({ user });
+  },
+
+  setInitialized: (isInitialized = true) => {
+    set({ isInitialized });
   },
 
   logout: () => {
-    localStorage.removeItem(STORAGE_KEY);
-    set({ user: null, token: null, refreshToken: null });
+    set({ user: null, token: null, isInitialized: true });
   },
 }));

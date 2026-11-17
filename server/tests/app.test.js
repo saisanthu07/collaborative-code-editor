@@ -1,9 +1,10 @@
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
 import http from "http";
+import mongoose from "mongoose";
 
 before(() => {
-  process.env.JWT_SECRET = "test-secret";
+  process.env.JWT_SECRET = "test-secret-for-app-tests-at-least-32-chars-long";
   process.env.CLIENT_URL = "http://localhost:5173";
 });
 
@@ -43,13 +44,30 @@ function request(server, method, path, body) {
 }
 
 describe("app routes (no DB required)", () => {
-  test("GET /api/health returns ok", async () => {
+  test("GET /api/health returns 503 when DB is down and 200 when DB is up", async () => {
     const app = createApp();
     const server = app.listen(0);
     try {
-      const res = await request(server, "GET", "/api/health");
-      assert.equal(res.status, 200);
-      assert.equal(res.body.status, "ok");
+      // 1. With DB down (readyState = 0)
+      const resDown = await request(server, "GET", "/api/health");
+      assert.equal(resDown.status, 503);
+      assert.equal(resDown.body.db, "down");
+      assert.equal(resDown.body.status, "degraded");
+
+      // 2. Mock DB up (readyState = 1)
+      const origReadyState = Object.getOwnPropertyDescriptor(mongoose.connection, "readyState");
+      Object.defineProperty(mongoose.connection, "readyState", { value: 1, configurable: true });
+
+      const resUp = await request(server, "GET", "/api/health");
+      assert.equal(resUp.status, 200);
+      assert.equal(resUp.body.status, "ok");
+      assert.equal(resUp.body.db, "up");
+
+      if (origReadyState) {
+        Object.defineProperty(mongoose.connection, "readyState", origReadyState);
+      } else {
+        delete mongoose.connection.readyState;
+      }
     } finally {
       server.close();
     }

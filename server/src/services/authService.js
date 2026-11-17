@@ -3,6 +3,7 @@ import User from "../models/User.js";
 import { signToken } from "../utils/jwt.js";
 
 const SALT_ROUNDS = 12;
+const DUMMY_HASH = "$2b$12$e80yqZepxX4.B31K2d9Zl.U89/d9rCqH7Yl3d1zNfRzU2y9q1jIje";
 
 export async function registerUser({ name, username, email, password }) {
   const existing = await User.findOne({ $or: [{ email }, { username }] });
@@ -22,13 +23,9 @@ export async function registerUser({ name, username, email, password }) {
 export async function loginUser({ email, password }) {
   const user = await User.findOne({ email });
   if (!user) {
+    await bcrypt.compare(password, DUMMY_HASH);
     const err = new Error("Invalid email or password");
     err.status = 401;
-    throw err;
-  }
-  if (user.status === "SUSPENDED") {
-    const err = new Error("This account has been suspended");
-    err.status = 403;
     throw err;
   }
 
@@ -36,6 +33,12 @@ export async function loginUser({ email, password }) {
   if (!valid) {
     const err = new Error("Invalid email or password");
     err.status = 401;
+    throw err;
+  }
+
+  if (user.status === "SUSPENDED") {
+    const err = new Error("This account has been suspended");
+    err.status = 403;
     throw err;
   }
 

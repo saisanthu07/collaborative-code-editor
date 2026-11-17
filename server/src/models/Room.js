@@ -6,6 +6,7 @@ const nanoid = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 10);
 const memberSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    guestId: { type: String, sparse: true, index: true },
     username: { type: String, required: true },
     role: {
       type: String,
@@ -40,9 +41,13 @@ const roomSchema = new mongoose.Schema(
     members: { type: [memberSchema], default: [] },
     settings: {
       allowGuestEdit: { type: Boolean, default: false },
+      defaultRole: { type: String, enum: ["EDITOR", "VIEWER"], default: "EDITOR" },
       locked: { type: Boolean, default: false },
+      lockedByAdmin: { type: Boolean, default: false },
       chatMuted: { type: Boolean, default: false },
     },
+    bannedUsernames: [{ type: String }],
+    bannedUserIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     starredBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     lastActiveAt: { type: Date, default: Date.now },
   },
@@ -50,5 +55,7 @@ const roomSchema = new mongoose.Schema(
 );
 
 roomSchema.index({ ownerId: 1, createdAt: -1 });
+roomSchema.index({ "members.userId": 1, lastActiveAt: -1 });
+roomSchema.index({ starredBy: 1, lastActiveAt: -1 });
 
 export default mongoose.model("Room", roomSchema);

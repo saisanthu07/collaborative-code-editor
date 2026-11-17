@@ -1,7 +1,7 @@
 import { Router } from "express";
 import * as roomController from "../controllers/roomController.js";
 import { authMiddleware, optionalAuthMiddleware } from "../middleware/authMiddleware.js";
-import { roomAccessMiddleware, requireRoomHost } from "../middleware/roomAccessMiddleware.js";
+import { roomAccessMiddleware, requireRoomHost, requireRole } from "../middleware/roomAccessMiddleware.js";
 import { validateRequest } from "../middleware/validateRequest.js";
 import { executeLimiter } from "../middleware/rateLimiter.js";
 import {
@@ -12,6 +12,7 @@ import {
   renameFileSchema,
   saveFileSchema,
   permissionChangeSchema,
+  getMessagesQuerySchema,
 } from "../validators/roomValidators.js";
 
 const router = Router();
@@ -31,25 +32,34 @@ router.patch(
 router.delete("/:roomId", authMiddleware, roomAccessMiddleware, requireRoomHost, roomController.remove);
 
 router.post("/:roomId/join", optionalAuthMiddleware, roomAccessMiddleware, roomController.join);
+router.post("/:roomId/leave", optionalAuthMiddleware, roomAccessMiddleware, roomController.leave);
 router.post("/:roomId/star", authMiddleware, roomAccessMiddleware, roomController.star);
 
-router.get("/:roomId/messages", optionalAuthMiddleware, roomAccessMiddleware, roomController.getMessages);
+router.get(
+  "/:roomId/messages",
+  optionalAuthMiddleware,
+  roomAccessMiddleware,
+  validateRequest(getMessagesQuerySchema, "query"),
+  roomController.getMessages
+);
 
 router.post(
   "/:roomId/execute",
   executeLimiter,
   optionalAuthMiddleware,
   roomAccessMiddleware,
+  requireRole("HOST", "EDITOR"),
   validateRequest(executeSchema),
   roomController.execute
 );
 
-// File management
+// File management (restricted to HOST and EDITOR)
 router.get("/:roomId/files", optionalAuthMiddleware, roomAccessMiddleware, roomController.listFiles);
 router.post(
   "/:roomId/files",
   optionalAuthMiddleware,
   roomAccessMiddleware,
+  requireRole("HOST", "EDITOR"),
   validateRequest(createFileSchema),
   roomController.createFile
 );
@@ -57,6 +67,7 @@ router.put(
   "/:roomId/files/:fileName",
   optionalAuthMiddleware,
   roomAccessMiddleware,
+  requireRole("HOST", "EDITOR"),
   validateRequest(saveFileSchema),
   roomController.saveFile
 );
@@ -64,10 +75,17 @@ router.patch(
   "/:roomId/files/:fileName",
   optionalAuthMiddleware,
   roomAccessMiddleware,
+  requireRole("HOST", "EDITOR"),
   validateRequest(renameFileSchema),
   roomController.renameFile
 );
-router.delete("/:roomId/files/:fileName", optionalAuthMiddleware, roomAccessMiddleware, roomController.deleteFile);
+router.delete(
+  "/:roomId/files/:fileName",
+  optionalAuthMiddleware,
+  roomAccessMiddleware,
+  requireRole("HOST", "EDITOR"),
+  roomController.deleteFile
+);
 
 // Host-only member/permission management
 router.patch(

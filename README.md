@@ -105,8 +105,10 @@ Key backend variables (`server/.env`):
 | Variable | Purpose |
 |---|---|
 | `MONGO_URI` | MongoDB connection string |
-| `JWT_SECRET` | Long random string for signing tokens |
+| `JWT_SECRET` | Long random string (>=32 chars) for signing access and guest tokens |
 | `CLIENT_URL` | Frontend origin, for CORS |
+| `GUEST_TOKEN_TTL_HOURS` | Guest session JWT lifespan in hours (default: 24) |
+| `MAX_GUESTS_PER_ROOM` | Maximum concurrent active guests allowed per room (default: 50) |
 | `JUDGE0_API_URL` / `JUDGE0_API_KEY` / `JUDGE0_API_HOST` | Judge0 execution API. Works with the free RapidAPI Judge0 CE instance, or point at a self-hosted Judge0 with no key set. |
 | `REDIS_URL` | Optional — only needed once you scale Socket.IO across multiple server instances |
 
@@ -122,21 +124,15 @@ use the provided connection string as `MONGO_URI`.
 
 ## 6. Judge0 setup
 
-Easiest path, and the one that works cleanly on Render without running
-your own sandbox infrastructure: sign up for the free
-[Judge0 CE on RapidAPI](https://rapidapi.com/judge0-official/api/judge0-ce),
-grab your API key, and set:
+By default, the project is pre-configured to use the **official free public Judge0 CE instance** (`https://ce.judge0.com`), which requires **no credit card and no API key**:
 
-```
-JUDGE0_API_URL=https://judge0-ce.p.rapidapi.com
-JUDGE0_API_KEY=<your key>
-JUDGE0_API_HOST=judge0-ce.p.rapidapi.com
+```env
+JUDGE0_API_URL=https://ce.judge0.com
+JUDGE0_API_KEY=
+JUDGE0_API_HOST=ce.judge0.com
 ```
 
-If you'd rather self-host Judge0, deploy it to its own service (it ships
-its own container setup in the Judge0 repo — that's Judge0's deployment,
-separate from this app) and point `JUDGE0_API_URL` at it with
-`JUDGE0_API_KEY` left blank.
+If you prefer using your own RapidAPI subscription or self-hosting Judge0 via Docker, you can update those three variables in `server/.env`.
 
 ## 7. Redis setup (for horizontal scaling)
 
@@ -218,6 +214,7 @@ production for real users.
 ## 10. API documentation (summary)
 
 ```
+GET    /api/health
 POST   /api/auth/register
 POST   /api/auth/login
 POST   /api/auth/logout
@@ -232,7 +229,7 @@ PATCH  /api/rooms/:roomId          (host only)
 DELETE /api/rooms/:roomId          (host only)
 POST   /api/rooms/:roomId/join
 POST   /api/rooms/:roomId/star
-GET    /api/rooms/:roomId/messages
+GET    /api/rooms/:roomId/messages (cursor pagination: ?limit=50&before=<id>)
 POST   /api/rooms/:roomId/execute
 
 GET    /api/rooms/:roomId/files
@@ -249,9 +246,11 @@ POST   /api/auth/refresh
 GET    /api/admin/stats
 GET    /api/admin/users
 PATCH  /api/admin/users/:userId/suspend
+PATCH  /api/admin/users/:userId/unsuspend
 DELETE /api/admin/users/:userId
 GET    /api/admin/rooms
 PATCH  /api/admin/rooms/:roomId/lock
+PATCH  /api/admin/rooms/:roomId/unlock
 DELETE /api/admin/rooms/:roomId
 GET    /api/admin/activity-logs
 ```
@@ -263,11 +262,13 @@ limiting (stricter on `/auth` and `/execute`).
 
 ```
 join-room, leave-room
-cursor-update, presence-update, presence-idle
+heartbeat, presence-update, presence-idle
 chat-message
 permission-change
-file-created, file-deleted, file-renamed
+file-created, file-deleted, file-renamed, file-language-change / file-language-changed
+room-locked
 execution-started, execution-completed
+error-event
 disconnect
 ```
 
@@ -324,10 +325,10 @@ cd server
 npm test
 ```
 
-Runs 29 tests via Node's built-in test runner (`node --test`) covering
-validators (auth, room, file-name path-traversal), JWT sign/verify,
-language/Judge0 config, and DB-independent Express routes (health check,
-404 handling, validation-before-DB, auth-required responses).
+Runs 70 tests via Node's built-in test runner (`node --test`) covering
+validators (auth, room, socket, admin), JWT sign/verify, guest auth tokens,
+role truth tables, presence de-duplication/cleanup, graceful shutdown,
+chat history pagination, and DB-independent Express routes.
 
 These are unit/lightweight-integration tests that don't require a running
 MongoDB. Testing the full request lifecycle (register → login → create

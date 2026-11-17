@@ -1,83 +1,318 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Play, Share2, Users, MessageSquare, Menu } from "lucide-react";
+import {
+  Play,
+  Share2,
+  Users,
+  MessageSquare,
+  Lock,
+  ShieldAlert,
+  ArrowLeft,
+  FileCode,
+  Terminal,
+  RefreshCw,
+  LogOut,
+  ChevronDown,
+  Layers,
+  XCircle,
+} from "lucide-react";
 import { api } from "../services/api.js";
-import { getSocket, disconnectSocket } from "../services/socket.js";
+import { disconnectSocket } from "../services/socket.js";
 import { useAuthStore } from "../store/authStore.js";
+import { useRoomSocket } from "../hooks/useRoomSocket.js";
 import CollabEditor from "../components/editor/CollabEditor.jsx";
 import OutputConsole from "../components/editor/OutputConsole.jsx";
 import ChatPanel from "../components/chat/ChatPanel.jsx";
 import ParticipantsPanel from "../components/room/ParticipantsPanel.jsx";
 import ShareModal from "../components/room/ShareModal.jsx";
+import EndRoomModal from "../components/room/EndRoomModal.jsx";
+import LeaveRoomModal from "../components/room/LeaveRoomModal.jsx";
+import PageLoading from "../components/common/PageLoading.jsx";
 import { LANGUAGES, monacoLangFor } from "../constants/languages.js";
 
 export default function Room() {
   const { roomId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user, token } = useAuthStore();
+
+  // Load flow states: "loading" | "ready" | "forbidden" | "notFound" | "locked" | "error"
+  const [loadState, setLoadState] = useState("loading");
+  const [errorMessage, setErrorMessage] = useState("");
+
   const [room, setRoom] = useState(null);
-  const [socket, setSocket] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [messages, setMessages] = useState([]);
-  const [activeFile, setActiveFile] = useState(null);
-  const [language, setLanguage] = useState("javascript");
-  const [sourceCode, setSourceCode] = useState("");
+  const [activeFileName, setActiveFileName] = useState("");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
+
+  // Desktop side panel: "participants" | "chat"
   const [rightTab, setRightTab] = useState("participants");
-  const [mobilePanel, setMobilePanel] = useState(null);
+  // Mobile active view: "editor" | "output" | "participants" | "chat"
+  const [mobileTab, setMobileTab] = useState("editor");
+  const [mobileTopBarExpanded, setMobileTopBarExpanded] = useState(false);
+
   const [showShare, setShowShare] = useState(false);
+  const [showEndModal, setShowEndModal] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [endingRoom, setEndingRoom] = useState(false);
+  const [leavingRoom, setLeavingRoom] = useState(false);
   const editorRef = useRef(null);
-  const username = user?.username;
 
-  // Load room + join, fetch chat history
-  useEffect(() => {
-    let mounted = true;
-    async function init() {
+  const [resolvedUsername, setResolvedUsername] = useState(user?.username || null);
+  const [guestToken, setGuestToken] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem(`collab_guest_${roomId}`);
+      return raw ? JSON.parse(raw)?.guestToken : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Load room + join session
+  const initRoom = useCallback(async () => {
+    setLoadState("loading");
+    setErrorMessage("");
+
+    try {
+      // 1. Join room (handles authenticated user or creates stable guest)
+      const joinRes = await api.post(`/rooms/${roomId}/join`);
+      const effectiveName = user?.username || joinRes.data.username;
+      setResolvedUsername(effectiveName);
+
+      if (joinRes.data.guestToken) {
+        setGuestToken(joinRes.data.guestToken);
+        try {
+          sessionStorage.setItem(
+            `collab_guest_${roomId}`,
+            JSON.stringify({
+              guestToken: joinRes.data.guestToken,
+              username: joinRes.data.username,
+              guestId: joinRes.data.guestId,
+            })
+          );
+        } catch {
+          // ignore storage quota errors
+        }
+      }
+
+      // 2. Fetch full room details
+      const { data } = await api.get(`/rooms/${roomId}`);
+      setRoom(data.room);
+
+      const files = data.room.files || [];
+      if (files.length > 0) {
+        setActiveFileName(files[0].name);
+      }
+
+      // 3. Fetch recent messages
       try {
-        await api.post(`/rooms/${roomId}/join`);
-        const { data } = await api.get(`/rooms/${roomId}`);
-        if (!mounted) return;
-        setRoom(data.room);
-        setActiveFile(data.room.files[0]?.name);
-        setLanguage(data.room.language);
+        const { data: msgData } = await api.get(`/rooms/${roomId}/messages?limit=50`);
+        setMessages(msgData.messages || []);
+      } catch {
+        // chat messages load error shouldn't block editor
+      }
 
-        const { data: msgData } = await api.get(`/rooms/${roomId}/messages`);
-        setMessages(msgData.messages);
-      } catch (err) {
-        toast.error(err.response?.data?.error || "Could not load room");
+      setLoadState("ready");
+    } catch (err) {
+      const status = err.response?.status;
+      const msg = err.response?.data?.error || "Could not load room";
+
+      if (status === 404) {
+        setLoadState("notFound");
+      } else if (status === 403) {
+        if (/locked/i.test(msg)) {
+          setLoadState("locked");
+        } else {
+          setLoadState("forbidden");
+        }
+      } else {
+        setLoadState("error");
+        setErrorMessage(msg);
       }
     }
-    init();
-    return () => {
-      mounted = false;
-    };
-  }, [roomId]);
-
-  // Socket.IO: presence, chat, room events
-  useEffect(() => {
-    const s = getSocket(token, username || `Guest-${Math.floor(1000 + Math.random() * 9000)}`);
-    setSocket(s);
-
-    s.emit("join-room", { roomId });
-
-    s.on("presence-update", ({ participants }) => setParticipants(participants));
-    s.on("chat-message", (msg) => setMessages((prev) => [...prev, msg]));
-
-    return () => {
-      s.emit("leave-room");
-      s.off("presence-update");
-      s.off("chat-message");
-    };
-  }, [roomId, token, username]);
+  }, [roomId, user?.username]);
 
   useEffect(() => {
-    return () => disconnectSocket();
+    initRoom();
+  }, [initRoom]);
+
+  // Clean up global socket when leaving room
+  useEffect(() => {
+    return () => {
+      disconnectSocket();
+    };
   }, []);
 
+  // Active file & language derivation
+  const activeFile = room?.files?.find((f) => f.name === activeFileName) || room?.files?.[0];
+  const activeLanguage = activeFile?.language || room?.language || "javascript";
+  const isHost = Boolean(
+    user &&
+      room &&
+      (room.ownerId?.toString() === user._id?.toString() || room.ownerId === user._id)
+  );
+
+  // Socket event callbacks
+  const handleParticipantsUpdate = useCallback((parts) => {
+    setParticipants(parts);
+  }, []);
+
+  const handleChatMessage = useCallback((msg) => {
+    setMessages((prev) => [...prev, msg]);
+  }, []);
+
+  const handleEditorReady = useCallback((editor) => {
+    editorRef.current = editor;
+  }, []);
+
+  const handleExecutionStarted = useCallback(() => {
+    setRunning(true);
+    setResult(null);
+  }, []);
+
+  const handleExecutionCompleted = useCallback((res) => {
+    setRunning(false);
+    setResult(res);
+  }, []);
+
+  const handlePermissionChange = useCallback(({ targetUsername, role }) => {
+    setRoom((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        members: prev.members.map((m) =>
+          m.username === targetUsername ? { ...m, role } : m
+        ),
+      };
+    });
+  }, []);
+
+  const handleFileCreated = useCallback((file) => {
+    setRoom((prev) => {
+      if (!prev) return prev;
+      if (prev.files.some((f) => f.name === file.name)) return prev;
+      return { ...prev, files: [...prev.files, file] };
+    });
+  }, []);
+
+  const handleFileDeleted = useCallback((fileName) => {
+    setRoom((prev) => {
+      if (!prev) return prev;
+      const remaining = prev.files.filter((f) => f.name !== fileName);
+      return { ...prev, files: remaining };
+    });
+    setActiveFileName((curr) => (curr === fileName ? room?.files?.[0]?.name || "" : curr));
+  }, [room?.files]);
+
+  const handleFileRenamed = useCallback(({ oldName, newName }) => {
+    setRoom((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        files: prev.files.map((f) => (f.name === oldName ? { ...f, name: newName } : f)),
+      };
+    });
+    setActiveFileName((curr) => (curr === oldName ? newName : curr));
+  }, []);
+
+  const handleFileLanguageChanged = useCallback(({ fileName, language }) => {
+    setRoom((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        files: prev.files.map((f) => (f.name === fileName ? { ...f, language } : f)),
+      };
+    });
+  }, []);
+
+  const handleRoomLocked = useCallback((locked) => {
+    setRoom((prev) => {
+      if (!prev) return prev;
+      return { ...prev, settings: { ...prev.settings, locked } };
+    });
+  }, []);
+
+  const handleRoomEnded = useCallback((msg) => {
+    setLoadState("ended");
+    setErrorMessage(msg || "The host has ended this collaborative session.");
+    try {
+      sessionStorage.removeItem(`collab_guest_${roomId}`);
+    } catch {
+      // ignore
+    }
+  }, [roomId]);
+
+  const handleErrorEvent = useCallback((err) => {
+    if (err?.error?.includes("banned") || err?.error?.includes("kicked")) {
+      setLoadState("error");
+      setErrorMessage(err.error);
+    }
+  }, []);
+
+  // Hook wires up all socket event listeners and handles reconnects
+  const socket = useRoomSocket({
+    roomId,
+    token,
+    guestToken,
+    resolvedUsername,
+    onParticipantsUpdate: handleParticipantsUpdate,
+    onChatMessage: handleChatMessage,
+    onExecutionStarted: handleExecutionStarted,
+    onExecutionCompleted: handleExecutionCompleted,
+    onPermissionChange: handlePermissionChange,
+    onFileCreated: handleFileCreated,
+    onFileDeleted: handleFileDeleted,
+    onFileRenamed: handleFileRenamed,
+    onFileLanguageChanged: handleFileLanguageChanged,
+    onRoomLocked: handleRoomLocked,
+    onRoomEnded: handleRoomEnded,
+    onErrorEvent: handleErrorEvent,
+  });
+
+  const handleEndRoom = useCallback(async () => {
+    setEndingRoom(true);
+    try {
+      await api.delete(`/rooms/${roomId}`);
+      socket?.emit("leave-room");
+      disconnectSocket();
+      toast.success("Room ended");
+      navigate("/dashboard");
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Could not end room");
+    } finally {
+      setEndingRoom(false);
+      setShowEndModal(false);
+    }
+  }, [roomId, socket, navigate]);
+
+  const handleLeaveRoom = useCallback(async () => {
+    setLeavingRoom(true);
+    try {
+      await api.post(`/rooms/${roomId}/leave`, { username: resolvedUsername });
+    } catch {
+      // non-fatal
+    } finally {
+      try {
+        sessionStorage.removeItem(`collab_guest_${roomId}`);
+      } catch {
+        // ignore
+      }
+      socket?.emit("leave-room");
+      disconnectSocket();
+      toast("You left the room", { icon: "👋" });
+      setLeavingRoom(false);
+      setShowLeaveModal(false);
+      navigate(user ? "/dashboard" : "/");
+    }
+  }, [roomId, resolvedUsername, socket, user, navigate]);
+
+  // Execute code
   const handleRun = useCallback(async () => {
-    const currentSourceCode = editorRef.current?.getValue() ?? sourceCode;
-    if (!currentSourceCode.trim()) {
+    const currentCode = editorRef.current?.getValue() || "";
+    if (!currentCode.trim()) {
       toast.error("Add some code before running");
       return;
     }
@@ -85,14 +320,17 @@ export default function Room() {
     setRunning(true);
     setResult(null);
     socket?.emit("execution-started", { roomId });
+
     try {
       const { data } = await api.post(`/rooms/${roomId}/execute`, {
-        language,
-        sourceCode: currentSourceCode,
+        language: activeLanguage,
+        sourceCode: currentCode,
         stdin: "",
       });
       setResult(data.result);
-      socket?.emit("execution-completed", { roomId, result: data.result });
+      if (window.innerWidth < 768) {
+        setMobileTab("output");
+      }
     } catch (err) {
       const message = err.response?.data?.error || "Execution failed";
       setResult({ status: "Error", stdout: "", stderr: message });
@@ -100,139 +338,529 @@ export default function Room() {
     } finally {
       setRunning(false);
     }
-  }, [roomId, language, sourceCode, socket]);
+  }, [roomId, activeLanguage, socket]);
 
-  function copyShareLink() {
-    navigator.clipboard.writeText(window.location.href);
-    toast.success("Room link copied");
+  // Update file language (Host and Editors only)
+  const handleLanguageChange = useCallback(
+    async (newLang) => {
+      if (!activeFile) return;
+
+      // Optimistically update local room files
+      setRoom((prev) => ({
+        ...prev,
+        files: prev.files.map((f) =>
+          f.name === activeFile.name ? { ...f, language: newLang } : f
+        ),
+      }));
+
+      // Broadcast via socket
+      socket?.emit("file-language-change", {
+        roomId,
+        fileName: activeFile.name,
+        language: newLang,
+      });
+
+      // Persist to server API
+      try {
+        await api.put(`/rooms/${roomId}/files/${encodeURIComponent(activeFile.name)}`, {
+          language: newLang,
+        });
+      } catch {
+        // Handled or caught by socket
+      }
+    },
+    [activeFile, roomId, socket]
+  );
+
+  // --- RENDER LOAD FLOW STATES ---
+
+  if (loadState === "loading") {
+    return <PageLoading message="Joining collaborative room..." />;
   }
 
-  if (!room) {
+  if (loadState === "notFound") {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center text-gray-400">
-        Loading room...
+      <div className="min-h-dvh bg-bg text-gray-100 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-surface border border-border rounded-xl p-8 text-center space-y-4 shadow-xl">
+          <div className="w-14 h-14 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/20">
+            <FileCode size={28} />
+          </div>
+          <h1 className="text-xl font-bold text-gray-100">Room Not Found</h1>
+          <p className="text-sm text-gray-400 leading-relaxed">
+            The room with ID <code className="text-accent bg-surface2 px-1.5 py-0.5 rounded font-mono">{roomId}</code> does not exist or may have been deleted by its host.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="inline-flex items-center gap-2 bg-accent hover:bg-blue-600 px-5 py-2.5 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <ArrowLeft size={16} />
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="h-screen flex flex-col bg-bg">
-      {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-surface">
-        <span className="font-medium truncate">{room.name}</span>
-        <select
-          value={language}
-          onChange={(e) => setLanguage(e.target.value)}
-          className="bg-surface2 border border-border rounded-md text-xs px-2 py-1"
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l.key} value={l.key}>
-              {l.label}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={handleRun}
-          disabled={running}
-          className="flex items-center gap-1 bg-accent2/20 text-accent2 border border-accent2/40 rounded-md px-3 py-1 text-xs font-medium hover:bg-accent2/30 disabled:opacity-50"
-        >
-          <Play size={14} /> {running ? "Running..." : "Run"}
-        </button>
-        <button
-          onClick={() => setShowShare(true)}
-          className="flex items-center gap-1 text-xs text-gray-400 hover:text-white ml-auto"
-        >
-          <Share2 size={14} /> Share
-        </button>
-        <div className="hidden md:flex items-center gap-3 text-xs text-gray-400">
-          <button
-            onClick={() => setRightTab("participants")}
-            className={`flex items-center gap-1 ${rightTab === "participants" ? "text-accent" : ""}`}
-          >
-            <Users size={14} /> {participants.length}
-          </button>
-          <button
-            onClick={() => setRightTab("chat")}
-            className={`flex items-center gap-1 ${rightTab === "chat" ? "text-accent" : ""}`}
-          >
-            <MessageSquare size={14} /> Chat
-          </button>
+  if (loadState === "forbidden") {
+    return (
+      <div className="min-h-dvh bg-bg text-gray-100 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-surface border border-border rounded-xl p-8 text-center space-y-4 shadow-xl">
+          <div className="w-14 h-14 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center mx-auto border border-blue-500/20">
+            <Lock size={28} />
+          </div>
+          <h1 className="text-xl font-bold text-gray-100">Private Room</h1>
+          <p className="text-sm text-gray-400 leading-relaxed">
+            This room is private. You must be an authorized member or log in to access it.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
+            {!user ? (
+              <Link
+                to="/login"
+                state={{ from: location }}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-accent hover:bg-blue-600 px-5 py-2.5 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                Log In to Join
+              </Link>
+            ) : null}
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-border hover:border-gray-500 px-5 py-2.5 rounded-md text-sm font-medium text-gray-300 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              Back to Dashboard
+            </button>
+          </div>
         </div>
-        <button
-          className="md:hidden text-gray-400"
-          onClick={() => setMobilePanel(mobilePanel ? null : "participants")}
-        >
-          <Menu size={18} />
-        </button>
       </div>
+    );
+  }
 
-      {/* Main layout */}
-      <div className="flex flex-1 min-h-0">
-        {/* Editor + output */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 min-h-0">
-            {activeFile && (
+  if (loadState === "locked") {
+    return (
+      <div className="min-h-dvh bg-bg text-gray-100 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-surface border border-border rounded-xl p-8 text-center space-y-4 shadow-xl">
+          <div className="w-14 h-14 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/20">
+            <Lock size={28} />
+          </div>
+          <h1 className="text-xl font-bold text-gray-100">Room is Locked</h1>
+          <p className="text-sm text-gray-400 leading-relaxed">
+            This room has been temporarily locked by its host. New members or guests cannot enter until the room is unlocked.
+          </p>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              onClick={initRoom}
+              className="inline-flex items-center gap-2 bg-surface2 hover:bg-border border border-border px-4 py-2 rounded-md text-sm font-medium transition-colors"
+            >
+              <RefreshCw size={15} />
+              Check Again
+            </button>
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="inline-flex items-center gap-2 bg-accent hover:bg-blue-600 px-4 py-2 rounded-md text-sm font-medium transition-colors"
+            >
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadState === "error") {
+    return (
+      <div className="min-h-dvh bg-bg text-gray-100 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-surface border border-border rounded-xl p-8 text-center space-y-4 shadow-xl">
+          <div className="w-14 h-14 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/20">
+            <ShieldAlert size={28} />
+          </div>
+          <h1 className="text-xl font-bold text-gray-100">Access Denied</h1>
+          <p className="text-sm text-gray-400 leading-relaxed">
+            {errorMessage || "You do not have permission to enter this room or were disconnected."}
+          </p>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              onClick={initRoom}
+              className="inline-flex items-center gap-2 bg-surface2 hover:bg-border border border-border px-4 py-2 rounded-md text-sm font-medium transition-colors"
+            >
+              <RefreshCw size={15} />
+              Retry
+            </button>
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="inline-flex items-center gap-2 bg-accent hover:bg-blue-600 px-4 py-2 rounded-md text-sm font-medium transition-colors"
+            >
+              Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadState === "ended") {
+    return (
+      <div className="min-h-dvh bg-bg text-gray-100 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-surface border border-border rounded-xl p-8 text-center space-y-4 shadow-xl">
+          <div className="w-14 h-14 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/20">
+            <XCircle size={28} />
+          </div>
+          <h1 className="text-xl font-bold text-gray-100">Session Ended</h1>
+          <p className="text-sm text-gray-400 leading-relaxed">
+            {errorMessage || "The host has ended this collaborative room session."}
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => navigate(user ? "/dashboard" : "/")}
+              className="inline-flex items-center gap-2 bg-accent hover:bg-blue-600 px-5 py-2.5 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <ArrowLeft size={16} />
+              {user ? "Back to Dashboard" : "Back to Home"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- READY STATE: FULL COLLABORATIVE ROOM ---
+
+  return (
+    <div className="h-dvh flex flex-col bg-bg text-gray-100 overflow-hidden">
+      {/* Top Navbar */}
+      <header className="px-3 sm:px-4 py-2 border-b border-border bg-surface shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          {/* Left: Dashboard link & Room title */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Link
+              to="/dashboard"
+              aria-label="Return to Dashboard"
+              className="p-1.5 text-gray-400 hover:text-white rounded hover:bg-surface2 transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <ArrowLeft size={18} />
+            </Link>
+            <div className="min-w-0">
+              <h1 className="font-semibold text-sm sm:text-base text-gray-100 truncate">
+                {room.name}
+              </h1>
+            </div>
+            {room.settings?.locked && (
+              <span className="flex items-center gap-1 text-[11px] bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full shrink-0">
+                <Lock size={11} /> Locked
+              </span>
+            )}
+          </div>
+
+          {/* Desktop & Tablet Controls */}
+          <div className="hidden sm:flex items-center gap-2.5">
+            {/* File & Language Selector */}
+            <div className="flex items-center gap-1.5 bg-surface2 border border-border rounded-md px-2 py-1 text-xs">
+              <FileCode size={14} className="text-accent" />
+              <span className="font-medium text-gray-300">{activeFileName || "main"}</span>
+              <span className="text-gray-500">•</span>
+              <label htmlFor="language-select" className="sr-only">
+                Programming Language
+              </label>
+              <select
+                id="language-select"
+                value={activeLanguage}
+                onChange={(e) => handleLanguageChange(e.target.value)}
+                className="bg-transparent text-gray-200 text-xs focus:outline-none cursor-pointer"
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.key} value={l.key} className="bg-surface text-gray-100">
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Run Button */}
+            <button
+              onClick={handleRun}
+              disabled={running}
+              aria-label="Run Code"
+              className="flex items-center gap-1.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-md px-3 py-1.5 text-xs font-semibold hover:bg-emerald-500/25 disabled:opacity-50 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            >
+              <Play size={13} fill="currentColor" />
+              <span>{running ? "Running..." : "Run"}</span>
+            </button>
+
+            {/* Share Button */}
+            <button
+              onClick={() => setShowShare(true)}
+              aria-label="Share Room"
+              className="flex items-center gap-1 text-xs text-gray-300 hover:text-white bg-surface2 border border-border rounded-md px-2.5 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <Share2 size={13} />
+              <span>Share</span>
+            </button>
+
+            {/* End Room (Host) or Leave Room (User/Guest) */}
+            {isHost ? (
+              <button
+                onClick={() => setShowEndModal(true)}
+                aria-label="End Room Session"
+                className="flex items-center gap-1.5 text-xs text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-md px-2.5 py-1.5 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500"
+              >
+                <XCircle size={13} />
+                <span>End Room</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowLeaveModal(true)}
+                aria-label="Leave Room"
+                className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-rose-300 bg-surface2 hover:bg-surface2/80 border border-border rounded-md px-2.5 py-1.5 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500"
+              >
+                <LogOut size={13} />
+                <span>Leave</span>
+              </button>
+            )}
+
+            {/* Panels Toggle */}
+            <div className="flex items-center border border-border rounded-md overflow-hidden bg-surface2">
+              <button
+                onClick={() => setRightTab("participants")}
+                aria-label={`View Participants (${participants.length})`}
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium transition-colors ${
+                  rightTab === "participants"
+                    ? "bg-accent text-white"
+                    : "text-gray-400 hover:text-gray-200"
+                }`}
+              >
+                <Users size={13} />
+                <span>{participants.length}</span>
+              </button>
+              <button
+                onClick={() => setRightTab("chat")}
+                aria-label={`View Chat (${messages.length} messages)`}
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium transition-colors ${
+                  rightTab === "chat"
+                    ? "bg-accent text-white"
+                    : "text-gray-400 hover:text-gray-200"
+                }`}
+              >
+                <MessageSquare size={13} />
+                <span>Chat</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile Quick Action Buttons */}
+          <div className="flex sm:hidden items-center gap-1.5">
+            <button
+              onClick={handleRun}
+              disabled={running}
+              aria-label="Run Code"
+              className="flex items-center gap-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded px-2.5 py-1 text-xs font-semibold"
+            >
+              <Play size={12} fill="currentColor" />
+              <span>Run</span>
+            </button>
+            <button
+              onClick={() => setShowShare(true)}
+              aria-label="Share Room"
+              className="p-1.5 text-gray-400 hover:text-white rounded hover:bg-surface2"
+            >
+              <Share2 size={16} />
+            </button>
+            {isHost ? (
+              <button
+                onClick={() => setShowEndModal(true)}
+                aria-label="End Room Session"
+                className="p-1.5 text-rose-400 hover:text-rose-300 rounded hover:bg-rose-500/10"
+              >
+                <XCircle size={16} />
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowLeaveModal(true)}
+                aria-label="Leave Room"
+                className="p-1.5 text-gray-400 hover:text-rose-400 rounded hover:bg-surface2"
+              >
+                <LogOut size={16} />
+              </button>
+            )}
+            <button
+              onClick={() => setMobileTopBarExpanded((prev) => !prev)}
+              aria-label="Toggle Room Options"
+              className="p-1.5 text-gray-400 hover:text-white rounded hover:bg-surface2"
+            >
+              <ChevronDown
+                size={16}
+                className={`transition-transform ${mobileTopBarExpanded ? "rotate-180" : ""}`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Collapsible Sub-Bar */}
+        {mobileTopBarExpanded && (
+          <div className="sm:hidden pt-2.5 pb-1 border-t border-border mt-2 flex items-center justify-between text-xs animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400">Language:</span>
+              <select
+                value={activeLanguage}
+                onChange={(e) => handleLanguageChange(e.target.value)}
+                className="bg-surface2 border border-border rounded px-2 py-1 text-gray-200 text-xs"
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.key} value={l.key}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="text-gray-400 text-[11px]">
+              User: <span className="text-accent font-medium">{resolvedUsername}</span>
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* Main Content Workspace */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        {/* Editor and Output Area */}
+        <div
+          className={`flex-1 flex flex-col min-w-0 ${
+            mobileTab !== "editor" && mobileTab !== "output" ? "hidden md:flex" : "flex"
+          }`}
+        >
+          {/* Editor Container */}
+          <div
+            className={`flex-1 min-h-0 ${
+              mobileTab === "output" ? "hidden md:block" : "block"
+            }`}
+          >
+            {activeFileName && (
               <CollabEditor
                 roomId={roomId}
-                fileName={activeFile}
-                language={monacoLangFor(language)}
-                username={username || "Guest"}
-                onConnectionChange={() => {}}
-                onSourceCodeChange={setSourceCode}
-                onEditorReady={(editor) => {
-                  editorRef.current = editor;
-                  setSourceCode(editor.getValue());
-                }}
+                fileName={activeFileName}
+                language={monacoLangFor(activeLanguage)}
+                username={resolvedUsername || "Guest"}
+                guestToken={guestToken}
+                onEditorReady={handleEditorReady}
               />
             )}
           </div>
-          <div className="h-40 border-t border-border">
+
+          {/* Output Console (Desktop lower panel / Mobile Output tab) */}
+          <div
+            className={`border-t border-border bg-[#0b0e14] ${
+              mobileTab === "output"
+                ? "flex-1 min-h-0"
+                : "hidden md:block h-44 shrink-0"
+            }`}
+          >
             <OutputConsole running={running} result={result} />
           </div>
         </div>
 
-        {/* Right sidebar (desktop) */}
-        <div className="hidden md:block w-72 border-l border-border bg-surface">
+        {/* Right Sidebar (Desktop) */}
+        <aside className="hidden md:block w-80 border-l border-border bg-surface shrink-0 h-full">
           {rightTab === "participants" ? (
             <ParticipantsPanel participants={participants} />
           ) : (
-            <ChatPanel socket={socket} roomId={roomId} messages={messages} setMessages={setMessages} />
+            <ChatPanel
+              socket={socket}
+              roomId={roomId}
+              messages={messages}
+              setMessages={setMessages}
+            />
           )}
-        </div>
+        </aside>
+
+        {/* Mobile View Panels for Participants and Chat */}
+        {mobileTab === "participants" && (
+          <div className="md:hidden flex-1 min-h-0 bg-surface">
+            <ParticipantsPanel participants={participants} />
+          </div>
+        )}
+        {mobileTab === "chat" && (
+          <div className="md:hidden flex-1 min-h-0 bg-surface">
+            <ChatPanel
+              socket={socket}
+              roomId={roomId}
+              messages={messages}
+              setMessages={setMessages}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Mobile bottom sheet */}
-      {mobilePanel && (
-        <div className="md:hidden fixed inset-0 bg-black/60 flex items-end z-50" onClick={() => setMobilePanel(null)}>
-          <div
-            className="bg-surface border-t border-border rounded-t-xl w-full h-[60vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex border-b border-border text-sm">
-              <button
-                className={`flex-1 py-2 ${mobilePanel === "participants" ? "text-accent" : "text-gray-400"}`}
-                onClick={() => setMobilePanel("participants")}
-              >
-                Participants
-              </button>
-              <button
-                className={`flex-1 py-2 ${mobilePanel === "chat" ? "text-accent" : "text-gray-400"}`}
-                onClick={() => setMobilePanel("chat")}
-              >
-                Chat
-              </button>
-            </div>
-            <div className="flex-1 min-h-0">
-              {mobilePanel === "participants" ? (
-                <ParticipantsPanel participants={participants} />
-              ) : (
-                <ChatPanel socket={socket} roomId={roomId} messages={messages} setMessages={setMessages} />
-              )}
-            </div>
+      {/* Mobile Bottom Tab Bar */}
+      <nav
+        aria-label="Mobile View Navigation"
+        className="md:hidden flex items-center justify-around border-t border-border bg-surface py-2 px-1 shrink-0 z-20"
+      >
+        <button
+          onClick={() => setMobileTab("editor")}
+          className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-colors ${
+            mobileTab === "editor" ? "text-accent font-semibold" : "text-gray-400"
+          }`}
+        >
+          <FileCode size={18} />
+          <span>Code</span>
+        </button>
+        <button
+          onClick={() => setMobileTab("output")}
+          className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-colors ${
+            mobileTab === "output" ? "text-accent font-semibold" : "text-gray-400"
+          }`}
+        >
+          <Terminal size={18} />
+          <span>Output</span>
+        </button>
+        <button
+          onClick={() => setMobileTab("participants")}
+          className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-colors ${
+            mobileTab === "participants" ? "text-accent font-semibold" : "text-gray-400"
+          }`}
+        >
+          <div className="relative">
+            <Users size={18} />
+            <span className="absolute -top-1 -right-2 text-[9px] bg-surface2 border border-border rounded-full px-1">
+              {participants.length}
+            </span>
           </div>
-        </div>
+          <span>Users</span>
+        </button>
+        <button
+          onClick={() => setMobileTab("chat")}
+          className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-colors ${
+            mobileTab === "chat" ? "text-accent font-semibold" : "text-gray-400"
+          }`}
+        >
+          <MessageSquare size={18} />
+          <span>Chat</span>
+        </button>
+      </nav>
+
+      {/* Share Modal Dialog */}
+      {showShare && (
+        <ShareModal
+          url={typeof window !== "undefined" ? window.location.href : ""}
+          onClose={() => setShowShare(false)}
+        />
       )}
-      {showShare && <ShareModal url={window.location.href} onClose={() => setShowShare(false)} />}
+
+      {/* Host End Room Confirmation Modal */}
+      {showEndModal && (
+        <EndRoomModal
+          onConfirm={handleEndRoom}
+          onClose={() => setShowEndModal(false)}
+          loading={endingRoom}
+        />
+      )}
+
+      {/* Participant Leave Room Confirmation Modal */}
+      {showLeaveModal && (
+        <LeaveRoomModal
+          onConfirm={handleLeaveRoom}
+          onClose={() => setShowLeaveModal(false)}
+          loading={leavingRoom}
+        />
+      )}
     </div>
   );
 }
