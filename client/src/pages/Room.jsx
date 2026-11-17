@@ -16,7 +16,9 @@ import {
   ChevronDown,
   Layers,
   XCircle,
+  Download,
 } from "lucide-react";
+import { downloadFilesAsZip } from "../utils/zip.js";
 import { api } from "../services/api.js";
 import { disconnectSocket } from "../services/socket.js";
 import { useAuthStore } from "../store/authStore.js";
@@ -33,6 +35,8 @@ import RenameFileModal from "../components/room/RenameFileModal.jsx";
 import DeleteFileModal from "../components/room/DeleteFileModal.jsx";
 import FileTabs from "../components/editor/FileTabs.jsx";
 import FileExplorer from "../components/editor/FileExplorer.jsx";
+import InterviewTimer from "../components/room/InterviewTimer.jsx";
+import VoiceRoom from "../components/room/VoiceRoom.jsx";
 import PageLoading from "../components/common/PageLoading.jsx";
 import { LANGUAGES, monacoLangFor } from "../constants/languages.js";
 
@@ -53,6 +57,13 @@ export default function Room() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
   const [stdin, setStdin] = useState("");
+
+  // Phase 4: Interview Test Cases
+  const [testCases, setTestCases] = useState([
+    { id: 1, input: "5\n1 2 3 4 5", expected: "15", actual: "", status: "idle" },
+    { id: 2, input: "3\n10 20 30", expected: "60", actual: "", status: "idle" },
+  ]);
+  const [runningTestCases, setRunningTestCases] = useState(false);
 
   // Multi-file tabs & File Explorer state
   const [fileExplorerOpen, setFileExplorerOpen] = useState(false);
@@ -164,15 +175,16 @@ export default function Room() {
   // Active file & language derivation
   const activeFile = room?.files?.find((f) => f.name === activeFileName) || room?.files?.[0];
   const activeLanguage = activeFile?.language || room?.language || "javascript";
-  const isHost = Boolean(
-    user &&
-      room &&
-      (room.ownerId?.toString() === user._id?.toString() || room.ownerId === user._id)
-  );
   const memberRecord = room?.members?.find(
     (m) =>
       (user?._id && m.userId?.toString() === user._id.toString()) ||
       m.username === resolvedUsername
+  );
+  const isHost = Boolean(
+    (user &&
+      room &&
+      (room.ownerId?.toString() === user._id?.toString() || room.ownerId === user._id)) ||
+      memberRecord?.role === "HOST"
   );
   const userRole = isHost
     ? "HOST"
@@ -469,6 +481,69 @@ export default function Room() {
     }
   }, [roomId, activeLanguage, stdin, socket]);
 
+  // Phase 4: Run all test cases sequentially
+  const handleRunTestCases = useCallback(async () => {
+    const currentCode = editorRef.current?.getValue() || "";
+    if (!currentCode.trim()) {
+      toast.error("Add some code before running test cases");
+      return;
+    }
+
+    setRunningTestCases(true);
+    toast("Running test cases...", { icon: "⏳" });
+
+    try {
+      const updated = [...testCases];
+      for (let i = 0; i < updated.length; i++) {
+        const tc = updated[i];
+        try {
+          const { data } = await api.post(`/rooms/${roomId}/execute`, {
+            language: activeLanguage,
+            sourceCode: currentCode,
+            stdin: tc.input || "",
+          });
+          const actualOutput = (data.result?.stdout || "").trim();
+          const expectedTrimmed = (tc.expected || "").trim();
+          const passed = actualOutput === expectedTrimmed;
+          updated[i] = {
+            ...tc,
+            actual: actualOutput,
+            status: passed ? "passed" : "failed",
+          };
+        } catch (err) {
+          updated[i] = {
+            ...tc,
+            actual: err.response?.data?.error || "Execution error",
+            status: "failed",
+          };
+        }
+      }
+      setTestCases(updated);
+      const allPassed = updated.every((c) => c.status === "passed");
+      if (allPassed) {
+        toast.success("All test cases passed! 🎉");
+      } else {
+        const passedNum = updated.filter((c) => c.status === "passed").length;
+        toast(`${passedNum}/${updated.length} test cases passed`, { icon: "⚠️" });
+      }
+    } finally {
+      setRunningTestCases(false);
+    }
+  }, [roomId, activeLanguage, testCases]);
+
+  // Phase 5: Download project as ZIP
+  const handleDownloadZip = useCallback(() => {
+    if (!room?.files || room.files.length === 0) return;
+    const currentCode = editorRef.current?.getValue();
+    const updatedFiles = room.files.map((f) =>
+      f.name === activeFileName && currentCode !== undefined
+        ? { ...f, content: currentCode }
+        : f
+    );
+    downloadFilesAsZip(updatedFiles, room.name || "project");
+    toast.success("Downloaded project ZIP", { icon: "📦" });
+  }, [room, activeFileName]);
+
   // Update file language (Host and Editors only)
   const handleLanguageChange = useCallback(
     async (newLang) => {
@@ -715,6 +790,10 @@ export default function Room() {
               <span>{running ? "Running..." : "Run"}</span>
             </button>
 
+            {/* Phase 4: Interview Timer & Voice Call */}
+            <InterviewTimer socket={socket} roomId={roomId} isHost={isHost} />
+            <VoiceRoom socket={socket} roomId={roomId} username={resolvedUsername} />
+
             {/* Share Button */}
             <button
               onClick={() => setShowShare(true)}
@@ -723,6 +802,17 @@ export default function Room() {
             >
               <Share2 size={13} />
               <span>Share</span>
+            </button>
+
+            {/* Phase 5: Export / Download ZIP Button */}
+            <button
+              onClick={handleDownloadZip}
+              title="Download project as ZIP"
+              aria-label="Download project as ZIP"
+              className="flex items-center gap-1 text-xs text-gray-300 hover:text-white bg-surface2 border border-border rounded-md px-2.5 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <Download size={13} />
+              <span className="hidden lg:inline">Export ZIP</span>
             </button>
 
             {/* End Room (Host) or Leave Room (User/Guest) */}
@@ -916,6 +1006,10 @@ export default function Room() {
               stdin={stdin}
               setStdin={setStdin}
               onClearOutput={() => setResult(null)}
+              testCases={testCases}
+              setTestCases={setTestCases}
+              onRunTestCases={handleRunTestCases}
+              runningTestCases={runningTestCases}
             />
           </div>
         </div>

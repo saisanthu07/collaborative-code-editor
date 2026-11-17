@@ -61,3 +61,29 @@ export const executionCompletedSchema = z.object({
   roomId: roomIdSchema,
   result: z.any().optional(),
 });
+
+// Phase 4: Interview Timer & WebRTC Voice Signaling Schemas
+export const timerSyncSchema = z.object({
+  roomId: roomIdSchema,
+  seconds: z.number().int().min(0).max(86400),
+  isRunning: z.boolean(),
+});
+
+export const voiceJoinSchema = z.object({
+  roomId: roomIdSchema,
+});
+
+export const voiceSignalSchema = z.object({
+  roomId: roomIdSchema,
+  targetSocketId: z.string().min(1),
+  signal: z.any(),
+});
+
+export const voiceMuteSchema = z.object({
+  roomId: roomIdSchema,
+  isMuted: z.boolean(),
+});
+
+export const voiceLeaveSchema = z.object({
+  roomId: roomIdSchema,
+});

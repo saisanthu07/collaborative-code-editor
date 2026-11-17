@@ -10,6 +10,7 @@ export function getSocket(token) {
     if (token && token !== currentToken) {
       currentToken = token;
       socketInstance.auth = { token };
+      socketInstance.disconnect().connect();
     }
     return socketInstance;
   }

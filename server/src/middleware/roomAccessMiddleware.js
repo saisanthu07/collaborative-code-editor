@@ -38,8 +38,8 @@ export async function roomAccessMiddleware(req, res, next) {
       }
     }
 
-    // Extract guestId if request has X-Guest-Token
-    let guestId = null;
+    // Extract guestId if request has X-Guest-Token or req.guest
+    let guestId = req.guest?.guestId || null;
     const guestHeader = req.headers["x-guest-token"];
     if (guestHeader) {
       try {

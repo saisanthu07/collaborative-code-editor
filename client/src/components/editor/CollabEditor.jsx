@@ -94,7 +94,9 @@ function CollabEditor({
     ydocRef.current = ydoc;
 
     const wsUrl = import.meta.env.VITE_YJS_URL || "ws://localhost:5000/yjs";
-    const currentToken = useAuthStore.getState().token || guestToken;
+    const authUser = useAuthStore.getState().user;
+    const authToken = useAuthStore.getState().token;
+    const currentToken = authUser && authToken ? authToken : (guestToken || authToken);
     const provider = new WebsocketProvider(wsUrl, `${roomId}:${fileName}`, ydoc, {
       params: currentToken ? { token: currentToken } : {},
     });
@@ -102,7 +104,7 @@ function CollabEditor({
 
     const unsubAuth = useAuthStore.subscribe((state) => {
       if (providerRef.current) {
-        const effective = state.token || guestToken;
+        const effective = state.user && state.token ? state.token : (guestToken || state.token);
         providerRef.current.params = effective ? { token: effective } : {};
       }
     });

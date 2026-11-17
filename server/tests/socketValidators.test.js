@@ -11,6 +11,9 @@ import {
   fileRenamedSchema,
   fileLanguageSchema,
   executionStartedSchema,
+  timerSyncSchema,
+  voiceSignalSchema,
+  voiceMuteSchema,
 } from "../src/validators/socketValidators.js";
 
 describe("socketValidators", () => {
@@ -62,5 +65,18 @@ describe("socketValidators", () => {
     assert.equal(fileLanguageSchema.safeParse({ roomId: validRoomId, fileName: "main.py", language: "python" }).success, true);
     assert.equal(fileLanguageSchema.safeParse({ roomId: validRoomId, fileName: "../main.py", language: "python" }).success, false);
     assert.equal(fileLanguageSchema.safeParse({ roomId: "invalid", fileName: "main.py", language: "python" }).success, false);
+  });
+
+  test("timerSyncSchema validates roomId, seconds, and isRunning", () => {
+    assert.equal(timerSyncSchema.safeParse({ roomId: validRoomId, seconds: 120, isRunning: true }).success, true);
+    assert.equal(timerSyncSchema.safeParse({ roomId: validRoomId, seconds: -1, isRunning: false }).success, false);
+    assert.equal(timerSyncSchema.safeParse({ roomId: "bad-id", seconds: 10, isRunning: true }).success, false);
+  });
+
+  test("voice signaling schemas validate payloads", () => {
+    assert.equal(voiceSignalSchema.safeParse({ roomId: validRoomId, targetSocketId: "sock-123", signal: { type: "offer" } }).success, true);
+    assert.equal(voiceSignalSchema.safeParse({ roomId: "bad-id", targetSocketId: "sock-123", signal: {} }).success, false);
+    assert.equal(voiceMuteSchema.safeParse({ roomId: validRoomId, isMuted: true }).success, true);
+    assert.equal(voiceMuteSchema.safeParse({ roomId: "bad-id", isMuted: true }).success, false);
   });
 });

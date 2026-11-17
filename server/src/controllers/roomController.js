@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import mongoose from "mongoose";
 import Room from "../models/Room.js";
 import Message from "../models/Message.js";
 import { createRoom, addMemberIfNeeded, generateGuestName } from "../services/roomService.js";
@@ -13,6 +14,75 @@ export async function create(req, res, next) {
     const room = await createRoom(req.user, req.body);
     logEvent("ROOM_CREATE", { userId: req.user._id.toString(), roomId: room.roomId });
     res.status(201).json({ room });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createInstant(req, res, next) {
+  try {
+    const language = req.body?.language || "javascript";
+    const user = req.user;
+
+    let room;
+    let guestToken = null;
+    let username = null;
+
+    if (user) {
+      room = await createRoom(user, {
+        name: `Instant Playground`,
+        description: `Collaborative session created on ${new Date().toLocaleDateString()}`,
+        language,
+        visibility: "PUBLIC",
+      });
+      username = user.username;
+    } else {
+      const guestId = crypto.randomBytes(8).toString("hex");
+      username = generateGuestName();
+      const mockOwnerId = new mongoose.Types.ObjectId();
+
+      const defaultCode =
+        language === "python"
+          ? `# Instant Collaborative Python Playground\ndef greet(name):\n    return f"Hello, {name}!"\n\nprint(greet("World"))\n`
+          : language === "cpp"
+          ? `// Instant Collaborative C++ Playground\n#include <iostream>\n\nint main() {\n    std::cout << "Hello from CodeTogether!" << std::endl;\n    return 0;\n}\n`
+          : `// Instant Collaborative JavaScript Playground\nfunction greet(name) {\n  return \`Hello, \${name}!\`;\n}\n\nconsole.log(greet("World"));\n`;
+
+      const initialFileName =
+        language === "python" ? "main.py" : language === "cpp" ? "main.cpp" : "index.js";
+
+      room = await Room.create({
+        name: `Instant Playground`,
+        description: `Temporary collaborative playground`,
+        language,
+        visibility: "PUBLIC",
+        ownerId: mockOwnerId,
+        files: [
+          {
+            name: initialFileName,
+            content: defaultCode,
+            language,
+          },
+        ],
+        members: [
+          {
+            guestId,
+            username,
+            role: "HOST",
+            isGuest: true,
+          },
+        ],
+        settings: {
+          allowGuestEdit: true,
+          defaultRole: "EDITOR",
+        },
+      });
+
+      guestToken = signGuestToken({ roomId: room.roomId, guestId, username });
+    }
+
+    logEvent("ROOM_INSTANT_CREATE", { roomId: room.roomId, username });
+    res.status(201).json({ room, guestToken, username });
   } catch (err) {
     next(err);
   }

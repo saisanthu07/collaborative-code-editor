@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { getSocket } from "../services/socket.js";
+import { useAuthStore } from "../store/authStore.js";
 
 export function useRoomSocket({
   roomId,
@@ -19,6 +20,11 @@ export function useRoomSocket({
   onRoomLocked,
   onRoomEnded,
   onErrorEvent,
+  onTimerSynced,
+  onUserJoinedVoice,
+  onVoiceSignal,
+  onUserVoiceMute,
+  onUserLeftVoice,
 }) {
   const [socket, setSocket] = useState(null);
   const callbacksRef = useRef({});
@@ -37,10 +43,16 @@ export function useRoomSocket({
     onRoomLocked,
     onRoomEnded,
     onErrorEvent,
+    onTimerSynced,
+    onUserJoinedVoice,
+    onVoiceSignal,
+    onUserVoiceMute,
+    onUserLeftVoice,
   };
 
   useEffect(() => {
-    const effectiveToken = token || guestToken;
+    const authUser = useAuthStore.getState().user;
+    const effectiveToken = (authUser && token) ? token : (guestToken || token);
     if (!effectiveToken || !resolvedUsername || !roomId) return;
 
     const s = getSocket(effectiveToken);
@@ -127,6 +139,18 @@ export function useRoomSocket({
 
     // Register all event listeners
     s.on("presence-update", handlePresence);
+    const handleTimerSynced = (data) => callbacksRef.current.onTimerSynced?.(data);
+    const handleUserJoinedVoice = (data) => callbacksRef.current.onUserJoinedVoice?.(data);
+    const handleVoiceSignal = (data) => callbacksRef.current.onVoiceSignal?.(data);
+    const handleUserVoiceMute = (data) => callbacksRef.current.onUserVoiceMute?.(data);
+    const handleUserLeftVoice = (data) => callbacksRef.current.onUserLeftVoice?.(data);
+
+    s.on("timer-synced", handleTimerSynced);
+    s.on("user-joined-voice", handleUserJoinedVoice);
+    s.on("voice-signal", handleVoiceSignal);
+    s.on("user-voice-mute", handleUserVoiceMute);
+    s.on("user-left-voice", handleUserLeftVoice);
+
     s.on("chat-message", handleChatMessage);
     s.on("execution-started", handleExecutionStarted);
     s.on("execution-completed", handleExecutionCompleted);
@@ -191,6 +215,11 @@ export function useRoomSocket({
       s.off("room-locked", handleRoomLocked);
       s.off("room-ended", handleRoomEnded);
       s.off("error-event", handleErrorEvent);
+      s.off("timer-synced", handleTimerSynced);
+      s.off("user-joined-voice", handleUserJoinedVoice);
+      s.off("voice-signal", handleVoiceSignal);
+      s.off("user-voice-mute", handleUserVoiceMute);
+      s.off("user-left-voice", handleUserLeftVoice);
 
       s.emit("leave-room");
     };

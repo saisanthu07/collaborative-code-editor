@@ -187,8 +187,21 @@ export function attachYjsWebsocketServer(httpServer, path = "/yjs") {
 
       try {
         const decoded = verifyToken(token);
-        user = await User.findById(decoded.sub);
-        if (!user || user.status === "SUSPENDED") {
+        if (decoded.typ === "guest" || decoded.guestId) {
+          if (decoded.roomId !== roomId) {
+            socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+          guest = decoded;
+        } else if (decoded.sub) {
+          user = await User.findById(decoded.sub);
+          if (!user || user.status === "SUSPENDED") {
+            socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+        } else {
           socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
           socket.destroy();
           return;
@@ -245,6 +258,8 @@ export function attachYjsWebsocketServer(httpServer, path = "/yjs") {
         ws.userRole = role;
         ws.user = user || { username: guest?.username };
         ws.roomId = roomId;
+        ws.fileName = fileName;
+        ws.docName = rawDocName;
         wss.emit("connection", ws, request);
       });
     } catch (err) {
@@ -295,7 +310,7 @@ export function attachYjsWebsocketServer(httpServer, path = "/yjs") {
       return origOn(event, listener);
     };
 
-    setupWSConnection(conn, req, { gc: true });
+    setupWSConnection(conn, req, { docName: conn.docName, gc: true });
   });
 
   console.log(`[yjs] Hardened collaborative editing relay attached at ${path}`);

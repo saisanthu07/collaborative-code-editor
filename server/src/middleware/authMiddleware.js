@@ -31,9 +31,10 @@ export async function authMiddleware(req, res, next) {
   }
 }
 
-// Attaches req.user if a valid token is present. If a token is supplied
-// but invalid/expired, returns 401 so client refresh interceptor fires.
-// Only a completely missing authorization header proceeds as guest.
+// Attaches req.user if a valid token is present. If a guest token is present,
+// attaches req.guest. If a token is supplied but invalid/expired, returns 401
+// so client refresh interceptor fires. A completely missing authorization header
+// proceeds as guest.
 export async function optionalAuthMiddleware(req, res, next) {
   const header = req.headers.authorization;
   if (!header) {
@@ -48,6 +49,10 @@ export async function optionalAuthMiddleware(req, res, next) {
   }
   try {
     const decoded = verifyToken(token);
+    if (decoded.typ === "guest" || decoded.guestId) {
+      req.guest = decoded;
+      return next();
+    }
     const user = await User.findById(decoded.sub);
     if (!user) {
       return res.status(401).json({ error: "User not found" });

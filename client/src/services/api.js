@@ -9,10 +9,11 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
-  if (token) {
+  const { user, token } = useAuthStore.getState();
+  if (user && token) {
     config.headers.Authorization = `Bearer ${token}`;
   } else {
+    delete config.headers.Authorization;
     // If not authenticated, attach X-Guest-Token if available for this room
     const match = config.url?.match(/\/rooms\/([a-z0-9]{10})/);
     if (match) {

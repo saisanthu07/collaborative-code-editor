@@ -17,6 +17,9 @@ import {
 
 const router = Router();
 
+// Phase 5: Instant 1-click Playground (unauthenticated visitors or users)
+router.post("/instant", optionalAuthMiddleware, roomController.createInstant);
+
 router.post("/", authMiddleware, validateRequest(createRoomSchema), roomController.create);
 router.get("/", authMiddleware, roomController.listMine);
 

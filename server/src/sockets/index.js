@@ -16,6 +16,11 @@ import {
   fileRenamedSchema,
   fileLanguageSchema,
   executionStartedSchema,
+  timerSyncSchema,
+  voiceJoinSchema,
+  voiceSignalSchema,
+  voiceMuteSchema,
+  voiceLeaveSchema,
 } from "../validators/socketValidators.js";
 
 const localPresence = new Map(); // roomId -> Map(socketId -> record)
@@ -244,17 +249,30 @@ export function registerSocketHandlers(io, redisClient = null) {
       return next(new Error("AUTH_REQUIRED"));
     }
 
-    // 1. Try regular access token
+    // Accept valid user token or guest token
     try {
       const decoded = verifyToken(token);
-      const user = await User.findById(decoded.sub);
-      if (!user || user.status === "SUSPENDED") {
-        return next(new Error("TOKEN_EXPIRED"));
+      if (decoded.typ === "guest" || decoded.guestId) {
+        socket.data.identity = {
+          username: decoded.username,
+          userId: null,
+          guestId: decoded.guestId,
+          guestRoomId: decoded.roomId,
+        };
+        return next();
       }
-      socket.data.identity = { username: user.username, userId: user._id.toString(), guestId: null };
-      return next();
+
+      if (decoded.sub) {
+        const user = await User.findById(decoded.sub);
+        if (!user || user.status === "SUSPENDED") {
+          return next(new Error("TOKEN_EXPIRED"));
+        }
+        socket.data.identity = { username: user.username, userId: user._id.toString(), guestId: null };
+        return next();
+      }
+
+      return next(new Error("TOKEN_EXPIRED"));
     } catch {
-      // 2. Try guest token
       try {
         const decodedGuest = verifyGuestToken(token);
         socket.data.identity = {
@@ -558,6 +576,84 @@ export function registerSocketHandlers(io, redisClient = null) {
       )
     );
 
+    // Interview Timer Sync
+    socket.on(
+      "timer-sync",
+      safeHandler(
+        socket,
+        timerSyncSchema,
+        async ({ roomId, seconds, isRunning }) => {
+          socket.to(roomId).emit("timer-synced", {
+            seconds,
+            isRunning,
+            updatedBy: socket.data.identity?.username || "Someone",
+          });
+        },
+        { requireInRoom: true }
+      )
+    );
+
+    // WebRTC Voice Mesh Signaling
+    socket.on(
+      "voice-join",
+      safeHandler(
+        socket,
+        voiceJoinSchema,
+        async ({ roomId }) => {
+          socket.to(roomId).emit("user-joined-voice", {
+            socketId: socket.id,
+            username: socket.data.identity?.username || "Guest",
+          });
+        },
+        { requireInRoom: true }
+      )
+    );
+
+    socket.on(
+      "voice-signal",
+      safeHandler(
+        socket,
+        voiceSignalSchema,
+        async ({ roomId, targetSocketId, signal }) => {
+          io.to(targetSocketId).emit("voice-signal", {
+            senderSocketId: socket.id,
+            signal,
+            username: socket.data.identity?.username || "Guest",
+          });
+        },
+        { requireInRoom: true }
+      )
+    );
+
+    socket.on(
+      "voice-mute",
+      safeHandler(
+        socket,
+        voiceMuteSchema,
+        async ({ roomId, isMuted }) => {
+          socket.to(roomId).emit("user-voice-mute", {
+            socketId: socket.id,
+            isMuted,
+          });
+        },
+        { requireInRoom: true }
+      )
+    );
+
+    socket.on(
+      "voice-leave",
+      safeHandler(
+        socket,
+        voiceLeaveSchema,
+        async ({ roomId }) => {
+          socket.to(roomId).emit("user-left-voice", {
+            socketId: socket.id,
+          });
+        },
+        { requireInRoom: true }
+      )
+    );
+
     socket.on("disconnect", () => handleLeave(socket, io, presence));
   });
 }
@@ -570,6 +666,7 @@ async function handleLeave(socket, io, presence) {
   socket.data.role = null;
 
   await presence.remove(roomId, socket.id);
+  io.to(roomId).emit("user-left-voice", { socketId: socket.id });
   const remaining = await presence.list(roomId);
   io.to(roomId).emit("presence-update", { participants: remaining });
 
