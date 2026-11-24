@@ -67,25 +67,52 @@ export function getFileBadge(filename = "") {
   switch (ext) {
     case "js":
     case "jsx":
-      return { text: "JS", color: "text-amber-400 bg-amber-400/10 border-amber-400/30" };
+      return {
+        text: "JS",
+        color: "text-amber-800 dark:text-amber-400 bg-amber-500/15 border-amber-500/30",
+      };
     case "ts":
     case "tsx":
-      return { text: "TS", color: "text-blue-400 bg-blue-400/10 border-blue-400/30" };
+      return {
+        text: "TS",
+        color: "text-blue-800 dark:text-blue-400 bg-blue-500/15 border-blue-500/30",
+      };
     case "py":
-      return { text: "PY", color: "text-yellow-400 bg-yellow-400/10 border-yellow-400/30" };
+      return {
+        text: "PY",
+        color: "text-emerald-800 dark:text-emerald-400 bg-emerald-500/15 border-emerald-500/30",
+      };
     case "java":
-      return { text: "JV", color: "text-orange-400 bg-orange-400/10 border-orange-400/30" };
+      return {
+        text: "JV",
+        color: "text-orange-800 dark:text-orange-400 bg-orange-500/15 border-orange-500/30",
+      };
     case "cpp":
     case "cc":
     case "c":
-      return { text: "C++", color: "text-sky-400 bg-sky-400/10 border-sky-400/30" };
+      return {
+        text: "C++",
+        color: "text-sky-800 dark:text-sky-400 bg-sky-500/15 border-sky-500/30",
+      };
     case "go":
-      return { text: "GO", color: "text-cyan-400 bg-cyan-400/10 border-cyan-400/30" };
+      return {
+        text: "GO",
+        color: "text-teal-800 dark:text-teal-400 bg-teal-500/15 border-teal-500/30",
+      };
     case "rs":
-      return { text: "RS", color: "text-rose-400 bg-rose-400/10 border-rose-400/30" };
+      return {
+        text: "RS",
+        color: "text-rose-800 dark:text-rose-400 bg-rose-500/15 border-rose-500/30",
+      };
     case "json":
-      return { text: "{}", color: "text-gray-300 bg-gray-400/10 border-gray-400/30" };
+      return {
+        text: "{}",
+        color: "text-stone-700 dark:text-stone-300 bg-stone-500/15 border-stone-500/30",
+      };
     default:
-      return { text: ext ? ext.slice(0, 3).toUpperCase() : "<>", color: "text-gray-400 bg-surface2 border-border" };
+      return {
+        text: ext ? ext.slice(0, 3).toUpperCase() : "<>",
+        color: "text-gray-700 dark:text-gray-300 bg-surface2 border-border",
+      };
   }
 }

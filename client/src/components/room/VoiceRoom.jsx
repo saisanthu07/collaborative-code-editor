@@ -214,17 +214,17 @@ function VoiceRoom({ socket, roomId, username }) {
         onClick={handleJoinVoice}
         title="Join Voice Chat"
         aria-label="Join Voice Chat"
-        className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white bg-surface2 border border-border rounded-md px-2.5 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+        className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-gray-100 bg-surface2 border border-border rounded-lg px-2.5 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent shadow-paper-sm"
       >
-        <PhoneCall size={13} className="text-emerald-400" />
+        <PhoneCall size={13} className="text-emerald-600 dark:text-emerald-400" />
         <span className="hidden sm:inline">Voice Call</span>
       </button>
     );
   }
 
   return (
-    <div className="flex items-center gap-1 bg-emerald-950/30 border border-emerald-500/40 rounded-md px-2 py-1 text-xs">
-      <div className="flex items-center gap-1.5 text-emerald-400 font-medium mr-1">
+    <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2 py-1 text-xs shadow-paper-sm">
+      <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium mr-1">
         <Radio size={13} className="animate-pulse" />
         <span className="hidden sm:inline">In Call</span>
         <span className="text-[10px] bg-emerald-500/20 px-1.5 rounded-full font-bold">
@@ -236,9 +236,9 @@ function VoiceRoom({ socket, roomId, username }) {
         type="button"
         onClick={handleToggleMute}
         title={isMuted ? "Unmute Mic" : "Mute Mic"}
-        className={`p-1 rounded transition-colors ${
+        className={`p-1 rounded-md transition-colors ${
           isMuted
-            ? "bg-rose-500/20 text-rose-400 hover:bg-rose-500/30"
+            ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 hover:bg-rose-500/30"
             : "bg-surface2 text-gray-200 hover:bg-surface2/80"
         }`}
         aria-label={isMuted ? "Unmute Microphone" : "Mute Microphone"}
@@ -250,7 +250,7 @@ function VoiceRoom({ socket, roomId, username }) {
         type="button"
         onClick={handleLeaveVoice}
         title="Disconnect from Voice"
-        className="p-1 rounded bg-rose-600/80 hover:bg-rose-600 text-white transition-colors ml-0.5"
+        className="p-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white transition-colors ml-0.5 shadow-paper-sm"
         aria-label="Leave Voice Call"
       >
         <PhoneOff size={13} />

@@ -38,6 +38,7 @@ import FileExplorer from "../components/editor/FileExplorer.jsx";
 import InterviewTimer from "../components/room/InterviewTimer.jsx";
 import VoiceRoom from "../components/room/VoiceRoom.jsx";
 import PageLoading from "../components/common/PageLoading.jsx";
+import ThemeToggle from "../components/common/ThemeToggle.jsx";
 import { LANGUAGES, monacoLangFor } from "../constants/languages.js";
 
 export default function Room() {
@@ -585,18 +586,18 @@ export default function Room() {
   if (loadState === "notFound") {
     return (
       <div className="min-h-dvh bg-bg text-gray-100 flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-surface border border-border rounded-xl p-8 text-center space-y-4 shadow-xl">
-          <div className="w-14 h-14 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/20">
+        <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-8 text-center space-y-4 shadow-paper-lg">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto border border-amber-500/25 shadow-paper-sm">
             <FileCode size={28} />
           </div>
-          <h1 className="text-xl font-bold text-gray-100">Room Not Found</h1>
-          <p className="text-sm text-gray-400 leading-relaxed">
-            The room with ID <code className="text-accent bg-surface2 px-1.5 py-0.5 rounded font-mono">{roomId}</code> does not exist or may have been deleted by its host.
+          <h1 className="text-xl font-bold font-serif text-gray-100">Room Not Found</h1>
+          <p className="text-sm text-gray-400 leading-relaxed font-sans">
+            The room with ID <code className="text-accent bg-surface2 px-1.5 py-0.5 rounded font-mono">{roomId}</code> does not exist or may have been archived by its host.
           </p>
           <div className="pt-2">
             <button
               onClick={() => navigate("/dashboard")}
-              className="inline-flex items-center gap-2 bg-accent hover:bg-blue-600 px-5 py-2.5 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+              className="inline-flex items-center gap-2 bg-accent hover:opacity-90 px-5 py-2.5 rounded-xl text-xs font-semibold text-white transition-all shadow-paper focus:outline-none focus:ring-2 focus:ring-accent active:scale-95"
             >
               <ArrowLeft size={16} />
               Back to Dashboard
@@ -610,27 +611,27 @@ export default function Room() {
   if (loadState === "forbidden") {
     return (
       <div className="min-h-dvh bg-bg text-gray-100 flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-surface border border-border rounded-xl p-8 text-center space-y-4 shadow-xl">
-          <div className="w-14 h-14 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center mx-auto border border-blue-500/20">
+        <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-8 text-center space-y-4 shadow-paper-lg">
+          <div className="w-14 h-14 rounded-2xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto border border-blue-500/25 shadow-paper-sm">
             <Lock size={28} />
           </div>
-          <h1 className="text-xl font-bold text-gray-100">Private Room</h1>
-          <p className="text-sm text-gray-400 leading-relaxed">
-            This room is private. You must be an authorized member or log in to access it.
+          <h1 className="text-xl font-bold font-serif text-gray-100">Private Room</h1>
+          <p className="text-sm text-gray-400 leading-relaxed font-sans">
+            This room is private. You must be an authorized scribe or log in to access it.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
             {!user ? (
               <Link
                 to="/login"
                 state={{ from: location }}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-accent hover:bg-blue-600 px-5 py-2.5 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-accent hover:opacity-90 px-5 py-2.5 rounded-xl text-xs font-semibold text-white transition-all shadow-paper focus:outline-none focus:ring-2 focus:ring-accent active:scale-95"
               >
                 Log In to Join
               </Link>
             ) : null}
             <button
               onClick={() => navigate("/dashboard")}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-border hover:border-gray-500 px-5 py-2.5 rounded-md text-sm font-medium text-gray-300 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-border bg-surface2 hover:bg-border/60 px-5 py-2.5 rounded-xl text-xs font-medium text-gray-200 hover:text-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
             >
               Back to Dashboard
             </button>
@@ -643,25 +644,25 @@ export default function Room() {
   if (loadState === "locked") {
     return (
       <div className="min-h-dvh bg-bg text-gray-100 flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-surface border border-border rounded-xl p-8 text-center space-y-4 shadow-xl">
-          <div className="w-14 h-14 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/20">
+        <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-8 text-center space-y-4 shadow-paper-lg">
+          <div className="w-14 h-14 rounded-2xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto border border-rose-500/25 shadow-paper-sm">
             <Lock size={28} />
           </div>
-          <h1 className="text-xl font-bold text-gray-100">Room is Locked</h1>
-          <p className="text-sm text-gray-400 leading-relaxed">
+          <h1 className="text-xl font-bold font-serif text-gray-100">Room is Locked</h1>
+          <p className="text-sm text-gray-400 leading-relaxed font-sans">
             This room has been temporarily locked by its host. New members or guests cannot enter until the room is unlocked.
           </p>
           <div className="flex items-center justify-center gap-3 pt-2">
             <button
               onClick={initRoom}
-              className="inline-flex items-center gap-2 bg-surface2 hover:bg-border border border-border px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 bg-surface2 hover:bg-border border border-border px-4 py-2.5 rounded-xl text-xs font-semibold transition-colors shadow-paper-sm"
             >
               <RefreshCw size={15} />
               Check Again
             </button>
             <button
               onClick={() => navigate("/dashboard")}
-              className="inline-flex items-center gap-2 bg-accent hover:bg-blue-600 px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 bg-accent hover:opacity-90 px-4 py-2.5 rounded-xl text-xs font-semibold text-white transition-all shadow-paper-sm active:scale-95"
             >
               Back to Dashboard
             </button>
@@ -674,25 +675,25 @@ export default function Room() {
   if (loadState === "error") {
     return (
       <div className="min-h-dvh bg-bg text-gray-100 flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-surface border border-border rounded-xl p-8 text-center space-y-4 shadow-xl">
-          <div className="w-14 h-14 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/20">
+        <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-8 text-center space-y-4 shadow-paper-lg">
+          <div className="w-14 h-14 rounded-2xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto border border-rose-500/25 shadow-paper-sm">
             <ShieldAlert size={28} />
           </div>
-          <h1 className="text-xl font-bold text-gray-100">Access Denied</h1>
-          <p className="text-sm text-gray-400 leading-relaxed">
+          <h1 className="text-xl font-bold font-serif text-gray-100">Access Denied</h1>
+          <p className="text-sm text-gray-400 leading-relaxed font-sans">
             {errorMessage || "You do not have permission to enter this room or were disconnected."}
           </p>
           <div className="flex items-center justify-center gap-3 pt-2">
             <button
               onClick={initRoom}
-              className="inline-flex items-center gap-2 bg-surface2 hover:bg-border border border-border px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 bg-surface2 hover:bg-border border border-border px-4 py-2.5 rounded-xl text-xs font-semibold transition-colors shadow-paper-sm"
             >
               <RefreshCw size={15} />
               Retry
             </button>
             <button
               onClick={() => navigate("/dashboard")}
-              className="inline-flex items-center gap-2 bg-accent hover:bg-blue-600 px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 bg-accent hover:opacity-90 px-4 py-2.5 rounded-xl text-xs font-semibold text-white transition-all shadow-paper-sm active:scale-95"
             >
               Dashboard
             </button>
@@ -705,18 +706,18 @@ export default function Room() {
   if (loadState === "ended") {
     return (
       <div className="min-h-dvh bg-bg text-gray-100 flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-surface border border-border rounded-xl p-8 text-center space-y-4 shadow-xl">
-          <div className="w-14 h-14 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/20">
+        <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-8 text-center space-y-4 shadow-paper-lg">
+          <div className="w-14 h-14 rounded-2xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto border border-rose-500/25 shadow-paper-sm">
             <XCircle size={28} />
           </div>
-          <h1 className="text-xl font-bold text-gray-100">Session Ended</h1>
-          <p className="text-sm text-gray-400 leading-relaxed">
+          <h1 className="text-xl font-bold font-serif text-gray-100">Session Ended</h1>
+          <p className="text-sm text-gray-400 leading-relaxed font-sans">
             {errorMessage || "The host has ended this collaborative room session."}
           </p>
           <div className="pt-2">
             <button
               onClick={() => navigate(user ? "/dashboard" : "/")}
-              className="inline-flex items-center gap-2 bg-accent hover:bg-blue-600 px-5 py-2.5 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+              className="inline-flex items-center gap-2 bg-accent hover:opacity-90 px-5 py-2.5 rounded-xl text-xs font-semibold text-white transition-all shadow-paper focus:outline-none focus:ring-2 focus:ring-accent active:scale-95"
             >
               <ArrowLeft size={16} />
               {user ? "Back to Dashboard" : "Back to Home"}
@@ -732,24 +733,24 @@ export default function Room() {
   return (
     <div className="h-dvh flex flex-col bg-bg text-gray-100 overflow-hidden">
       {/* Top Navbar */}
-      <header className="px-3 sm:px-4 py-2 border-b border-border bg-surface shrink-0">
+      <header className="px-3 sm:px-4 py-2 border-b border-border bg-surface/90 backdrop-blur-md shrink-0 shadow-paper-sm z-30">
         <div className="flex items-center justify-between gap-2">
           {/* Left: Dashboard link & Room title */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link
               to="/dashboard"
               aria-label="Return to Dashboard"
-              className="p-1.5 text-gray-400 hover:text-white rounded hover:bg-surface2 transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+              className="p-1.5 text-gray-400 hover:text-gray-100 rounded-lg hover:bg-surface2 transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
             >
               <ArrowLeft size={18} />
             </Link>
             <div className="min-w-0">
-              <h1 className="font-semibold text-sm sm:text-base text-gray-100 truncate">
+              <h1 className="font-bold text-sm sm:text-base font-serif text-gray-100 truncate">
                 {room.name}
               </h1>
             </div>
             {room.settings?.locked && (
-              <span className="flex items-center gap-1 text-[11px] bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full shrink-0">
+              <span className="flex items-center gap-1 text-[11px] bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-full shrink-0 font-medium font-mono">
                 <Lock size={11} /> Locked
               </span>
             )}
@@ -758,10 +759,10 @@ export default function Room() {
           {/* Desktop & Tablet Controls */}
           <div className="hidden sm:flex items-center gap-2.5">
             {/* File & Language Selector */}
-            <div className="flex items-center gap-1.5 bg-surface2 border border-border rounded-md px-2 py-1 text-xs">
+            <div className="flex items-center gap-1.5 bg-surface2 border border-border rounded-lg px-2.5 py-1 text-xs shadow-paper-sm">
               <FileCode size={14} className="text-accent" />
-              <span className="font-medium text-gray-300">{activeFileName || "main"}</span>
-              <span className="text-gray-500">•</span>
+              <span className="font-semibold text-gray-200 font-mono text-[11px]">{activeFileName || "main"}</span>
+              <span className="text-gray-400">•</span>
               <label htmlFor="language-select" className="sr-only">
                 Programming Language
               </label>
@@ -769,7 +770,7 @@ export default function Room() {
                 id="language-select"
                 value={activeLanguage}
                 onChange={(e) => handleLanguageChange(e.target.value)}
-                className="bg-transparent text-gray-200 text-xs focus:outline-none cursor-pointer"
+                className="bg-transparent text-gray-300 hover:text-gray-100 text-xs focus:outline-none cursor-pointer font-sans"
               >
                 {LANGUAGES.map((l) => (
                   <option key={l.key} value={l.key} className="bg-surface text-gray-100">
@@ -784,7 +785,7 @@ export default function Room() {
               onClick={handleRun}
               disabled={running}
               aria-label="Run Code"
-              className="flex items-center gap-1.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-md px-3 py-1.5 text-xs font-semibold hover:bg-emerald-500/25 disabled:opacity-50 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              className="flex items-center gap-1.5 bg-accent hover:opacity-90 text-white rounded-lg px-3 py-1.5 text-xs font-semibold shadow-paper-sm disabled:opacity-50 transition-all focus:outline-none focus:ring-2 focus:ring-accent active:scale-95"
             >
               <Play size={13} fill="currentColor" />
               <span>{running ? "Running..." : "Run"}</span>
@@ -798,7 +799,7 @@ export default function Room() {
             <button
               onClick={() => setShowShare(true)}
               aria-label="Share Room"
-              className="flex items-center gap-1 text-xs text-gray-300 hover:text-white bg-surface2 border border-border rounded-md px-2.5 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+              className="flex items-center gap-1 text-xs text-gray-300 hover:text-gray-100 bg-surface2 border border-border rounded-lg px-2.5 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent shadow-paper-sm"
             >
               <Share2 size={13} />
               <span>Share</span>
@@ -809,18 +810,21 @@ export default function Room() {
               onClick={handleDownloadZip}
               title="Download project as ZIP"
               aria-label="Download project as ZIP"
-              className="flex items-center gap-1 text-xs text-gray-300 hover:text-white bg-surface2 border border-border rounded-md px-2.5 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+              className="flex items-center gap-1 text-xs text-gray-300 hover:text-gray-100 bg-surface2 border border-border rounded-lg px-2.5 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent shadow-paper-sm"
             >
               <Download size={13} />
               <span className="hidden lg:inline">Export ZIP</span>
             </button>
+
+            {/* Paper Theme Switcher */}
+            <ThemeToggle compact />
 
             {/* End Room (Host) or Leave Room (User/Guest) */}
             {isHost ? (
               <button
                 onClick={() => setShowEndModal(true)}
                 aria-label="End Room Session"
-                className="flex items-center gap-1.5 text-xs text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-md px-2.5 py-1.5 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500"
+                className="flex items-center gap-1.5 text-xs text-rose-700 dark:text-rose-400 hover:opacity-90 bg-rose-500/15 border border-rose-500/30 rounded-lg px-2.5 py-1.5 font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-paper-sm"
               >
                 <XCircle size={13} />
                 <span>End Room</span>
@@ -829,7 +833,7 @@ export default function Room() {
               <button
                 onClick={() => setShowLeaveModal(true)}
                 aria-label="Leave Room"
-                className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-rose-300 bg-surface2 hover:bg-surface2/80 border border-border rounded-md px-2.5 py-1.5 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500"
+                className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-rose-600 dark:hover:text-rose-400 bg-surface2 hover:bg-surface2/80 border border-border rounded-lg px-2.5 py-1.5 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-paper-sm"
               >
                 <LogOut size={13} />
                 <span>Leave</span>
@@ -837,14 +841,14 @@ export default function Room() {
             )}
 
             {/* Panels Toggle */}
-            <div className="flex items-center border border-border rounded-md overflow-hidden bg-surface2">
+            <div className="flex items-center border border-border rounded-lg overflow-hidden bg-surface2 shadow-paper-sm p-0.5">
               <button
                 onClick={() => setRightTab("participants")}
                 aria-label={`View Participants (${participants.length})`}
-                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md font-medium transition-all ${
                   rightTab === "participants"
-                    ? "bg-accent text-white"
-                    : "text-gray-400 hover:text-gray-200"
+                    ? "bg-accent text-white shadow-paper-sm font-semibold"
+                    : "text-gray-400 hover:text-gray-100"
                 }`}
               >
                 <Users size={13} />
@@ -853,10 +857,10 @@ export default function Room() {
               <button
                 onClick={() => setRightTab("chat")}
                 aria-label={`View Chat (${messages.length} messages)`}
-                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md font-medium transition-all ${
                   rightTab === "chat"
-                    ? "bg-accent text-white"
-                    : "text-gray-400 hover:text-gray-200"
+                    ? "bg-accent text-white shadow-paper-sm font-semibold"
+                    : "text-gray-400 hover:text-gray-100"
                 }`}
               >
                 <MessageSquare size={13} />
@@ -871,7 +875,7 @@ export default function Room() {
               onClick={handleRun}
               disabled={running}
               aria-label="Run Code"
-              className="flex items-center gap-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded px-2.5 py-1 text-xs font-semibold"
+              className="flex items-center gap-1 bg-accent text-white rounded-lg px-2.5 py-1 text-xs font-semibold shadow-paper-sm"
             >
               <Play size={12} fill="currentColor" />
               <span>Run</span>
@@ -879,7 +883,7 @@ export default function Room() {
             <button
               onClick={() => setShowShare(true)}
               aria-label="Share Room"
-              className="p-1.5 text-gray-400 hover:text-white rounded hover:bg-surface2"
+              className="p-1.5 text-gray-400 hover:text-gray-100 rounded-lg hover:bg-surface2"
             >
               <Share2 size={16} />
             </button>
@@ -887,7 +891,7 @@ export default function Room() {
               <button
                 onClick={() => setShowEndModal(true)}
                 aria-label="End Room Session"
-                className="p-1.5 text-rose-400 hover:text-rose-300 rounded hover:bg-rose-500/10"
+                className="p-1.5 text-rose-700 dark:text-rose-400 hover:opacity-90 rounded-lg hover:bg-rose-500/10"
               >
                 <XCircle size={16} />
               </button>
@@ -895,7 +899,7 @@ export default function Room() {
               <button
                 onClick={() => setShowLeaveModal(true)}
                 aria-label="Leave Room"
-                className="p-1.5 text-gray-400 hover:text-rose-400 rounded hover:bg-surface2"
+                className="p-1.5 text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-surface2"
               >
                 <LogOut size={16} />
               </button>
@@ -903,7 +907,7 @@ export default function Room() {
             <button
               onClick={() => setMobileTopBarExpanded((prev) => !prev)}
               aria-label="Toggle Room Options"
-              className="p-1.5 text-gray-400 hover:text-white rounded hover:bg-surface2"
+              className="p-1.5 text-gray-400 hover:text-gray-100 rounded-lg hover:bg-surface2"
             >
               <ChevronDown
                 size={16}
@@ -921,7 +925,7 @@ export default function Room() {
               <select
                 value={activeLanguage}
                 onChange={(e) => handleLanguageChange(e.target.value)}
-                className="bg-surface2 border border-border rounded px-2 py-1 text-gray-200 text-xs"
+                className="bg-surface2 border border-border rounded-lg px-2 py-1 text-gray-200 text-xs"
               >
                 {LANGUAGES.map((l) => (
                   <option key={l.key} value={l.key}>
@@ -930,8 +934,11 @@ export default function Room() {
                 ))}
               </select>
             </div>
-            <div className="text-gray-400 text-[11px]">
-              User: <span className="text-accent font-medium">{resolvedUsername}</span>
+            <div className="flex items-center gap-2">
+              <ThemeToggle compact />
+              <div className="text-gray-400 text-[11px]">
+                <span className="text-accent font-medium">{resolvedUsername}</span>
+              </div>
             </div>
           </div>
         )}
@@ -994,7 +1001,7 @@ export default function Room() {
 
           {/* Output Console with STDIN (Desktop lower panel / Mobile Output tab) */}
           <div
-            className={`border-t border-border bg-[#0b0e14] ${
+            className={`border-t border-border bg-paper-console ${
               mobileTab === "output"
                 ? "flex-1 min-h-0"
                 : "hidden md:block h-48 shrink-0"

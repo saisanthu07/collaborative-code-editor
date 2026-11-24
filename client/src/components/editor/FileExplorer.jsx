@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Plus, FileCode, Edit2, Trash2, FolderClosed } from "lucide-react";
+import { Plus, Edit2, Trash2, FolderClosed } from "lucide-react";
 import { getFileBadge } from "../../constants/languages.js";
 
 function FileExplorer({
@@ -13,16 +13,16 @@ function FileExplorer({
 }) {
   return (
     <div
-      className="w-56 bg-surface border-r border-border flex flex-col shrink-0 select-none h-full overflow-hidden"
+      className="w-56 bg-surface border-r border-border flex flex-col shrink-0 select-none h-full overflow-hidden shadow-paper-sm"
       role="region"
       aria-label="Files Explorer"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-surface2/40">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-300 uppercase tracking-wider font-sans">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-surface2/60">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider font-mono">
           <FolderClosed size={14} className="text-accent" />
           <span>Explorer</span>
-          <span className="text-[10px] bg-surface2 border border-border px-1.5 py-0.2 rounded-full font-normal text-gray-400">
+          <span className="text-[10px] bg-surface border border-border px-1.5 py-0.2 rounded-full font-mono text-gray-400">
             {files.length}
           </span>
         </div>
@@ -32,7 +32,7 @@ function FileExplorer({
             type="button"
             onClick={onNewFile}
             title="Create new file"
-            className="p-1 text-gray-400 hover:text-white hover:bg-surface2 rounded transition-colors"
+            className="p-1 text-gray-400 hover:text-gray-100 hover:bg-surface rounded-md transition-colors"
             aria-label="Create new file"
           >
             <Plus size={15} />
@@ -58,10 +58,10 @@ function FileExplorer({
                   onSelectFile(file.name);
                 }
               }}
-              className={`group flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-mono cursor-pointer transition-colors ${
+              className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-mono cursor-pointer transition-colors ${
                 isActive
-                  ? "bg-accent/15 text-accent font-semibold border border-accent/30"
-                  : "text-gray-300 hover:bg-surface2/70 hover:text-white"
+                  ? "bg-accent/15 text-accent font-semibold border border-accent/25 shadow-paper-sm"
+                  : "text-gray-300 hover:bg-surface2 hover:text-gray-100"
               }`}
             >
               <div className="flex items-center gap-2 min-w-0">
@@ -82,7 +82,7 @@ function FileExplorer({
                       e.stopPropagation();
                       onRenameFile(file.name);
                     }}
-                    className="p-1 hover:text-accent hover:bg-surface2 rounded transition-colors text-gray-400"
+                    className="p-1 hover:text-accent hover:bg-surface rounded transition-colors text-gray-400"
                     aria-label={`Rename ${file.name}`}
                   >
                     <Edit2 size={12} />
@@ -96,7 +96,7 @@ function FileExplorer({
                         e.stopPropagation();
                         onDeleteFile(file.name);
                       }}
-                      className="p-1 hover:text-rose-400 hover:bg-rose-500/20 rounded transition-colors text-gray-400"
+                      className="p-1 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/20 rounded transition-colors text-gray-400"
                       aria-label={`Delete ${file.name}`}
                     >
                       <Trash2 size={12} />

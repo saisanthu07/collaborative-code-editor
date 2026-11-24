@@ -6,6 +6,7 @@ import { WebsocketProvider } from "y-websocket";
 import { MonacoBinding } from "y-monaco";
 import { colorForUser } from "../../utils/color.js";
 import { useAuthStore } from "../../store/authStore.js";
+import { useThemeStore } from "../../store/themeStore.js";
 
 // Monaco instance and workers are configured in config/monaco.js
 
@@ -19,6 +20,8 @@ function CollabEditor({
   onEditorReady,
 }) {
   const [status, setStatus] = useState("connecting"); // connecting | connected | disconnected | reconnecting
+  const theme = useThemeStore((s) => s.theme);
+  const monacoTheme = theme === "dark" ? "paper-midnight-kraft" : "paper-parchment";
   const [isMdScreen, setIsMdScreen] = useState(
     typeof window !== "undefined" ? window.innerWidth >= 768 : true
   );
@@ -183,19 +186,19 @@ function CollabEditor({
   return (
     <div className="relative h-full w-full">
       <div
-        className={`absolute top-2 right-3 z-10 text-xs px-2.5 py-1 rounded-full border shadow-sm transition-colors ${
+        className={`absolute top-2 right-3 z-10 text-[11px] font-mono font-medium px-2.5 py-1 rounded-full border shadow-paper-sm transition-colors ${
           status === "connected"
-            ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
+            ? "border-emerald-500/30 text-emerald-800 dark:text-emerald-400 bg-emerald-500/15"
             : status === "connecting"
-            ? "border-amber-500/40 text-amber-400 bg-amber-500/10"
-            : "border-rose-500/40 text-rose-400 bg-rose-500/10"
+            ? "border-amber-500/30 text-amber-800 dark:text-amber-400 bg-amber-500/15"
+            : "border-rose-500/30 text-rose-800 dark:text-rose-400 bg-rose-500/15"
         }`}
       >
         ● {status === "connected" ? "Connected" : status === "connecting" ? "Connecting..." : "Reconnecting..."}
       </div>
       <Editor
         height="100%"
-        theme="vs-dark"
+        theme={monacoTheme}
         language={language}
         onMount={handleMount}
         options={{

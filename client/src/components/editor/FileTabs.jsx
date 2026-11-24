@@ -17,22 +17,22 @@ function FileTabs({
     <div
       role="tablist"
       aria-label="Open editor files"
-      className="flex items-center justify-between bg-surface border-b border-border px-2 select-none shrink-0 h-10 overflow-hidden"
+      className="flex items-center justify-between bg-surface border-b border-border px-2 select-none shrink-0 h-10 overflow-hidden shadow-paper-sm"
     >
-      <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
         {/* Toggle File Explorer button */}
         <button
           type="button"
           onClick={onToggleFileExplorer}
           title={fileExplorerOpen ? "Hide File Explorer" : "Show File Explorer"}
-          className={`p-1.5 rounded transition-colors mr-1 shrink-0 ${
+          className={`p-1.5 rounded-lg transition-colors mr-1 shrink-0 ${
             fileExplorerOpen
-              ? "bg-accent/20 text-accent border border-accent/30"
-              : "text-gray-400 hover:text-gray-200 hover:bg-surface2"
+              ? "bg-accent/15 text-accent border border-accent/25 shadow-paper-sm"
+              : "text-gray-400 hover:text-gray-100 hover:bg-surface2"
           }`}
           aria-label="Toggle File Explorer"
         >
-          {fileExplorerOpen ? <FolderTree size={15} /> : <Folder size={15} />}
+          {fileExplorerOpen ? <FolderTree size={14} /> : <Folder size={14} />}
         </button>
 
         {/* Tab Items */}
@@ -53,9 +53,9 @@ function FileTabs({
                   onSelectFile(file.name);
                 }
               }}
-              className={`group flex items-center gap-2 px-3 py-1 rounded-t-md text-xs font-medium cursor-pointer transition-colors shrink-0 border-t-2 ${
+              className={`group flex items-center gap-2 px-3 py-1.5 rounded-t-lg text-xs font-medium cursor-pointer transition-all shrink-0 border-t-2 ${
                 isActive
-                  ? "bg-[#1e1e1e] text-white border-accent shadow-sm"
+                  ? "bg-paper-editor text-gray-100 border-accent border-x border-border/80 shadow-paper-sm font-semibold -mb-[1px] z-10"
                   : "bg-surface text-gray-400 hover:text-gray-200 hover:bg-surface2/60 border-transparent"
               }`}
             >
@@ -75,7 +75,7 @@ function FileTabs({
                     e.stopPropagation();
                     onCloseFile(file.name);
                   }}
-                  className="opacity-0 group-hover:opacity-100 hover:bg-rose-500/20 hover:text-rose-400 text-gray-400 rounded p-0.5 transition-all"
+                  className="opacity-0 group-hover:opacity-100 hover:bg-rose-500/20 text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 rounded p-0.5 transition-all"
                   aria-label={`Close ${file.name}`}
                 >
                   <X size={12} />
@@ -91,7 +91,7 @@ function FileTabs({
             type="button"
             onClick={onNewFile}
             title="Create new file"
-            className="flex items-center gap-1 text-gray-400 hover:text-gray-100 hover:bg-surface2 px-2 py-1 rounded text-xs transition-colors shrink-0"
+            className="flex items-center gap-1 text-gray-400 hover:text-gray-100 hover:bg-surface2 p-1.5 rounded-lg text-xs transition-colors shrink-0"
             aria-label="Add new file"
           >
             <Plus size={14} />
@@ -99,21 +99,19 @@ function FileTabs({
         )}
       </div>
 
-      {/* Right Controls: Format Code */}
-      <div className="flex items-center gap-2 shrink-0 pl-2">
-        {onFormatDocument && (
-          <button
-            type="button"
-            onClick={onFormatDocument}
-            title="Format Code (Shift + Alt + F)"
-            className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-200 hover:bg-surface2 px-2 py-1 rounded border border-transparent hover:border-border transition-colors font-sans"
-            aria-label="Format Document"
-          >
-            <Wand2 size={13} className="text-accent" />
-            <span className="hidden sm:inline">Format</span>
-          </button>
-        )}
-      </div>
+      {/* Right controls: format document */}
+      {onFormatDocument && (
+        <button
+          type="button"
+          onClick={onFormatDocument}
+          title="Format Document (Prettify)"
+          className="flex items-center gap-1 text-[11px] font-mono text-gray-400 hover:text-gray-100 hover:bg-surface2 px-2 py-1 rounded-lg transition-colors shrink-0"
+          aria-label="Format Document"
+        >
+          <Wand2 size={13} className="text-accent" />
+          <span className="hidden sm:inline">Format</span>
+        </button>
+      )}
     </div>
   );
 }

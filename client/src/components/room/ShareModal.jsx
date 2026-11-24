@@ -1,14 +1,14 @@
-import { useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { X, Copy, Check } from "lucide-react";
+import { Copy, Check, X, Share2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { copyToClipboard } from "../../utils/clipboard.js";
-import { useState } from "react";
 
-export default function ShareModal({ url, onClose }) {
+export default function ShareModal({ url = "", onClose }) {
   const [copied, setCopied] = useState(false);
   const modalRef = useRef(null);
   const closeBtnRef = useRef(null);
+  const shareUrl = url || (typeof window !== "undefined" ? window.location.href : "");
 
   useEffect(() => {
     closeBtnRef.current?.focus();
@@ -42,7 +42,7 @@ export default function ShareModal({ url, onClose }) {
   }, [onClose]);
 
   async function handleCopy() {
-    const ok = await copyToClipboard(url);
+    const ok = await copyToClipboard(shareUrl);
     if (ok) {
       setCopied(true);
       toast.success("Room link copied to clipboard");
@@ -54,7 +54,7 @@ export default function ShareModal({ url, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4"
+      className="fixed inset-0 bg-stone-900/40 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={onClose}
       role="presentation"
     >
@@ -63,36 +63,44 @@ export default function ShareModal({ url, onClose }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="share-modal-title"
-        className="bg-surface border border-border rounded-xl p-6 w-full max-w-sm text-center shadow-2xl animate-in fade-in zoom-in-95 duration-150"
+        className="bg-surface border border-border rounded-2xl p-6 sm:p-7 w-full max-w-sm text-center shadow-paper-lg animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
-          <h2 id="share-modal-title" className="font-semibold text-gray-100 text-base">
-            Share Room
-          </h2>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/25 flex items-center justify-center text-accent">
+              <Share2 size={16} />
+            </div>
+            <h2 id="share-modal-title" className="font-semibold font-serif text-gray-100 text-base">
+              Share Session
+            </h2>
+          </div>
           <button
             ref={closeBtnRef}
             onClick={onClose}
             aria-label="Close share dialog"
-            className="text-gray-400 hover:text-white p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+            className="text-gray-400 hover:text-gray-100 hover:bg-surface2 p-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent transition-colors"
           >
             <X size={18} aria-hidden="true" />
           </button>
         </div>
-        <div className="bg-white p-3 rounded-lg inline-block mb-4 shadow-inner">
-          <QRCodeSVG value={url} size={180} />
+
+        <div className="bg-white p-3.5 rounded-2xl inline-block mb-4 shadow-paper border border-stone-200 dark:border-stone-700">
+          <QRCodeSVG value={shareUrl} size={180} fgColor="#191816" bgColor="#ffffff" />
         </div>
-        <p className="text-xs text-gray-400 mb-3">
+
+        <p className="text-xs text-gray-400 mb-3.5 leading-relaxed font-sans">
           Anyone with this link can join the collaborative session
         </p>
-        <div className="flex items-center gap-2 bg-surface2 border border-border rounded-md px-3 py-2 text-xs text-gray-300 break-all">
-          <span className="flex-1 text-left truncate">{url}</span>
+
+        <div className="flex items-center gap-2 bg-surface2 border border-border rounded-lg px-3 py-2 text-xs text-gray-300 break-all shadow-paper-sm">
+          <span className="flex-1 text-left truncate font-mono text-[11px]">{shareUrl}</span>
           <button
             onClick={handleCopy}
             aria-label="Copy room URL"
-            className="text-accent hover:text-blue-400 shrink-0 p-1 rounded focus:outline-none focus:ring-2 focus:ring-accent flex items-center gap-1 font-medium"
+            className="text-accent hover:opacity-80 shrink-0 p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-accent flex items-center gap-1 font-semibold text-xs active:scale-95"
           >
-            {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+            {copied ? <Check size={14} className="text-emerald-600 dark:text-emerald-400" /> : <Copy size={14} />}
             <span>{copied ? "Copied" : "Copy"}</span>
           </button>
         </div>

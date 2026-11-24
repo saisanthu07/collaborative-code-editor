@@ -2,33 +2,159 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root {
-  height: 100%;
+:root {
+  /* ======================================================== */
+  /* Option 1: Editorial Parchment (Light Paper Theme)         */
+  /* ======================================================== */
+  color-scheme: light;
+
+  /* Surfaces & Backgrounds */
+  --color-bg: 247 244 235;          /* #F7F4EB - Warm Ivory Vellum Canvas */
+  --color-surface: 255 255 255;      /* #FFFFFF - Crisp Cotton Paper Sheet */
+  --color-surface2: 240 234 222;     /* #F0EADE - Pressed Kraft Board */
+  --color-border: 221 213 199;       /* #DDD5C7 - Subtle Pencil Ruling Line */
+  --color-border-subtle: 236 230 219;/* Faint ruling */
+  --color-editor-bg: 250 247 240;    /* #FAF7F0 - Notebook Editor Background */
+  --color-console-bg: 243 237 226;   /* #F3EDE2 - Typewriter Ledger Paper */
+
+  /* Accents */
+  --color-accent: 194 84 45;         /* #C2542D - Terracotta Wax Seal */
+  --color-accent-hover: 168 69 34;   /* #A84522 */
+  --color-accent2: 60 110 71;        /* #3C6E47 - Forest Olive Sage Stamp */
+  --color-accent2-hover: 48 90 57;
+
+  /* Semantic Inks */
+  --color-ink: 34 28 22;             /* #221C16 - Walnut Fountain Pen Ink */
+  --color-ink-muted: 115 104 92;     /* #73685C - Graphite Gray */
+
+  /* Ambient Paper Shadow */
+  --shadow-color: rgba(34, 28, 22, 0.08);
+
+  /* Scrollbar */
+  --scrollbar-track: #f7f4eb;
+  --scrollbar-thumb: #d8cebe;
+  --scrollbar-thumb-hover: #c4b9a5;
+
+  /* Semantic Grays (Mapped for Light Paper so text-gray-100 is dark walnut ink) */
+  --gray-50: 255 255 255;
+  --gray-100: 34 28 22;              /* Primary Text (Walnut Ink) */
+  --gray-200: 58 48 40;              /* Secondary Heading */
+  --gray-300: 82 70 59;              /* Body Text */
+  --gray-400: 115 104 92;            /* Muted / Subtitle */
+  --gray-500: 154 143 130;           /* Faint / Placeholder */
+  --gray-600: 188 178 165;
+  --gray-700: 221 213 199;           /* Borders */
+  --gray-800: 239 233 220;           /* Active Surface */
+  --gray-900: 247 244 235;           /* Canvas */
+  --gray-950: 250 247 240;
 }
 
+.dark {
+  /* ======================================================== */
+  /* Option 2: Midnight Kraft (Dark Paper Theme)              */
+  /* ======================================================== */
+  color-scheme: dark;
+
+  /* Surfaces & Backgrounds */
+  --color-bg: 24 23 21;              /* #181715 - Matte Charcoal Paper */
+  --color-surface: 32 31 27;         /* #201F1B - Dark Cardstock */
+  --color-surface2: 42 40 34;        /* #2A2822 - Elevated Pressed Kraft */
+  --color-border: 56 54 48;          /* #383630 - Fiber Crease Seam */
+  --color-border-subtle: 46 44 39;
+  --color-editor-bg: 30 29 25;       /* #1E1D19 - Dark Kraft Editor */
+  --color-console-bg: 22 21 19;      /* #161513 - Charcoal Ledger */
+
+  /* Accents */
+  --color-accent: 224 131 56;        /* #E08338 - Amber Copper Seal */
+  --color-accent-hover: 199 110 40;  /* #C76E28 */
+  --color-accent2: 91 155 116;       /* #5B9B74 - Dried Patina Sage */
+  --color-accent2-hover: 75 133 98;
+
+  /* Semantic Inks */
+  --color-ink: 236 231 220;          /* #ECE7DC - Bone White Gel Ink */
+  --color-ink-muted: 150 144 130;    /* #969082 - Warm Ash / Dust */
+
+  /* Ambient Paper Shadow */
+  --shadow-color: rgba(0, 0, 0, 0.45);
+
+  /* Scrollbar */
+  --scrollbar-track: #181715;
+  --scrollbar-thumb: #3d3b33;
+  --scrollbar-thumb-hover: #4d4b41;
+
+  /* Semantic Grays (Mapped for Midnight Kraft dark paper) */
+  --gray-50: 24 23 21;
+  --gray-100: 236 231 220;           /* Primary Text (Bone White) */
+  --gray-200: 222 216 204;           /* Secondary Heading */
+  --gray-300: 196 190 178;           /* Body Text */
+  --gray-400: 150 144 130;           /* Muted Text */
+  --gray-500: 116 111 100;           /* Faint / Placeholder */
+  --gray-600: 82 78 70;
+  --gray-700: 56 54 48;              /* Borders */
+  --gray-800: 42 40 34;              /* Active Surface */
+  --gray-900: 32 31 27;              /* Surface */
+  --gray-950: 24 23 21;              /* Canvas */
+}
+
+html, body, #root {
+  height: 100%;
+  background-color: rgb(var(--color-bg));
+  color: rgb(var(--color-ink));
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Paper Grain Texture Overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.028;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+.dark body::before {
+  opacity: 0.04;
+}
+
+/* Paper Text Selection */
+::selection {
+  background-color: rgba(194, 84, 45, 0.22);
+  color: inherit;
+}
+
+.dark ::selection {
+  background-color: rgba(224, 131, 56, 0.28);
+  color: inherit;
+}
+
+/* Custom Paper Scrollbars */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #0d1117;
+  background: var(--scrollbar-track);
 }
 ::-webkit-scrollbar-thumb {
-  background: #30363d;
-  border-radius: 6px;
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3b4048;
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Remote cursor & selection styling for Yjs / y-monaco */
 .yRemoteSelection {
-  background-color: var(--remote-sel, rgba(59, 130, 246, 0.3));
+  background-color: var(--remote-sel, rgba(194, 84, 45, 0.25));
 }
 
 .yRemoteSelectionHead {
   position: absolute;
-  border-left: 2px solid var(--remote-color, #3b82f6);
+  border-left: 2px solid var(--remote-color, rgb(var(--color-accent)));
   height: 100%;
   box-sizing: border-box;
 }
@@ -40,8 +166,15 @@ html, body, #root {
   left: -2px;
   font-size: 11px;
   padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--remote-color, #3b82f6);
+  border-radius: 3px;
+  background: var(--remote-color, rgb(var(--color-accent)));
   color: #fff;
   white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+
+/* Notebook paper ruling pattern utility */
+.paper-ruled {
+  background-size: 100% 28px;
+  background-image: linear-gradient(to bottom, transparent 27px, rgb(var(--color-border) / 0.4) 28px);
 }

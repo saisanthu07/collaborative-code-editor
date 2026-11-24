@@ -2,16 +2,17 @@ import { useState, useEffect, useRef } from "react";
 import { Edit2, X } from "lucide-react";
 
 export default function RenameFileModal({
+  onClose,
+  onRename,
   currentName,
   existingFiles = [],
-  onRename,
-  onClose,
   loading = false,
 }) {
   const [newName, setNewName] = useState(currentName || "");
   const [error, setError] = useState("");
-  const inputRef = useRef(null);
+
   const modalRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -25,7 +26,7 @@ export default function RenameFileModal({
       }
       if (e.key === "Tab") {
         const focusable = modalRef.current?.querySelectorAll(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea, [tabindex]:not([tabindex="-1"])'
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         );
         if (!focusable || focusable.length === 0) return;
         const first = focusable[0];
@@ -43,7 +44,7 @@ export default function RenameFileModal({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, loading]);
+  }, [loading, onClose]);
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -73,7 +74,7 @@ export default function RenameFileModal({
       return;
     }
 
-    onRename({ oldName: currentName, newName: trimmed });
+    onRename(currentName, trimmed);
   }
 
   return (
@@ -81,79 +82,74 @@ export default function RenameFileModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="rename-file-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 dark:bg-black/70 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget && !loading) onClose();
       }}
     >
       <div
         ref={modalRef}
-        className="w-full max-w-md bg-surface border border-border rounded-xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150"
+        className="w-full max-w-md bg-surface border border-border rounded-2xl p-6 sm:p-7 shadow-paper-lg space-y-4 animate-in fade-in zoom-in-95 duration-150"
       >
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-accent/15 text-accent flex items-center justify-center shrink-0 border border-accent/25">
-              <Edit2 size={18} />
+            <div className="w-10 h-10 rounded-xl bg-accent/15 text-accent flex items-center justify-center shrink-0 border border-accent/25 shadow-paper-sm">
+              <Edit2 size={20} />
             </div>
             <div>
-              <h2 id="rename-file-title" className="text-lg font-semibold text-gray-100">
+              <h2 id="rename-file-title" className="text-lg font-bold font-serif text-gray-100">
                 Rename File
               </h2>
               <p className="text-xs text-gray-400 font-mono">Current: {currentName}</p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             disabled={loading}
             aria-label="Close dialog"
-            className="text-gray-400 hover:text-gray-200 p-1 rounded-md transition-colors disabled:opacity-50"
+            className="text-gray-400 hover:text-gray-100 hover:bg-surface2 p-1.5 rounded-lg transition-colors disabled:opacity-50"
           >
             <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="rename-input" className="block text-xs font-medium text-gray-300 mb-1.5">
+            <label htmlFor="rename-input" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
               New File Name
             </label>
             <input
-              id="rename-input"
               ref={inputRef}
+              id="rename-input"
               type="text"
+              required
+              disabled={loading}
               value={newName}
               onChange={(e) => {
                 setNewName(e.target.value);
                 setError("");
               }}
-              disabled={loading}
-              className="w-full bg-surface2 border border-border rounded-md px-3 py-2 text-sm text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-accent"
+              className="w-full bg-surface2 border border-border rounded-lg px-3.5 py-2 text-sm text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-accent shadow-paper-sm"
             />
-            {error && <p className="text-xs text-rose-400 mt-1.5">{error}</p>}
+            {error && <p className="text-xs text-rose-700 dark:text-rose-400 mt-1 font-sans">{error}</p>}
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 rounded-md border border-border hover:bg-surface2 text-sm text-gray-300 transition-colors disabled:opacity-50"
+              className="px-4 py-2 rounded-lg border border-border hover:bg-surface2 text-xs font-medium text-gray-300 hover:text-gray-100 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={loading || !newName.trim()}
-              className="px-4 py-2 rounded-md bg-accent hover:bg-blue-600 text-white text-sm font-medium transition-colors inline-flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-60"
+              disabled={loading || !newName.trim() || newName === currentName}
+              className="px-4 py-2 rounded-lg bg-accent hover:opacity-90 text-white text-xs font-semibold transition-all inline-flex items-center gap-2 shadow-paper-sm focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-60 active:scale-95"
             >
-              {loading ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Renaming...
-                </>
-              ) : (
-                "Rename"
-              )}
+              {loading ? "Renaming..." : "Rename"}
             </button>
           </div>
         </form>

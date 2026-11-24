@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation, Navigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Code2 } from "lucide-react";
+import { Code2, ArrowLeft } from "lucide-react";
 import { api } from "../services/api.js";
 import { useAuthStore } from "../store/authStore.js";
+import ThemeToggle from "../components/common/ThemeToggle.jsx";
 
 export default function Register() {
   const [form, setForm] = useState({ name: "", username: "", email: "", password: "" });
@@ -36,16 +37,33 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg px-4">
-      <div className="w-full max-w-sm bg-surface border border-border rounded-xl p-8 shadow-xl">
-        <div className="flex items-center gap-2 justify-center mb-6">
-          <Code2 className="text-accent" size={28} aria-hidden="true" />
-          <span className="text-xl font-semibold text-gray-100">CodeTogether</span>
+    <div className="min-h-screen flex flex-col justify-between bg-bg px-4 py-6">
+      {/* Top Navigation */}
+      <div className="flex items-center justify-between max-w-sm sm:max-w-md w-full mx-auto">
+        <Link
+          to="/"
+          aria-label="Back to home"
+          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-100 transition-colors py-1 px-2 rounded-lg hover:bg-surface2"
+        >
+          <ArrowLeft size={14} />
+          <span>Back to Home</span>
+        </Link>
+        <ThemeToggle compact />
+      </div>
+
+      {/* Main Form Card */}
+      <div className="w-full max-w-sm sm:max-w-md mx-auto my-auto bg-surface border border-border rounded-2xl p-7 sm:p-8 shadow-paper-lg">
+        <div className="flex flex-col items-center mb-6">
+          <div className="w-12 h-12 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent mb-3 shadow-paper-sm">
+            <Code2 size={24} aria-hidden="true" />
+          </div>
+          <span className="text-xl font-bold font-serif text-gray-100">CodeTogether</span>
+          <p className="text-xs text-gray-400 mt-1">Create your developer identity</p>
         </div>
-        <h1 className="text-lg font-medium mb-6 text-center text-gray-200">Create your account</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
+
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           <div>
-            <label htmlFor="reg-name" className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="reg-name" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1 font-mono">
               Full Name
             </label>
             <input
@@ -55,12 +73,12 @@ export default function Register() {
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full bg-surface2 border border-border rounded-md px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
+              className="w-full bg-surface2 border border-border rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors shadow-paper-sm"
               placeholder="Jane Doe"
             />
           </div>
           <div>
-            <label htmlFor="reg-username" className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="reg-username" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1 font-mono">
               Username
             </label>
             <input
@@ -70,13 +88,13 @@ export default function Register() {
               required
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
-              className="w-full bg-surface2 border border-border rounded-md px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
+              className="w-full bg-surface2 border border-border rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors shadow-paper-sm"
               placeholder="janedoe"
             />
           </div>
           <div>
-            <label htmlFor="reg-email" className="block text-sm text-gray-400 mb-1">
-              Email
+            <label htmlFor="reg-email" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1 font-mono">
+              Email Address
             </label>
             <input
               id="reg-email"
@@ -85,12 +103,12 @@ export default function Register() {
               required
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full bg-surface2 border border-border rounded-md px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
+              className="w-full bg-surface2 border border-border rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors shadow-paper-sm"
               placeholder="jane@example.com"
             />
           </div>
           <div>
-            <label htmlFor="reg-password" className="block text-sm text-gray-400 mb-1">
+            <label htmlFor="reg-password" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1 font-mono">
               Password
             </label>
             <input
@@ -100,31 +118,37 @@ export default function Register() {
               required
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
-              className="w-full bg-surface2 border border-border rounded-md px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
+              className="w-full bg-surface2 border border-border rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors shadow-paper-sm"
               placeholder="••••••••"
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-[11px] text-gray-500 mt-1 font-sans">
               At least 8 characters, with uppercase, lowercase, and a number.
             </p>
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-accent hover:bg-blue-600 transition-colors rounded-md py-2.5 text-sm font-medium text-white disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-surface"
+            className="w-full bg-accent hover:opacity-90 transition-all rounded-lg py-2.5 text-sm font-semibold text-white shadow-paper hover:shadow-paper-md disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-surface active:scale-95 mt-2"
           >
             {loading ? "Creating account..." : "Register"}
           </button>
         </form>
-        <p className="text-sm text-gray-400 mt-5 text-center">
+
+        <p className="text-xs text-gray-400 mt-5 text-center">
           Already have an account?{" "}
           <Link
             to="/login"
             state={location.state}
-            className="text-accent hover:underline focus:outline-none focus:ring-1 focus:ring-accent rounded"
+            className="text-accent hover:underline font-semibold focus:outline-none focus:ring-1 focus:ring-accent rounded"
           >
             Log in
           </Link>
         </p>
+      </div>
+
+      {/* Footer Note */}
+      <div className="text-center text-[11px] text-gray-500 font-serif">
+        <span>Editorial Parchment & Midnight Kraft</span>
       </div>
     </div>
   );

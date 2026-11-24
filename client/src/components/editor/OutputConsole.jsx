@@ -60,20 +60,20 @@ function OutputConsole({
 
   return (
     <div
-      className="h-full flex flex-col font-mono text-xs bg-[#0b0e14] text-gray-200 select-text overflow-hidden"
+      className="h-full flex flex-col font-mono text-xs bg-paper-console text-gray-200 select-text overflow-hidden shadow-paper-sm"
       role="region"
       aria-label="Code execution output, input, and test cases panel"
     >
       {/* Tab Navigation Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/60 bg-surface/50 shrink-0">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface/70 shrink-0">
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setActiveTab("output")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-sans font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors ${
               activeTab === "output"
-                ? "bg-surface2 text-accent border border-border/80 shadow-sm"
-                : "text-gray-400 hover:text-gray-200 hover:bg-surface2/50"
+                ? "bg-surface2 text-accent border border-border/80 shadow-paper-sm font-semibold"
+                : "text-gray-400 hover:text-gray-100 hover:bg-surface2/50"
             }`}
           >
             <Terminal size={13} aria-hidden="true" />
@@ -82,10 +82,10 @@ function OutputConsole({
               <span
                 className={`w-2 h-2 rounded-full ${
                   result.status === "Accepted"
-                    ? "bg-emerald-400"
+                    ? "bg-emerald-500"
                     : result.status === "Compilation Error"
-                    ? "bg-amber-400"
-                    : "bg-rose-400"
+                    ? "bg-amber-500"
+                    : "bg-rose-500"
                 }`}
               />
             )}
@@ -94,16 +94,16 @@ function OutputConsole({
           <button
             type="button"
             onClick={() => setActiveTab("stdin")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-sans font-medium transition-colors relative ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors relative ${
               activeTab === "stdin"
-                ? "bg-surface2 text-accent border border-border/80 shadow-sm"
-                : "text-gray-400 hover:text-gray-200 hover:bg-surface2/50"
+                ? "bg-surface2 text-accent border border-border/80 shadow-paper-sm font-semibold"
+                : "text-gray-400 hover:text-gray-100 hover:bg-surface2/50"
             }`}
           >
             <CornerDownLeft size={13} aria-hidden="true" />
             <span>Input (stdin)</span>
             {stdin.trim().length > 0 && (
-              <span className="text-[10px] bg-accent/20 text-accent font-semibold px-1.5 rounded-full">
+              <span className="text-[10px] bg-accent/15 text-accent font-semibold px-1.5 rounded-full">
                 Active
               </span>
             )}
@@ -112,10 +112,10 @@ function OutputConsole({
           <button
             type="button"
             onClick={() => setActiveTab("testcases")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-sans font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors ${
               activeTab === "testcases"
-                ? "bg-surface2 text-accent border border-border/80 shadow-sm"
-                : "text-gray-400 hover:text-gray-200 hover:bg-surface2/50"
+                ? "bg-surface2 text-accent border border-border/80 shadow-paper-sm font-semibold"
+                : "text-gray-400 hover:text-gray-100 hover:bg-surface2/50"
             }`}
           >
             <CheckSquare size={13} aria-hidden="true" />
@@ -124,9 +124,9 @@ function OutputConsole({
               <span
                 className={`text-[10px] font-semibold px-1.5 rounded-full ${
                   failedCount > 0
-                    ? "bg-rose-500/20 text-rose-400"
+                    ? "bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/20"
                     : passedCount === testCases.length && testCases.length > 0
-                    ? "bg-emerald-500/20 text-emerald-400"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
                     : "bg-surface2 text-gray-400"
                 }`}
               >
@@ -143,7 +143,7 @@ function OutputConsole({
               type="button"
               onClick={onClearOutput}
               title="Clear console output"
-              className="flex items-center gap-1 text-[11px] font-sans text-gray-400 hover:text-gray-200 hover:bg-surface2 px-2 py-0.5 rounded transition-colors"
+              className="flex items-center gap-1 text-[11px] font-sans text-gray-400 hover:text-gray-100 hover:bg-surface2 px-2 py-1 rounded-lg transition-colors"
             >
               <Trash2 size={12} />
               <span>Clear</span>
@@ -155,7 +155,7 @@ function OutputConsole({
               type="button"
               onClick={() => setStdin?.("")}
               title="Clear stdin input"
-              className="flex items-center gap-1 text-[11px] font-sans text-gray-400 hover:text-rose-400 hover:bg-surface2 px-2 py-0.5 rounded transition-colors"
+              className="flex items-center gap-1 text-[11px] font-sans text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-surface2 px-2 py-1 rounded-lg transition-colors"
             >
               <Trash2 size={12} />
               <span>Clear Input</span>
@@ -167,7 +167,7 @@ function OutputConsole({
               type="button"
               onClick={onRunTestCases}
               disabled={runningTestCases}
-              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[11px] font-sans font-medium transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded-lg text-[11px] font-sans font-semibold transition-colors disabled:opacity-50 shadow-paper-sm active:scale-95"
             >
               {runningTestCases ? (
                 <>
@@ -187,19 +187,19 @@ function OutputConsole({
 
       {/* Tab 1: Execution Output */}
       {activeTab === "output" && (
-        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
           {running && (
-            <div className="flex items-center gap-2 text-amber-400 animate-pulse py-3">
-              <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
-              <span className="font-sans text-xs font-medium">Executing code in sandbox...</span>
+            <div className="flex items-center gap-2.5 text-amber-700 dark:text-amber-400 py-3 font-medium">
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+              <span className="font-sans text-xs">Executing code in sandbox...</span>
             </div>
           )}
 
           {!running && !result && (
-            <div className="text-gray-500 py-6 text-center font-sans space-y-1">
-              <p className="text-sm font-medium text-gray-400">Ready to execute</p>
-              <p className="text-xs text-gray-500">
-                Click <span className="text-emerald-400 font-semibold">Run</span> to compile and execute your code. Standard output and errors will appear here.
+            <div className="text-gray-400 py-8 text-center font-sans space-y-1">
+              <p className="text-sm font-semibold font-serif text-gray-300">Typewriter Ledger Ready</p>
+              <p className="text-xs text-gray-400">
+                Click <span className="text-emerald-700 dark:text-emerald-400 font-semibold">Run</span> to execute your code. Standard output and errors will appear here.
               </p>
             </div>
           )}
@@ -208,11 +208,11 @@ function OutputConsole({
             <div className="space-y-3">
               {result.compileOutput && (
                 <div>
-                  <div className="text-amber-400/90 text-[11px] font-sans font-semibold mb-1 flex items-center gap-1">
+                  <div className="text-amber-800 dark:text-amber-400 text-[11px] font-sans font-semibold mb-1 flex items-center gap-1">
                     <AlertCircle size={12} />
                     <span>COMPILER OUTPUT</span>
                   </div>
-                  <pre className="text-amber-300 bg-amber-950/20 border border-amber-900/30 p-2.5 rounded-md whitespace-pre-wrap font-mono text-xs overflow-x-auto">
+                  <pre className="text-amber-800 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/25 p-2.5 rounded-lg whitespace-pre-wrap font-mono text-xs overflow-x-auto">
                     {result.compileOutput}
                   </pre>
                 </div>
@@ -220,11 +220,11 @@ function OutputConsole({
 
               {result.stdout && (
                 <div>
-                  <div className="text-emerald-400/90 text-[11px] font-sans font-semibold mb-1 flex items-center gap-1">
+                  <div className="text-emerald-800 dark:text-emerald-400 text-[11px] font-sans font-semibold mb-1 flex items-center gap-1">
                     <CheckCircle2 size={12} />
                     <span>PROGRAM OUTPUT</span>
                   </div>
-                  <pre className="text-gray-100 bg-surface2/60 border border-border/60 p-2.5 rounded-md whitespace-pre-wrap font-mono text-xs overflow-x-auto selection:bg-accent/40">
+                  <pre className="text-gray-100 bg-surface2/70 border border-border/80 p-2.5 rounded-lg whitespace-pre-wrap font-mono text-xs overflow-x-auto selection:bg-accent/30 shadow-paper-sm">
                     {result.stdout}
                   </pre>
                 </div>
@@ -232,11 +232,11 @@ function OutputConsole({
 
               {result.stderr && (
                 <div>
-                  <div className="text-rose-400/90 text-[11px] font-sans font-semibold mb-1 flex items-center gap-1">
+                  <div className="text-rose-800 dark:text-rose-400 text-[11px] font-sans font-semibold mb-1 flex items-center gap-1">
                     <AlertCircle size={12} />
                     <span>STANDARD ERROR</span>
                   </div>
-                  <pre className="text-rose-300 bg-rose-950/20 border border-rose-900/30 p-2.5 rounded-md whitespace-pre-wrap font-mono text-xs overflow-x-auto">
+                  <pre className="text-rose-800 dark:text-rose-300 bg-rose-500/10 dark:bg-rose-950/20 border border-rose-500/25 p-2.5 rounded-lg whitespace-pre-wrap font-mono text-xs overflow-x-auto">
                     {result.stderr}
                   </pre>
                 </div>
@@ -249,16 +249,16 @@ function OutputConsole({
               )}
 
               {/* Execution Metadata Pill Bar */}
-              <div className="flex flex-wrap items-center gap-4 text-[11px] font-sans text-gray-400 pt-2 border-t border-border/40">
+              <div className="flex flex-wrap items-center gap-4 text-[11px] font-sans text-gray-400 pt-2.5 border-t border-border">
                 <span className="flex items-center gap-1.5">
                   <span className="text-gray-400">Status:</span>
                   <span
-                    className={`font-semibold px-2 py-0.5 rounded text-[11px] ${
+                    className={`font-semibold px-2 py-0.5 rounded-full text-[11px] ${
                       result.status === "Accepted"
-                        ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+                        ? "text-emerald-800 dark:text-emerald-400 bg-emerald-500/15 border border-emerald-500/30"
                         : result.status === "Compilation Error"
-                        ? "text-amber-400 bg-amber-500/10 border border-amber-500/20"
-                        : "text-rose-400 bg-rose-500/10 border border-rose-500/20"
+                        ? "text-amber-800 dark:text-amber-400 bg-amber-500/15 border border-amber-500/30"
+                        : "text-rose-800 dark:text-rose-400 bg-rose-500/15 border border-rose-500/30"
                     }`}
                   >
                     {result.status}
@@ -266,14 +266,14 @@ function OutputConsole({
                 </span>
 
                 {result.executionTime && (
-                  <span className="flex items-center gap-1 text-gray-300">
+                  <span className="flex items-center gap-1 text-gray-300 font-mono">
                     <Clock size={12} className="text-gray-400" />
                     <span>{result.executionTime}</span>
                   </span>
                 )}
 
                 {result.memory && (
-                  <span className="flex items-center gap-1 text-gray-300">
+                  <span className="flex items-center gap-1 text-gray-300 font-mono">
                     <Cpu size={12} className="text-gray-400" />
                     <span>{result.memory}</span>
                   </span>
@@ -281,8 +281,8 @@ function OutputConsole({
 
                 {result.engine && (
                   <span className="flex items-center gap-1 text-gray-400">
-                    <span className="text-gray-500">Engine:</span>
-                    <span className="text-gray-300 font-medium">{result.engine}</span>
+                    <span className="text-gray-400">Engine:</span>
+                    <span className="text-gray-300 font-medium font-mono">{result.engine}</span>
                   </span>
                 )}
               </div>
@@ -293,13 +293,13 @@ function OutputConsole({
 
       {/* Tab 2: Standard Input (stdin) */}
       {activeTab === "stdin" && (
-        <div className="flex-1 flex flex-col p-3 overflow-hidden">
+        <div className="flex-1 flex flex-col p-3.5 overflow-hidden">
           <div className="flex items-center justify-between pb-2 text-gray-400 font-sans text-[11px]">
             <span className="flex items-center gap-1 text-gray-300">
               <FileText size={12} />
-              <span>Standard Input lines passed to your program (e.g. input(), cin, Scanner)</span>
+              <span>Standard Input lines passed to your program</span>
             </span>
-            <span>{stdin.length} chars</span>
+            <span className="font-mono text-gray-400">{stdin.length} chars</span>
           </div>
 
           <textarea
@@ -307,7 +307,7 @@ function OutputConsole({
             onChange={(e) => setStdin?.(e.target.value)}
             placeholder={"Enter input values here...\nFor example:\n5\n10 20 30 40 50"}
             rows={5}
-            className="flex-1 w-full bg-[#070a0e] border border-border/70 rounded-md p-2.5 text-xs text-gray-100 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent placeholder:text-gray-600"
+            className="flex-1 w-full bg-surface2 border border-border rounded-lg p-3 text-xs text-gray-100 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent placeholder:text-gray-500 shadow-paper-sm"
             aria-label="Standard input text"
           />
         </div>
@@ -317,7 +317,7 @@ function OutputConsole({
       {activeTab === "testcases" && (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Test Case Selector Tabs */}
-          <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border/40 bg-surface/30 overflow-x-auto no-scrollbar shrink-0">
+          <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border bg-surface/40 overflow-x-auto no-scrollbar shrink-0">
             {testCases.map((tc, idx) => {
               const isSelected = idx === selectedCaseIdx;
               return (
@@ -325,18 +325,18 @@ function OutputConsole({
                   key={tc.id || idx}
                   type="button"
                   onClick={() => setSelectedCaseIdx(idx)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-sans transition-colors shrink-0 ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-sans transition-colors shrink-0 ${
                     isSelected
-                      ? "bg-surface2 text-accent font-semibold border border-border"
-                      : "text-gray-400 hover:text-gray-200"
+                      ? "bg-surface2 text-accent font-semibold border border-border shadow-paper-sm"
+                      : "text-gray-400 hover:text-gray-100 hover:bg-surface2/60"
                   }`}
                 >
                   <span>Case {idx + 1}</span>
                   {tc.status === "passed" && (
-                    <CheckCircle2 size={12} className="text-emerald-400" />
+                    <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400" />
                   )}
                   {tc.status === "failed" && (
-                    <XCircle size={12} className="text-rose-400" />
+                    <XCircle size={12} className="text-rose-600 dark:text-rose-400" />
                   )}
                 </button>
               );
@@ -346,7 +346,7 @@ function OutputConsole({
               type="button"
               onClick={handleAddCase}
               title="Add another test case"
-              className="flex items-center gap-1 text-gray-400 hover:text-white px-2 py-1 rounded text-xs transition-colors shrink-0"
+              className="flex items-center gap-1 text-gray-400 hover:text-gray-100 px-2 py-1 rounded-lg text-xs transition-colors shrink-0 hover:bg-surface2"
             >
               <Plus size={13} />
               <span className="font-sans text-[11px]">Add Case</span>
@@ -355,20 +355,20 @@ function OutputConsole({
 
           {/* Active Case Editor & Results */}
           {currentCase && (
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 font-sans">
+            <div className="flex-1 overflow-y-auto p-3.5 space-y-3 font-sans">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-gray-200 text-xs">
+                  <span className="font-semibold text-gray-200 text-xs font-mono">
                     Case {selectedCaseIdx + 1}
                   </span>
                   {currentCase.status === "passed" && (
-                    <span className="text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 text-[11px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1">
+                    <span className="text-emerald-800 dark:text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 text-[11px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1">
                       <CheckCircle2 size={11} />
                       Passed
                     </span>
                   )}
                   {currentCase.status === "failed" && (
-                    <span className="text-rose-400 bg-rose-500/10 border border-rose-500/30 text-[11px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1">
+                    <span className="text-rose-800 dark:text-rose-400 bg-rose-500/15 border border-rose-500/30 text-[11px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1">
                       <XCircle size={11} />
                       Failed
                     </span>
@@ -379,7 +379,7 @@ function OutputConsole({
                   <button
                     type="button"
                     onClick={() => handleRemoveCase(selectedCaseIdx)}
-                    className="text-gray-400 hover:text-rose-400 text-xs p-1"
+                    className="text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 text-xs p-1 rounded hover:bg-surface2 transition-colors"
                     title="Delete this test case"
                   >
                     <Trash2 size={12} />
@@ -389,7 +389,7 @@ function OutputConsole({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-gray-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-gray-400 mb-1 font-mono uppercase tracking-wider">
                     Input (stdin)
                   </label>
                   <textarea
@@ -399,12 +399,12 @@ function OutputConsole({
                     }
                     placeholder="Input values for this case"
                     rows={3}
-                    className="w-full bg-[#070a0e] border border-border/70 rounded-md p-2 text-xs text-gray-100 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-accent"
+                    className="w-full bg-surface2 border border-border rounded-lg p-2.5 text-xs text-gray-100 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-accent shadow-paper-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-gray-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-gray-400 mb-1 font-mono uppercase tracking-wider">
                     Expected Output
                   </label>
                   <textarea
@@ -414,22 +414,22 @@ function OutputConsole({
                     }
                     placeholder="Expected output to verify"
                     rows={3}
-                    className="w-full bg-[#070a0e] border border-border/70 rounded-md p-2 text-xs text-gray-100 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-accent"
+                    className="w-full bg-surface2 border border-border rounded-lg p-2.5 text-xs text-gray-100 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-accent shadow-paper-sm"
                   />
                 </div>
               </div>
 
               {/* Actual Output vs Expected diff when run */}
               {currentCase.status !== "idle" && (
-                <div className="pt-2 border-t border-border/40 space-y-1.5 font-mono">
-                  <div className="text-[11px] font-sans font-semibold text-gray-400">
+                <div className="pt-2.5 border-t border-border space-y-1.5 font-mono">
+                  <div className="text-[11px] font-sans font-semibold text-gray-400 uppercase tracking-wider">
                     ACTUAL OUTPUT
                   </div>
                   <pre
-                    className={`p-2 rounded-md text-xs whitespace-pre-wrap border ${
+                    className={`p-2.5 rounded-lg text-xs whitespace-pre-wrap border ${
                       currentCase.status === "passed"
-                        ? "bg-emerald-950/20 border-emerald-900/30 text-emerald-300"
-                        : "bg-rose-950/20 border-rose-900/30 text-rose-300"
+                        ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-800 dark:text-emerald-300"
+                        : "bg-rose-500/10 border-rose-500/25 text-rose-800 dark:text-rose-300"
                     }`}
                   >
                     {currentCase.actual || "(No output)"}

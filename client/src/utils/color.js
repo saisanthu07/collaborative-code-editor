@@ -1,6 +1,13 @@
+// Archival fountain ink and sealing wax palette for collaborative cursors and tags
 const PALETTE = [
-  "#f87171", "#fb923c", "#facc15", "#4ade80",
-  "#22d3ee", "#60a5fa", "#a78bfa", "#f472b6",
+  "#C2542D", // Terracotta Wax
+  "#3C6E47", // Olive Forest Sage
+  "#2C6496", // Blueprint Indigo
+  "#B8741A", // Amber Ochre
+  "#7E4887", // Mulberry Plum
+  "#A84522", // Burnt Sienna
+  "#2F7E75", // Patina Teal
+  "#5B508C", // Royal Violet
 ];
 
 export function colorForUser(name = "") {

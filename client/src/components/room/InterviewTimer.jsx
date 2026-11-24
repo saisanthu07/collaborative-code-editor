@@ -77,11 +77,11 @@ function InterviewTimer({ socket, roomId, isHost = false }) {
   }
 
   return (
-    <div className="relative flex items-center bg-surface2/70 border border-border rounded-md px-2 py-1 text-xs select-none">
+    <div className="relative flex items-center bg-surface2 border border-border rounded-lg px-2.5 py-1 text-xs select-none shadow-paper-sm">
       <div className="flex items-center gap-1.5 font-mono text-gray-200">
         <Clock
           size={13}
-          className={`${isRunning ? "text-emerald-400 animate-pulse" : "text-gray-400"}`}
+          className={`${isRunning ? "text-emerald-600 dark:text-emerald-400 animate-pulse" : "text-gray-400"}`}
         />
         <span className="font-semibold tracking-wider text-[12px]">
           {formatSeconds(seconds)}
@@ -89,15 +89,15 @@ function InterviewTimer({ socket, roomId, isHost = false }) {
       </div>
 
       {/* Timer Controls */}
-      <div className="flex items-center gap-1 ml-2 pl-2 border-l border-border/80">
+      <div className="flex items-center gap-1 ml-2 pl-2 border-l border-border">
         <button
           type="button"
           onClick={handleTogglePlay}
           title={isRunning ? "Pause Timer" : "Start Timer"}
-          className={`p-1 rounded transition-colors ${
+          className={`p-1 rounded-md transition-colors ${
             isRunning
-              ? "text-amber-400 hover:bg-amber-500/20"
-              : "text-emerald-400 hover:bg-emerald-500/20"
+              ? "text-amber-700 dark:text-amber-400 hover:bg-amber-500/20"
+              : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20"
           }`}
           aria-label={isRunning ? "Pause Interview Timer" : "Start Interview Timer"}
         >
@@ -108,7 +108,7 @@ function InterviewTimer({ socket, roomId, isHost = false }) {
           type="button"
           onClick={handleReset}
           title="Reset Timer"
-          className="p-1 text-gray-400 hover:text-white hover:bg-surface2 rounded transition-colors"
+          className="p-1 text-gray-400 hover:text-gray-100 hover:bg-surface rounded-md transition-colors"
           aria-label="Reset Interview Timer"
         >
           <RotateCcw size={12} />
@@ -120,39 +120,39 @@ function InterviewTimer({ socket, roomId, isHost = false }) {
               type="button"
               onClick={() => setShowPresets((p) => !p)}
               title="Set Target Time"
-              className="p-1 text-gray-400 hover:text-white rounded transition-colors"
+              className="p-1 text-gray-400 hover:text-gray-100 hover:bg-surface rounded-md transition-colors"
               aria-label="Timer presets"
             >
               <ChevronDown size={12} />
             </button>
 
             {showPresets && (
-              <div className="absolute right-0 top-full mt-1.5 w-32 bg-surface border border-border rounded-md shadow-xl p-1 z-30 space-y-0.5">
+              <div className="absolute right-0 top-full mt-1.5 w-32 bg-surface border border-border rounded-xl shadow-paper-md p-1.5 z-30 space-y-0.5">
                 <button
                   type="button"
                   onClick={() => handleSetPreset(0)}
-                  className="w-full text-left px-2 py-1 text-[11px] text-gray-300 hover:bg-surface2 hover:text-white rounded"
+                  className="w-full text-left px-2 py-1 text-[11px] text-gray-300 hover:bg-surface2 hover:text-gray-100 rounded-md transition-colors font-mono"
                 >
                   Stopwatch (0:00)
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetPreset(30 * 60)}
-                  className="w-full text-left px-2 py-1 text-[11px] text-gray-300 hover:bg-surface2 hover:text-white rounded"
+                  className="w-full text-left px-2 py-1 text-[11px] text-gray-300 hover:bg-surface2 hover:text-gray-100 rounded-md transition-colors font-mono"
                 >
                   30 Minutes
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetPreset(45 * 60)}
-                  className="w-full text-left px-2 py-1 text-[11px] text-gray-300 hover:bg-surface2 hover:text-white rounded"
+                  className="w-full text-left px-2 py-1 text-[11px] text-gray-300 hover:bg-surface2 hover:text-gray-100 rounded-md transition-colors font-mono"
                 >
                   45 Minutes
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetPreset(60 * 60)}
-                  className="w-full text-left px-2 py-1 text-[11px] text-gray-300 hover:bg-surface2 hover:text-white rounded"
+                  className="w-full text-left px-2 py-1 text-[11px] text-gray-300 hover:bg-surface2 hover:text-gray-100 rounded-md transition-colors font-mono"
                 >
                   60 Minutes
                 </button>
