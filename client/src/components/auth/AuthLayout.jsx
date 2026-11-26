@@ -23,7 +23,7 @@ export default function AuthLayout({
   children,
 }) {
   return (
-    <div className="min-h-screen flex flex-col bg-bg text-gray-100 relative overflow-x-hidden selection:bg-accent/25">
+    <div className="min-h-dvh flex flex-col bg-bg text-gray-100 relative overflow-x-clip selection:bg-accent/25">
       {/* Subtle editorial radial paper glow */}
       <div
         aria-hidden="true"
@@ -35,7 +35,7 @@ export default function AuthLayout({
 
       {/* Top Navigation */}
       <header className="relative z-10 w-full border-b border-border/80 bg-surface/80 backdrop-blur-md">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
+        <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-3">
           <Link
             to="/"
             className="inline-flex items-center gap-2.5 font-bold text-gray-100 hover:opacity-90 transition-opacity"
@@ -60,8 +60,8 @@ export default function AuthLayout({
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 flex-1 flex items-center justify-center px-4 sm:px-6 py-8 sm:py-12">
-        <div className="w-full max-w-5xl grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+      <main className="relative z-10 flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-10 py-5 sm:py-8">
+        <div className="w-full max-w-[1440px] grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           {/* Left Editorial Showcase (Desktop) */}
           <aside className="hidden lg:flex lg:col-span-6 flex-col justify-between space-y-7 pr-2">
             <div className="space-y-4">

@@ -1035,8 +1035,8 @@ export default function Room() {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <Link
-              to="/dashboard"
-              aria-label="Return to Dashboard"
+              to={user ? "/dashboard" : "/"}
+              aria-label={user ? "Return to Dashboard" : "Return to Home"}
               className="p-1.5 text-gray-400 hover:text-gray-100 rounded-lg hover:bg-surface2 transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
             >
               <ArrowLeft size={18} />
@@ -1353,7 +1353,7 @@ export default function Room() {
         )}
 
         <div
-          className={`flex-1 flex flex-col min-w-0 ${
+          className={`flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden ${
             mobileTab !== "editor" && mobileTab !== "output" ? "hidden md:flex" : "flex"
           }`}
         >
@@ -1371,7 +1371,7 @@ export default function Room() {
           />
 
           <div
-            className={`flex-1 min-h-0 ${
+            className={`flex-1 min-h-0 overflow-hidden ${
               mobileTab === "output" ? "hidden md:block" : "block"
             }`}
           >
@@ -1401,10 +1401,10 @@ export default function Room() {
           </div>
 
           <div
-            className={`border-t border-border bg-paper-console ${
+            className={`border-t border-border bg-paper-console overflow-hidden ${
               mobileTab === "output"
                 ? "flex-1 min-h-0"
-                : "hidden md:block h-48 shrink-0"
+                : "hidden md:block h-44 lg:h-52 xl:h-56 shrink-0"
             }`}
           >
             <OutputConsole
@@ -1424,7 +1424,7 @@ export default function Room() {
           </div>
         </div>
 
-        <aside className="hidden md:block w-80 border-l border-border bg-surface shrink-0 h-full">
+        <aside className="hidden md:flex md:flex-col w-72 lg:w-80 xl:w-96 border-l border-border bg-surface shrink-0 h-full min-h-0 overflow-hidden">
           {rightTab === "participants" ? (
             <ParticipantsPanel
               participants={participants}
@@ -1464,7 +1464,7 @@ export default function Room() {
         </aside>
 
         {mobileTab === "participants" && (
-          <div className="md:hidden flex-1 min-h-0 bg-surface">
+          <div className="md:hidden flex-1 min-h-0 overflow-hidden bg-surface">
             <ParticipantsPanel
               participants={participants}
               members={room?.members || []}
@@ -1477,8 +1477,27 @@ export default function Room() {
             />
           </div>
         )}
+        {mobileTab === "comments" && (
+          <div className="md:hidden flex-1 min-h-0 overflow-hidden bg-surface">
+            <CommentsPanel
+              comments={comments}
+              activeFileName={activeFileName}
+              currentLine={currentLine}
+              canEdit={canManageFiles}
+              isHost={isHost}
+              currentUsername={resolvedUsername}
+              onAddComment={handleAddComment}
+              onToggleResolve={handleToggleResolveComment}
+              onDeleteComment={handleDeleteComment}
+              onJumpToLine={(line) => {
+                setMobileTab("editor");
+                handleJumpToLine(line);
+              }}
+            />
+          </div>
+        )}
         {mobileTab === "chat" && (
-          <div className="md:hidden flex-1 min-h-0 bg-surface">
+          <div className="md:hidden flex-1 min-h-0 overflow-hidden bg-surface">
             <ChatPanel
               socket={socket}
               roomId={roomId}
@@ -1528,6 +1547,15 @@ export default function Room() {
             </span>
           </div>
           <span>Users</span>
+        </button>
+        <button
+          onClick={() => setMobileTab("comments")}
+          className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-colors ${
+            mobileTab === "comments" ? "text-accent font-semibold" : "text-gray-400"
+          }`}
+        >
+          <Code2 size={18} />
+          <span>Review</span>
         </button>
         <button
           onClick={() => setMobileTab("chat")}

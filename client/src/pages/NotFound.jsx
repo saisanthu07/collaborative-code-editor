@@ -10,7 +10,7 @@ export default function NotFound() {
   const backLabel = token ? "Back to Dashboard" : "Back to Home";
 
   return (
-    <div className="min-h-screen bg-bg text-gray-100 flex flex-col justify-between p-6 relative overflow-x-hidden">
+    <div className="min-h-dvh bg-bg text-gray-100 flex flex-col justify-between p-6 relative overflow-x-clip">
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-32 -left-24 w-96 h-96 rounded-full bg-accent/10 blur-3xl" />
         <div className="absolute -bottom-32 -right-24 w-96 h-96 rounded-full bg-accent2/10 blur-3xl" />

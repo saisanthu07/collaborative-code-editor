@@ -235,7 +235,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="min-h-dvh bg-bg text-gray-100 flex flex-col relative overflow-x-hidden selection:bg-accent/25">
+    <div className="min-h-dvh bg-bg text-gray-100 flex flex-col relative overflow-x-clip selection:bg-accent/25">
       {/* Subtle editorial radial paper glow */}
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-32 -left-24 w-96 h-96 rounded-full bg-accent/10 blur-3xl" />
@@ -244,7 +244,7 @@ export default function Dashboard() {
 
       <Navbar />
 
-      <main className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10 flex-1 w-full space-y-8">
+      <main className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 flex-1 w-full space-y-7">
         {user && user.emailVerified === false && !verifyBannerDismissed && (
           <div className="bg-surface border border-amber-500/35 rounded-2xl px-4 py-3 shadow-paper-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start sm:items-center gap-2.5 text-xs text-gray-300">
@@ -568,7 +568,7 @@ export default function Dashboard() {
 
           {/* Room Cards / Skeleton / Empty States */}
           {roomsLoading ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
@@ -667,7 +667,7 @@ export default function Dashboard() {
               ))}
             </div>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {visibleRooms.map((room) => (
                 <RoomCard
                   key={room.roomId}

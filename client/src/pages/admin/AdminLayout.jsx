@@ -11,9 +11,9 @@ const TABS = [
 
 export default function AdminLayout() {
   return (
-    <div className="min-h-dvh bg-bg text-gray-100 flex flex-col">
+    <div className="min-h-dvh bg-bg text-gray-100 flex flex-col overflow-x-clip">
       <Navbar />
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6 flex-1 w-full">
+      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 space-y-6 flex-1 w-full">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/25 flex items-center justify-center text-accent shadow-paper-sm">

@@ -127,10 +127,10 @@ export default function Landing() {
   }
 
   return (
-    <div className="min-h-screen bg-bg text-gray-100 selection:bg-accent/25">
+    <div className="min-h-dvh flex flex-col bg-bg text-gray-100 selection:bg-accent/25 overflow-x-clip">
       {/* Top Navigation */}
-      <header className="border-b border-border bg-surface/90 backdrop-blur-md sticky top-0 z-40 shadow-paper-sm">
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 max-w-6xl mx-auto">
+      <header className="border-b border-border bg-surface/90 backdrop-blur-md sticky top-0 z-40 shadow-paper-sm w-full">
+        <div className="flex items-center justify-between px-4 sm:px-6 lg:px-10 py-3.5 w-full max-w-[1600px] mx-auto">
           <div className="flex items-center gap-2.5 font-bold text-lg text-gray-100">
             <BrandMark size={32} className="text-accent" />
             <span className="font-serif tracking-tight text-lg">CodeTogether</span>
@@ -174,73 +174,147 @@ export default function Landing() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="text-center pt-16 pb-12 px-6 max-w-4xl mx-auto space-y-6">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-border bg-surface text-accent text-xs font-medium shadow-paper-sm">
-          <Feather size={13} className="text-accent" />
-          <span>Collaborative IDE, Technical Interviews & System Design Studio</span>
-        </div>
+      {/* Hero + Live Interactive Preview (Fits 100% Viewport Above the Fold) */}
+      <section className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-8 sm:py-12 lg:py-0 lg:min-h-[calc(100dvh-65px)] flex items-center">
+        <div className="w-full grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+          {/* Left Hero Copy & CTAs */}
+          <div className="lg:col-span-6 space-y-6 text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-border bg-surface text-accent text-xs font-medium shadow-paper-sm">
+              <Feather size={13} className="text-accent" />
+              <span>Collaborative IDE, Technical Interviews &amp; System Design Studio</span>
+            </div>
 
-        <h1 className="text-4xl sm:text-6xl font-extrabold font-serif leading-tight tracking-tight text-gray-100">
-          Your team’s best work, <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent via-[#B8741A] to-accent2">
-            built side by side.
-          </span>
-        </h1>
+            <h1 className="text-4xl sm:text-5xl xl:text-6xl font-extrabold font-serif leading-[1.08] tracking-tight text-gray-100">
+              Your team’s best work, <br className="hidden sm:inline" />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent via-[#B8741A] to-accent2">
+                built side by side.
+              </span>
+            </h1>
 
-        <p className="text-gray-400 max-w-2xl mx-auto text-base sm:text-lg leading-relaxed font-sans">
-          CodeTogether brings conflict-free multi-file coding, sandboxed execution, live web previews,
-          system-design whiteboarding, voice calls, and private interview scorecards into one calm workspace.
-        </p>
+            <p className="text-gray-400 max-w-2xl mx-auto lg:mx-0 text-base sm:text-lg leading-relaxed font-sans">
+              CodeTogether brings conflict-free multi-file coding, sandboxed execution, live web previews,
+              system-design whiteboarding, voice calls, and private interview scorecards into one calm workspace.
+            </p>
 
-        {/* Action CTAs */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
-          <button
-            onClick={handleLaunchInstant}
-            disabled={creatingInstant}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-accent hover:opacity-90 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-paper hover:shadow-paper-md focus:ring-2 focus:ring-accent active:scale-95"
-          >
-            {creatingInstant ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Launching...</span>
-              </>
-            ) : (
-              <>
-                <span>Try Instant Playground</span>
-                <ArrowRight size={16} />
-              </>
-            )}
-          </button>
+            {/* Action CTAs */}
+            <div className="flex flex-col sm:flex-row items-center lg:items-start justify-center lg:justify-start gap-3 pt-1">
+              <button
+                onClick={handleLaunchInstant}
+                disabled={creatingInstant}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-accent hover:opacity-90 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-paper hover:shadow-paper-md focus:ring-2 focus:ring-accent active:scale-95"
+              >
+                {creatingInstant ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Launching...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Try Instant Playground</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
 
-          <Link
-            to={user && token ? "/dashboard" : "/register"}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-border bg-surface hover:bg-surface2 px-6 py-3 rounded-xl font-medium text-gray-200 transition-colors shadow-paper-sm"
-          >
-            {user && token ? "Open Your Dashboard" : "Create Permanent Room"}
-          </Link>
-        </div>
+              <Link
+                to={user && token ? "/dashboard" : "/register"}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-border bg-surface hover:bg-surface2 px-6 py-3 rounded-xl font-medium text-gray-200 transition-colors shadow-paper-sm"
+              >
+                {user && token ? "Open Your Dashboard" : "Create Permanent Room"}
+              </Link>
+            </div>
 
-        {/* Feature Counters */}
-        <div className="grid grid-cols-3 max-w-lg mx-auto pt-6 text-center divide-x divide-border bg-surface border border-border rounded-xl p-3 shadow-paper-sm">
-          <div>
-            <div className="text-2xl font-bold font-serif text-gray-100">15+</div>
-            <div className="text-xs text-gray-400 mt-0.5">Languages ready</div>
+            {/* Feature Counters */}
+            <div className="grid grid-cols-3 max-w-lg mx-auto lg:mx-0 text-center divide-x divide-border bg-surface border border-border rounded-xl p-3 shadow-paper-sm">
+              <div>
+                <div className="text-2xl font-bold font-serif text-gray-100">15+</div>
+                <div className="text-xs text-gray-400 mt-0.5">Languages ready</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold font-serif text-accent2">CRDT</div>
+                <div className="text-xs text-gray-400 mt-0.5">Binary + Redis sync</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold font-serif text-accent">4 roles</div>
+                <div className="text-xs text-gray-400 mt-0.5">RBAC &amp; private invites</div>
+              </div>
+            </div>
           </div>
-          <div>
-            <div className="text-2xl font-bold font-serif text-accent2">CRDT</div>
-            <div className="text-xs text-gray-400 mt-0.5">Binary + Redis sync</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold font-serif text-accent">4 roles</div>
-            <div className="text-xs text-gray-400 mt-0.5">RBAC & private invites</div>
+
+          {/* Right Interactive Hero Preview Component */}
+          <div className="lg:col-span-6 w-full">
+            <div className="rounded-2xl border border-border bg-surface shadow-paper-lg overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 bg-surface2 border-b border-border text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-rose-500/80 inline-block" />
+                  <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block" />
+                  <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
+                  <span className="text-gray-400 ml-2 font-mono text-[11px]">room: interview-studio</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-gray-300 bg-surface border border-border px-2 py-0.5 rounded-full font-mono">
+                    <History size={10} className="text-accent" /> Checkpoints
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[11px] text-accent2 bg-accent2/10 border border-accent2/30 px-2 py-0.5 rounded-full font-medium">
+                    ● 2 Active Scribes
+                  </span>
+                  <button
+                    onClick={handleRunDemo}
+                    disabled={demoRunning}
+                    className="flex items-center gap-1.5 bg-accent hover:opacity-90 text-white px-3 py-1 rounded-md text-xs font-semibold transition-opacity shadow-paper-sm"
+                  >
+                    <Play size={11} fill="currentColor" />
+                    <span>{demoRunning ? "Running..." : "Run"}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-5 sm:p-6 font-mono text-xs sm:text-sm text-gray-100 space-y-1.5 bg-paper-editor paper-ruled leading-7">
+                <div className="text-gray-400 italic">// Collaborative multi-file &amp; interview studio</div>
+                <div>
+                  <span className="text-accent font-semibold">function</span>{" "}
+                  <span className="text-accent font-medium">collaborate</span>() &#123;
+                </div>
+                <div className="pl-4">
+                  <span className="text-accent font-semibold">const</span>{" "}
+                  <span className="text-amber-700 dark:text-amber-400">stack</span> = [
+                  <span className="text-accent2">&quot;Yjs CRDT&quot;</span>,{" "}
+                  <span className="text-accent2">&quot;Monaco&quot;</span>,{" "}
+                  <span className="text-accent2">&quot;Whiteboard&quot;</span>,{" "}
+                  <span className="text-accent2">&quot;WebRTC&quot;</span>];
+                </div>
+                <div className="pl-4 flex items-center flex-wrap">
+                  <span>return `CodeTogether: $&#123;stack.join(&quot; + &quot;)&#125;`;</span>
+                  <span className="inline-block w-2 h-4 bg-accent animate-pulse ml-1" />
+                  <span className="text-[10px] bg-accent text-white px-1.5 py-0.5 rounded font-sans ml-1.5 shadow-sm">
+                    Alice typing...
+                  </span>
+                </div>
+                <div>&#125;</div>
+                <div className="pt-2 text-accent">console.log(collaborate());</div>
+              </div>
+
+              <div className="px-5 py-3.5 bg-paper-console border-t border-border text-xs font-mono text-gray-200 min-h-[48px] flex items-center">
+                {demoRunning ? (
+                  <span className="text-amber-700 dark:text-amber-400 animate-pulse flex items-center gap-1.5 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping inline-block" />
+                    Executing in isolated sandbox...
+                  </span>
+                ) : demoOutput ? (
+                  <span className="text-emerald-700 dark:text-emerald-400 font-semibold">{demoOutput}</span>
+                ) : (
+                  <span className="text-gray-500 italic">Click &quot;Run&quot; above to execute this code live</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Workflow */}
-      <section className="max-w-5xl mx-auto px-6 py-14 border-t border-border">
-        <div className="grid md:grid-cols-[1fr_2fr] gap-10 items-start">
+      <section className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-10 py-12 sm:py-14 border-t border-border">
+        <div className="grid lg:grid-cols-[1fr_2fr] gap-10 items-start">
           <div>
             <div className="inline-flex items-center gap-2 text-accent text-xs font-semibold uppercase tracking-widest">
               <Globe2 size={14} />
@@ -253,9 +327,9 @@ export default function Landing() {
               No setup maze. No context switching. Just a focused room where everyone can code, sketch, and test together.
             </p>
           </div>
-          <div className="grid sm:grid-cols-3 gap-3">
+          <div className="grid sm:grid-cols-3 gap-4">
             {WORKFLOW.map(({ step, icon: Icon, title, desc }) => (
-              <div key={step} className="bg-surface border border-border rounded-2xl p-4 shadow-paper-sm">
+              <div key={step} className="bg-surface border border-border rounded-2xl p-5 shadow-paper-sm">
                 <div className="flex items-center justify-between text-accent mb-5">
                   <Icon size={20} />
                   <span className="font-mono text-[10px] text-gray-500">{step}</span>
@@ -268,77 +342,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Interactive Hero Preview Component */}
-      <section className="max-w-4xl mx-auto px-6 pb-16">
-        <div className="rounded-2xl border border-border bg-surface shadow-paper-lg overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2.5 bg-surface2 border-b border-border text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-rose-500/80 inline-block" />
-              <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block" />
-              <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
-              <span className="text-gray-400 ml-2 font-mono text-[11px]">room: interview-studio</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-gray-300 bg-surface border border-border px-2 py-0.5 rounded-full font-mono">
-                <History size={10} className="text-accent" /> Checkpoints
-              </span>
-              <span className="inline-flex items-center gap-1 text-[11px] text-accent2 bg-accent2/10 border border-accent2/30 px-2 py-0.5 rounded-full font-medium">
-                ● 2 Active Scribes
-              </span>
-              <button
-                onClick={handleRunDemo}
-                disabled={demoRunning}
-                className="flex items-center gap-1.5 bg-accent hover:opacity-90 text-white px-3 py-1 rounded-md text-xs font-semibold transition-opacity shadow-paper-sm"
-              >
-                <Play size={11} fill="currentColor" />
-                <span>{demoRunning ? "Running..." : "Run"}</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="p-5 font-mono text-xs text-gray-100 space-y-1 bg-paper-editor">
-            <div className="text-gray-400 italic">// Collaborative multi-file & interview studio</div>
-            <div>
-              <span className="text-accent font-semibold">function</span>{" "}
-              <span className="text-accent font-medium">collaborate</span>() &#123;
-            </div>
-            <div className="pl-4">
-              <span className="text-accent font-semibold">const</span>{" "}
-              <span className="text-amber-700 dark:text-amber-400">stack</span> = [
-              <span className="text-accent2">"Yjs CRDT"</span>,{" "}
-              <span className="text-accent2">"Monaco"</span>,{" "}
-              <span className="text-accent2">"Whiteboard"</span>,{" "}
-              <span className="text-accent2">"WebRTC"</span>];
-            </div>
-            <div className="pl-4 flex items-center">
-              <span>return `CodeTogether: $&#123;stack.join(" + ")&#125;`;</span>
-              <span className="inline-block w-2 h-4 bg-accent animate-pulse ml-1" />
-              <span className="text-[10px] bg-accent text-white px-1.5 py-0.5 rounded font-sans ml-1.5 shadow-sm">
-                Alice typing...
-              </span>
-            </div>
-            <div>&#125;</div>
-            <div className="pt-2 text-accent">console.log(collaborate());</div>
-          </div>
-
-          <div className="px-5 py-3 bg-paper-console border-t border-border text-xs font-mono text-gray-200 min-h-[44px] flex items-center">
-            {demoRunning ? (
-              <span className="text-amber-700 dark:text-amber-400 animate-pulse flex items-center gap-1.5 font-medium">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping inline-block" />
-                Executing in isolated sandbox...
-              </span>
-            ) : demoOutput ? (
-              <span className="text-emerald-700 dark:text-emerald-400 font-semibold">{demoOutput}</span>
-            ) : (
-              <span className="text-gray-500 italic">Click "Run" above to execute this code live</span>
-            )}
-          </div>
-        </div>
-      </section>
-
       {/* Feature Grid */}
-      <section className="max-w-5xl mx-auto px-6 py-12">
+      <section className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-10 py-12">
         <div className="text-center mb-10 space-y-2">
           <h2 className="text-2xl sm:text-3xl font-bold font-serif text-gray-100">
             Engineered for Peak Developer Flow
@@ -365,7 +370,7 @@ export default function Landing() {
       </section>
 
       {/* Security & Governance Callout */}
-      <section className="max-w-5xl mx-auto px-6 py-8">
+      <section className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-10 py-8">
         <div className="bg-surface border border-border rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-paper">
           <div className="flex items-start gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 flex items-center justify-center shrink-0">
@@ -390,7 +395,7 @@ export default function Landing() {
       </section>
 
       {/* Use Cases */}
-      <section className="max-w-5xl mx-auto px-6 py-10 text-center border-t border-border">
+      <section className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-10 py-10 text-center border-t border-border">
         <h3 className="text-xs uppercase tracking-wider text-gray-400 mb-5 font-semibold font-mono">
           Perfect For Every Scenario
         </h3>
@@ -407,7 +412,7 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border py-8 px-6 text-center text-xs text-gray-500 bg-surface/50">
+      <footer className="mt-auto border-t border-border py-8 px-6 text-center text-xs text-gray-500 bg-surface/50">
         <div className="flex items-center justify-center gap-2 mb-2 text-gray-400 font-serif">
           <BrandMark size={22} className="text-accent" />
           <span>CodeTogether</span>

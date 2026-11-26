@@ -222,7 +222,7 @@ export default function Profile() {
     : null;
 
   return (
-    <div className="min-h-dvh bg-bg text-gray-100 flex flex-col relative overflow-x-hidden selection:bg-accent/25">
+    <div className="min-h-dvh bg-bg text-gray-100 flex flex-col relative overflow-x-clip selection:bg-accent/25">
       {/* Subtle editorial radial paper glow */}
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-32 -left-24 w-96 h-96 rounded-full bg-accent/10 blur-3xl" />
@@ -231,7 +231,7 @@ export default function Profile() {
 
       <Navbar />
 
-      <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10 flex-1 w-full space-y-7">
+      <main className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 flex-1 w-full space-y-7">
         {/* Top Breadcrumb & Title */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="space-y-2">

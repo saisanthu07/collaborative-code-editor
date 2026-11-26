@@ -5,7 +5,7 @@ export default function PageLoading({ message = "Loading..." }) {
     <div
       role="status"
       aria-live="polite"
-      className="min-h-screen bg-bg text-gray-100 flex flex-col items-center justify-center p-6"
+      className="min-h-dvh bg-bg text-gray-100 flex flex-col items-center justify-center p-6"
     >
       <div className="flex flex-col items-center gap-4 bg-surface border border-border p-8 rounded-2xl shadow-paper-md max-w-xs w-full text-center">
         <div className="relative flex items-center justify-center">
