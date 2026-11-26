@@ -46,6 +46,13 @@ router.post(
   requireRoomHost,
   roomController.rotateInvite
 );
+router.post(
+  "/:roomId/end",
+  authMiddleware,
+  roomAccessMiddleware,
+  requireRoomHost,
+  roomController.endSession
+);
 router.delete("/:roomId", authMiddleware, roomAccessMiddleware, requireRoomHost, roomController.remove);
 
 router.post("/:roomId/join", optionalAuthMiddleware, roomAccessMiddleware, roomController.join);

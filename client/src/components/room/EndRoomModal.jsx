@@ -62,9 +62,9 @@ export default function EndRoomModal({
             </div>
             <div>
               <h2 id="end-room-title" className="text-lg font-bold font-serif text-gray-100">
-                End Room for Everyone
+                Complete &amp; End Session
               </h2>
-              <p className="text-xs text-gray-400">Host action: Permanent session termination</p>
+              <p className="text-xs text-gray-400">Host action: Disconnect live peers &amp; archive to recents</p>
             </div>
           </div>
           <button
@@ -79,8 +79,8 @@ export default function EndRoomModal({
         </div>
 
         <p className="text-xs text-gray-300 leading-relaxed font-sans">
-          Are you sure you want to permanently end <span className="font-semibold text-gray-100 font-serif">{roomName}</span>?
-          All active collaborators will be disconnected and redirected to the dashboard.
+          Are you sure you want to end <span className="font-semibold text-gray-100 font-serif">{roomName || "this session"}</span>?
+          Active collaborators will be disconnected, and the session will stay saved in your Dashboard recents as <span className="font-mono text-accent2">Completed</span> for code, checkpoint, and scorecard review.
         </p>
 
         <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">

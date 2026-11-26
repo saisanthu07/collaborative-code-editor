@@ -10,6 +10,7 @@ import {
   Check,
   Trash2,
   ArrowUpRight,
+  CheckCircle2,
 } from "lucide-react";
 import { LANGUAGES } from "../../constants/languages.js";
 import { colorForUser } from "../../utils/color.js";
@@ -50,6 +51,7 @@ export default function RoomCard({
   const langLabel = LANG_LABELS[room.language] || room.language || "Plain";
   const isPrivate = room.visibility === "PRIVATE";
   const isLocked = Boolean(room.settings?.locked);
+  const isCompleted = room.status === "COMPLETED";
   const memberCount = room.memberCount ?? room.members?.length ?? 0;
   const previewMembers = Array.isArray(room.members) ? room.members.slice(0, 3) : [];
 
@@ -117,6 +119,11 @@ export default function RoomCard({
               {isLocked && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-mono text-amber-600 dark:text-amber-400">
                   <ShieldAlert size={10} /> Locked
+                </span>
+              )}
+              {isCompleted && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-mono text-accent2 bg-accent2/10 border border-accent2/25 px-1.5 py-0 rounded-full">
+                  <CheckCircle2 size={10} /> Completed
                 </span>
               )}
             </div>
@@ -227,6 +234,12 @@ export default function RoomCard({
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/10 border border-amber-500/25 text-amber-600 dark:text-amber-400">
                 <ShieldAlert size={10} />
                 <span>Locked</span>
+              </span>
+            )}
+            {isCompleted && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-accent2/10 border border-accent2/25 text-accent2">
+                <CheckCircle2 size={10} />
+                <span>Completed</span>
               </span>
             )}
           </div>

@@ -116,6 +116,8 @@ const roomSchema = new mongoose.Schema(
     bannedUsernames: [{ type: String }],
     bannedUserIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     starredBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    status: { type: String, enum: ["ACTIVE", "COMPLETED"], default: "ACTIVE" },
+    endedAt: { type: Date, default: null },
     lastActiveAt: { type: Date, default: Date.now },
     expiresAt: { type: Date, default: null },
   },

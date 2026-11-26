@@ -130,7 +130,7 @@ export async function listMine(req, res, next) {
     const userId = req.user._id;
     const limit = Math.min(Number(req.query.limit) || 100, 100);
     const selectFields =
-      "name description roomId language visibility lastActiveAt members.username members.role settings.locked ownerId starredBy";
+      "name description roomId language visibility status endedAt lastActiveAt members.username members.role settings.locked ownerId starredBy";
 
     const [ownedDocs, memberOfRaw, starredDocs] = await Promise.all([
       Room.find({ ownerId: userId })
@@ -203,6 +203,11 @@ export async function update(req, res, next) {
       }
     }
     if (req.body.language !== undefined) $set.language = req.body.language;
+    if (req.body.status !== undefined) {
+      $set.status = req.body.status;
+      $set.endedAt = req.body.status === "COMPLETED" ? new Date() : null;
+      $set.lastActiveAt = new Date();
+    }
     if (req.body.settings) {
       if (req.body.settings.allowGuestEdit !== undefined)
         $set["settings.allowGuestEdit"] = req.body.settings.allowGuestEdit;
@@ -253,6 +258,36 @@ export async function rotateInvite(req, res, next) {
   }
 }
 
+export async function endSession(req, res, next) {
+  try {
+    const roomId = req.room.roomId;
+    const now = new Date();
+    const room = await Room.findOneAndUpdate(
+      { roomId },
+      { $set: { status: "COMPLETED", endedAt: now, lastActiveAt: now } },
+      { new: true }
+    );
+    invalidateRoomPolicyCache(roomId);
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(roomId).emit("room-ended", {
+        message: "The host has marked this session completed",
+      });
+      const sockets = await io.in(roomId).fetchSockets();
+      for (const s of sockets) {
+        s.leave(roomId);
+      }
+    }
+
+    disconnectAllRoomYjs(roomId);
+    logEvent("ROOM_END", { userId: req.user._id.toString(), roomId });
+    res.json({ room });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function remove(req, res, next) {
   try {
     const roomId = req.room.roomId;
@@ -290,10 +325,16 @@ export async function leave(req, res, next) {
     const username = req.user?.username || req.body?.username;
 
     if (userId) {
-      req.room.members = req.room.members.filter(
-        (m) => m.userId?.toString() !== userId.toString()
+      const now = new Date();
+      await Room.updateOne(
+        { roomId, "members.userId": userId },
+        {
+          $set: {
+            lastActiveAt: now,
+            "members.$.lastActiveAt": now,
+          },
+        }
       );
-      await req.room.save();
       invalidateRoomPolicyCache(roomId);
     }
 
@@ -334,12 +375,19 @@ export async function join(req, res, next) {
       if (existingMember) {
         await Room.updateOne(
           { roomId, "members.userId": req.user._id },
-          { $set: { "members.$.lastActiveAt": new Date(), "members.$.isGuest": false } }
+          {
+            $set: {
+              lastActiveAt: new Date(),
+              "members.$.lastActiveAt": new Date(),
+              "members.$.isGuest": false,
+            },
+          }
         );
       } else {
         await Room.updateOne(
           { roomId, "members.userId": { $ne: req.user._id } },
           {
+            $set: { lastActiveAt: new Date() },
             $push: {
               members: {
                 userId: req.user._id,

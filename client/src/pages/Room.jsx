@@ -23,6 +23,8 @@ import {
   ClipboardCheck,
   Command,
   WifiOff,
+  CheckCircle2,
+  RotateCcw,
 } from "lucide-react";
 import { downloadFilesAsZip } from "../utils/zip.js";
 import { copyToClipboard } from "../utils/clipboard.js";
@@ -238,11 +240,13 @@ export default function Room() {
       (room.ownerId?.toString() === user._id?.toString() || room.ownerId === user._id)
   );
   const isHost = Boolean(isRoomOwner || memberRecord?.role === "HOST");
+  const isCompleted = room?.status === "COMPLETED";
   const userRole = isHost
     ? "HOST"
     : memberRecord?.role || (user ? room?.settings?.defaultRole : "GUEST");
   const canManageFiles = Boolean(
-    isHost || userRole === "EDITOR" || (userRole === "GUEST" && room?.settings?.allowGuestEdit)
+    !isCompleted &&
+      (isHost || userRole === "EDITOR" || (userRole === "GUEST" && room?.settings?.allowGuestEdit))
   );
 
   const handleParticipantsUpdate = useCallback((parts) => {
@@ -610,10 +614,10 @@ export default function Room() {
   const handleEndRoom = useCallback(async () => {
     setEndingRoom(true);
     try {
-      await api.delete(`/rooms/${roomId}`);
+      await api.post(`/rooms/${roomId}/end`);
       socket?.emit("leave-room");
       disconnectSocket();
-      toast.success("Room ended");
+      toast.success("Session completed and saved to recents");
       navigate("/dashboard");
     } catch (err) {
       toast.error(err.response?.data?.error || "Could not end room");
@@ -622,6 +626,16 @@ export default function Room() {
       setShowEndModal(false);
     }
   }, [roomId, socket, navigate]);
+
+  const handleReopenRoom = useCallback(async () => {
+    try {
+      const { data } = await api.patch(`/rooms/${roomId}`, { status: "ACTIVE" });
+      setRoom((prev) => (prev ? { ...prev, status: data.room?.status || "ACTIVE", endedAt: null } : prev));
+      toast.success("Session reopened");
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Could not reopen session");
+    }
+  }, [roomId]);
 
   const handleLeaveRoom = useCallback(async () => {
     setLeavingRoom(true);
@@ -1064,6 +1078,11 @@ export default function Room() {
                 <Lock size={11} /> Locked
               </span>
             )}
+            {isCompleted && (
+              <span className="flex items-center gap-1 text-[11px] bg-accent2/15 text-accent2 border border-accent2/30 px-2 py-0.5 rounded-full shrink-0 font-medium font-mono">
+                <CheckCircle2 size={11} /> Completed
+              </span>
+            )}
             {yjsStatus === "reconnecting" && (
               <span
                 title="Live editor sync reconnecting"
@@ -1188,14 +1207,26 @@ export default function Room() {
             <ThemeToggle compact />
 
             {isHost ? (
-              <button
-                onClick={() => setShowEndModal(true)}
-                aria-label="End Room Session"
-                className="flex items-center gap-1 text-xs text-rose-700 dark:text-rose-400 hover:opacity-90 bg-rose-500/15 border border-rose-500/30 rounded-lg px-2.5 py-1.5 font-semibold transition-all shadow-paper-sm"
-              >
-                <XCircle size={13} />
-                <span className="hidden lg:inline">End</span>
-              </button>
+              isCompleted ? (
+                <button
+                  type="button"
+                  onClick={handleReopenRoom}
+                  aria-label="Reopen Session"
+                  className="flex items-center gap-1 text-xs text-accent2 hover:opacity-90 bg-accent2/15 border border-accent2/30 rounded-lg px-2.5 py-1.5 font-semibold transition-all shadow-paper-sm"
+                >
+                  <RotateCcw size={13} />
+                  <span className="hidden lg:inline">Reopen</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowEndModal(true)}
+                  aria-label="End Room Session"
+                  className="flex items-center gap-1 text-xs text-rose-700 dark:text-rose-400 hover:opacity-90 bg-rose-500/15 border border-rose-500/30 rounded-lg px-2.5 py-1.5 font-semibold transition-all shadow-paper-sm"
+                >
+                  <XCircle size={13} />
+                  <span className="hidden lg:inline">End</span>
+                </button>
+              )
             ) : (
               <button
                 onClick={() => setShowLeaveModal(true)}
@@ -1274,13 +1305,24 @@ export default function Room() {
               <Share2 size={16} />
             </button>
             {isHost ? (
-              <button
-                onClick={() => setShowEndModal(true)}
-                aria-label="End Room Session"
-                className="p-1.5 text-rose-700 dark:text-rose-400 hover:opacity-90 rounded-lg hover:bg-rose-500/10"
-              >
-                <XCircle size={16} />
-              </button>
+              isCompleted ? (
+                <button
+                  type="button"
+                  onClick={handleReopenRoom}
+                  aria-label="Reopen Session"
+                  className="p-1.5 text-accent2 hover:opacity-90 rounded-lg hover:bg-accent2/10"
+                >
+                  <RotateCcw size={16} />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowEndModal(true)}
+                  aria-label="End Room Session"
+                  className="p-1.5 text-rose-700 dark:text-rose-400 hover:opacity-90 rounded-lg hover:bg-rose-500/10"
+                >
+                  <XCircle size={16} />
+                </button>
+              )
             ) : (
               <button
                 onClick={() => setShowLeaveModal(true)}
@@ -1608,6 +1650,7 @@ export default function Room() {
 
       {showEndModal && (
         <EndRoomModal
+          roomName={room?.name}
           onConfirm={handleEndRoom}
           onClose={() => setShowEndModal(false)}
           loading={endingRoom}

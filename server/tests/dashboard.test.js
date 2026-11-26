@@ -1,5 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import Room from "../src/models/Room.js";
+import { endSession, leave } from "../src/controllers/roomController.js";
 
 describe("Task 2.5 — Dashboard Payload and Query Optimization", () => {
   test("room formatting computes memberCount and isStarred while stripping files.content and starredBy", () => {
@@ -73,5 +75,79 @@ describe("Task 2.5 — Dashboard Payload and Query Optimization", () => {
       uniqueRooms.map((r) => r.roomId),
       ["room_1", "room_2", "room_3"]
     );
+  });
+
+  test("endSession marks room COMPLETED without deleting it so it stays in recents", async () => {
+    const origFindOneAndUpdate = Room.findOneAndUpdate;
+    let capturedUpdate = null;
+
+    Room.findOneAndUpdate = async (_query, update) => {
+      capturedUpdate = update;
+      return {
+        roomId: "room_done_1",
+        status: "COMPLETED",
+        endedAt: update.$set.endedAt,
+      };
+    };
+
+    try {
+      const req = {
+        room: { roomId: "room_done_1" },
+        user: { _id: "507f1f77bcf86cd799439011" },
+        app: { get: () => null },
+      };
+      let jsonBody = null;
+      const res = {
+        json(payload) {
+          jsonBody = payload;
+        },
+      };
+
+      await endSession(req, res, (err) => {
+        if (err) throw err;
+      });
+
+      assert.equal(capturedUpdate.$set.status, "COMPLETED");
+      assert.ok(capturedUpdate.$set.endedAt instanceof Date);
+      assert.equal(jsonBody.room.status, "COMPLETED");
+    } finally {
+      Room.findOneAndUpdate = origFindOneAndUpdate;
+    }
+  });
+
+  test("leave preserves user membership and bumps lastActiveAt so shared rooms stay in recents", async () => {
+    const origUpdateOne = Room.updateOne;
+    let capturedFilter = null;
+    let capturedUpdate = null;
+
+    Room.updateOne = async (filter, update) => {
+      capturedFilter = filter;
+      capturedUpdate = update;
+      return { modifiedCount: 1 };
+    };
+
+    try {
+      const req = {
+        room: { roomId: "room_shared_1" },
+        user: { _id: "507f1f77bcf86cd799439022", username: "collab" },
+      };
+      let jsonBody = null;
+      const res = {
+        json(payload) {
+          jsonBody = payload;
+        },
+      };
+
+      await leave(req, res, (err) => {
+        if (err) throw err;
+      });
+
+      assert.equal(capturedFilter.roomId, "room_shared_1");
+      assert.equal(capturedFilter["members.userId"], "507f1f77bcf86cd799439022");
+      assert.ok(capturedUpdate.$set.lastActiveAt instanceof Date);
+      assert.equal(jsonBody.success, true);
+    } finally {
+      Room.updateOne = origUpdateOne;
+    }
   });
 });

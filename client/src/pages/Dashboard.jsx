@@ -181,6 +181,11 @@ export default function Dashboard() {
     return LANGUAGES.filter((l) => keys.has(l.key));
   }, [allRooms]);
 
+  const completedRooms = useMemo(
+    () => allRooms.filter((r) => r.status === "COMPLETED"),
+    [allRooms]
+  );
+
   const visibleRooms = useMemo(() => {
     const baseList =
       filterTab === "owned"
@@ -189,6 +194,8 @@ export default function Dashboard() {
         ? rooms.memberOf
         : filterTab === "starred"
         ? rooms.starred
+        : filterTab === "completed"
+        ? completedRooms
         : allRooms;
 
     const q = searchQuery.trim().toLowerCase();
@@ -222,7 +229,7 @@ export default function Dashboard() {
       );
     }
     return sorted;
-  }, [filterTab, rooms, allRooms, searchQuery, languageFilter, sortBy]);
+  }, [filterTab, rooms, allRooms, completedRooms, searchQuery, languageFilter, sortBy]);
 
   const hasActiveFilters = Boolean(searchQuery.trim()) || languageFilter !== "all";
   const displayName = user?.name?.trim() || user?.username || "Developer";
@@ -232,6 +239,7 @@ export default function Dashboard() {
     { key: "owned", label: "Owned", count: rooms.owned.length },
     { key: "shared", label: "Shared", count: rooms.memberOf.length },
     { key: "starred", label: "Starred", count: rooms.starred.length },
+    { key: "completed", label: "Completed", count: completedRooms.length },
   ];
 
   return (
@@ -612,6 +620,8 @@ export default function Dashboard() {
                     ? "No starred rooms yet"
                     : filterTab === "shared"
                     ? "No shared rooms yet"
+                    : filterTab === "completed"
+                    ? "No completed sessions yet"
                     : "Your workspace is ready"}
                 </h3>
                 <p className="text-gray-400 text-xs max-w-md mx-auto leading-relaxed">
@@ -621,6 +631,8 @@ export default function Dashboard() {
                     ? "Click the star icon on any room card to pin your favorite sessions here."
                     : filterTab === "shared"
                     ? "Rooms you join via an invite link or team collaboration will appear here."
+                    : filterTab === "completed"
+                    ? "When you end a hosted session, it stays saved here so you can review code, checkpoints, and scorecards."
                     : "Create your first collaborative coding room or paste an invite link above to begin."}
                 </p>
               </div>

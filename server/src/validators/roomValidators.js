@@ -17,6 +17,7 @@ export const updateRoomSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
   visibility: z.enum(["PUBLIC", "PRIVATE"]).optional(),
+  status: z.enum(["ACTIVE", "COMPLETED"]).optional(),
   settings: z
     .object({
       allowGuestEdit: z.boolean().optional(),
