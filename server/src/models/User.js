@@ -23,6 +23,9 @@ const userSchema = new mongoose.Schema(
     avatar: { type: String, default: "" },
     role: { type: String, enum: ["USER", "ADMIN"], default: "USER" },
     status: { type: String, enum: ["ACTIVE", "SUSPENDED", "BANNED"], default: "ACTIVE" },
+    emailVerified: { type: Boolean, default: false },
+    emailVerificationTokenHash: { type: String, default: null },
+    emailVerificationExpiresAt: { type: Date, default: null },
     resetPasswordTokenHash: { type: String, default: null },
     resetPasswordExpiresAt: { type: Date, default: null },
     lastActiveAt: { type: Date, default: Date.now },
@@ -34,6 +37,8 @@ const userSchema = new mongoose.Schema(
 userSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.passwordHash;
+  delete obj.emailVerificationTokenHash;
+  delete obj.emailVerificationExpiresAt;
   delete obj.resetPasswordTokenHash;
   delete obj.resetPasswordExpiresAt;
   return obj;

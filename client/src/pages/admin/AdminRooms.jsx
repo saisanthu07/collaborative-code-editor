@@ -3,12 +3,15 @@ import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Lock, Unlock, Trash2, Search, RefreshCw, ExternalLink } from "lucide-react";
 import { api } from "../../services/api.js";
+import ConfirmModal from "../../components/common/ConfirmModal.jsx";
 
 export default function AdminRooms() {
   const [rooms, setRooms] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("ALL"); // ALL | PUBLIC | PRIVATE | LOCKED
   const [loading, setLoading] = useState(true);
+  const [roomToDelete, setRoomToDelete] = useState(null);
+  const [deletingRoom, setDeletingRoom] = useState(false);
 
   async function loadRooms() {
     setLoading(true);
@@ -42,14 +45,22 @@ export default function AdminRooms() {
     }
   }
 
-  async function handleDeleteRoom(room) {
-    if (!window.confirm(`Permanently delete room "${room.name}" (${room.roomId})?`)) return;
+  function handleDeleteRoom(room) {
+    setRoomToDelete(room);
+  }
+
+  async function confirmDeleteRoom() {
+    if (!roomToDelete) return;
+    setDeletingRoom(true);
     try {
-      await api.delete(`/admin/rooms/${room.roomId}`);
-      toast.success(`Deleted room ${room.name}`);
+      await api.delete(`/admin/rooms/${roomToDelete.roomId}`);
+      toast.success(`Deleted room ${roomToDelete.name}`);
+      setRoomToDelete(null);
       loadRooms();
     } catch (err) {
       toast.error(err.response?.data?.error || "Operation failed");
+    } finally {
+      setDeletingRoom(false);
     }
   }
 
@@ -173,6 +184,17 @@ export default function AdminRooms() {
           })
         )}
       </div>
+
+      <ConfirmModal
+        open={Boolean(roomToDelete)}
+        title={`Delete room "${roomToDelete?.name}"?`}
+        message={`This permanently removes room ${roomToDelete?.roomId || ""} along with all code files, checkpoints, comments, and chat history.`}
+        confirmLabel="Delete Room"
+        tone="danger"
+        loading={deletingRoom}
+        onClose={() => !deletingRoom && setRoomToDelete(null)}
+        onConfirm={confirmDeleteRoom}
+      />
     </div>
   );
 }

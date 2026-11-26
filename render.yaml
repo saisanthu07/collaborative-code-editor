@@ -44,6 +44,18 @@ services:
         sync: false
       - key: METRICS_TOKEN
         generateValue: true
+      - key: EMAIL_FROM
+        value: CodeTogether <noreply@codetogether.dev>
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
 
   - type: web
     name: collab-editor-client

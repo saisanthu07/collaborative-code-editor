@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
   Plus,
@@ -15,6 +15,7 @@ import {
   Users,
   ArrowRight,
   SlidersHorizontal,
+  MailWarning,
 } from "lucide-react";
 import { api } from "../services/api.js";
 import { useAuthStore } from "../store/authStore.js";
@@ -52,6 +53,9 @@ export default function Dashboard() {
   const [joinId, setJoinId] = useState("");
   const [roomToDelete, setRoomToDelete] = useState(null);
   const [deletingRoom, setDeletingRoom] = useState(false);
+  const [verifyBannerDismissed, setVerifyBannerDismissed] = useState(false);
+  const [resendingVerify, setResendingVerify] = useState(false);
+  const [devVerifyToken, setDevVerifyToken] = useState("");
 
   const loadRooms = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setRoomsLoading(true);
@@ -144,6 +148,19 @@ export default function Dashboard() {
     }
   }
 
+  async function handleResendVerify() {
+    setResendingVerify(true);
+    try {
+      const { data } = await api.post("/auth/resend-verification");
+      setDevVerifyToken(data.devVerifyToken || "");
+      toast.success("Verification instructions sent");
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Could not send verification email");
+    } finally {
+      setResendingVerify(false);
+    }
+  }
+
   const ownedRoomIds = useMemo(
     () => new Set(rooms.owned.map((r) => r.roomId)),
     [rooms.owned]
@@ -228,6 +245,45 @@ export default function Dashboard() {
       <Navbar />
 
       <main className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10 flex-1 w-full space-y-8">
+        {user && user.emailVerified === false && !verifyBannerDismissed && (
+          <div className="bg-surface border border-amber-500/35 rounded-2xl px-4 py-3 shadow-paper-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-2.5 text-xs text-gray-300">
+              <MailWarning size={16} className="text-amber-500 shrink-0 mt-0.5 sm:mt-0" />
+              <div>
+                <span>
+                  Verify your email (<span className="font-mono text-gray-200">{user.email}</span>) to protect account recovery.
+                </span>
+                {devVerifyToken && (
+                  <Link
+                    to={`/verify-email?token=${encodeURIComponent(devVerifyToken)}`}
+                    className="ml-2 text-accent underline font-semibold font-mono"
+                  >
+                    Verify now →
+                  </Link>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+              <button
+                type="button"
+                onClick={handleResendVerify}
+                disabled={resendingVerify}
+                className="text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-3 py-1 rounded-lg transition-colors disabled:opacity-60"
+              >
+                {resendingVerify ? "Sending..." : "Send Verification"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setVerifyBannerDismissed(true)}
+                aria-label="Dismiss verification reminder"
+                className="p-1 text-gray-400 hover:text-gray-100 rounded-lg"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Editorial Workspace Header */}
         <section className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 border-b border-border pb-7">
           <div className="space-y-2.5">

@@ -21,8 +21,11 @@ import {
   PenTool,
   Code2,
   ClipboardCheck,
+  Command,
+  WifiOff,
 } from "lucide-react";
 import { downloadFilesAsZip } from "../utils/zip.js";
+import { copyToClipboard } from "../utils/clipboard.js";
 import { api } from "../services/api.js";
 import { disconnectSocket } from "../services/socket.js";
 import { useAuthStore } from "../store/authStore.js";
@@ -34,6 +37,7 @@ import CommentsPanel from "../components/room/CommentsPanel.jsx";
 import WhiteboardPanel from "../components/room/WhiteboardPanel.jsx";
 import RevisionsModal from "../components/room/RevisionsModal.jsx";
 import ScorecardModal from "../components/room/ScorecardModal.jsx";
+import CommandPalette from "../components/room/CommandPalette.jsx";
 import ParticipantsPanel from "../components/room/ParticipantsPanel.jsx";
 import ShareModal from "../components/room/ShareModal.jsx";
 import HostSettingsModal from "../components/room/HostSettingsModal.jsx";
@@ -101,6 +105,8 @@ export default function Room() {
   const [showHostSettings, setShowHostSettings] = useState(false);
   const [showRevisions, setShowRevisions] = useState(false);
   const [showScorecard, setShowScorecard] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [yjsStatus, setYjsStatus] = useState("connecting");
   const [savingSettings, setSavingSettings] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
@@ -206,6 +212,17 @@ export default function Room() {
       if (testCaseSyncTimerRef.current) clearTimeout(testCaseSyncTimerRef.current);
       disconnectSocket();
     };
+  }, []);
+
+  useEffect(() => {
+    function handleCommandShortcut(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowCommandPalette((prev) => !prev);
+      }
+    }
+    window.addEventListener("keydown", handleCommandShortcut);
+    return () => window.removeEventListener("keydown", handleCommandShortcut);
   }, []);
 
   const activeFile = room?.files?.find((f) => f.name === activeFileName) || room?.files?.[0];
@@ -1047,9 +1064,27 @@ export default function Room() {
                 <Lock size={11} /> Locked
               </span>
             )}
+            {yjsStatus === "reconnecting" && (
+              <span
+                title="Live editor sync reconnecting"
+                className="flex items-center gap-1 text-[11px] bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full shrink-0 font-mono"
+              >
+                <WifiOff size={11} /> Reconnecting
+              </span>
+            )}
           </div>
 
           <div className="hidden sm:flex items-center gap-1.5 lg:gap-2">
+            <button
+              type="button"
+              onClick={() => setShowCommandPalette(true)}
+              title="Command Palette (Cmd/Ctrl + K)"
+              aria-label="Open Command Palette"
+              className="hidden lg:inline-flex items-center gap-1 text-[11px] font-mono text-gray-400 hover:text-gray-100 bg-surface2 border border-border rounded-lg px-2 py-1.5 transition-colors shadow-paper-sm"
+            >
+              <Command size={12} />
+              <span>K</span>
+            </button>
             <div className="flex items-center border border-border rounded-lg bg-surface2 p-0.5 shadow-paper-sm">
               <button
                 type="button"
@@ -1357,6 +1392,7 @@ export default function Room() {
                   username={resolvedUsername || "Guest"}
                   guestToken={guestToken}
                   canEdit={canManageFiles}
+                  onConnectionChange={setYjsStatus}
                   onEditorReady={handleEditorReady}
                   onCursorLineChange={setCurrentLine}
                 />
@@ -1585,6 +1621,27 @@ export default function Room() {
           loading={deletingFile}
         />
       )}
+
+      <CommandPalette
+        open={showCommandPalette}
+        files={room?.files || []}
+        activeFileName={activeFileName}
+        workspaceView={workspaceView}
+        canManageFiles={canManageFiles}
+        isHost={isHost}
+        onClose={() => setShowCommandPalette(false)}
+        onSelectFile={handleSelectFile}
+        onSetWorkspaceView={setWorkspaceView}
+        onRunCode={handleRun}
+        onSetRightTab={setRightTab}
+        onOpenShare={() => setShowShare(true)}
+        onOpenRevisions={() => setShowRevisions(true)}
+        onOpenSettings={() => setShowHostSettings(true)}
+        onCopyRoomId={async () => {
+          const ok = await copyToClipboard(roomId);
+          if (ok) toast.success("Room ID copied");
+        }}
+      />
     </div>
   );
 }

@@ -117,6 +117,35 @@ export async function resetPasswordWithToken(rawToken, newPassword) {
   return user;
 }
 
+export async function issueEmailVerification(user) {
+  const rawToken = crypto.randomBytes(24).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+  user.emailVerificationTokenHash = tokenHash;
+  user.emailVerificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await user.save();
+  return rawToken;
+}
+
+export async function verifyEmailWithToken(rawToken) {
+  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+  const user = await User.findOne({
+    emailVerificationTokenHash: tokenHash,
+    emailVerificationExpiresAt: { $gt: new Date() },
+  });
+
+  if (!user) {
+    const err = new Error("Invalid or expired email verification token");
+    err.status = 400;
+    throw err;
+  }
+
+  user.emailVerified = true;
+  user.emailVerificationTokenHash = null;
+  user.emailVerificationExpiresAt = null;
+  await user.save();
+  return user;
+}
+
 export async function deleteOwnAccount(user, password) {
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {

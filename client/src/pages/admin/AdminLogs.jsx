@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Trash2, RefreshCw, Search } from "lucide-react";
 import { api } from "../../services/api.js";
+import ConfirmModal from "../../components/common/ConfirmModal.jsx";
 
 export default function AdminLogs() {
   const [logs, setLogs] = useState([]);
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
   async function loadLogs() {
     setLoading(true);
@@ -36,11 +38,11 @@ export default function AdminLogs() {
   }
 
   async function handleClearAllLogs() {
-    if (!window.confirm("Delete all stored activity logs? This cannot be undone.")) return;
     setClearing(true);
     try {
       const { data } = await api.delete("/admin/activity-logs");
       setLogs([]);
+      setConfirmClearOpen(false);
       toast.success(`Cleared ${data.deletedCount ?? 0} log entries`);
     } catch (err) {
       toast.error(err.response?.data?.error || "Could not clear activity logs");
@@ -82,7 +84,7 @@ export default function AdminLogs() {
 
           <button
             type="button"
-            onClick={handleClearAllLogs}
+            onClick={() => setConfirmClearOpen(true)}
             disabled={clearing || logs.length === 0}
             className="flex items-center gap-1.5 text-xs font-mono text-rose-500 hover:bg-rose-500/10 bg-surface border border-rose-500/30 rounded-xl px-3 py-1.5 disabled:opacity-40"
           >
@@ -133,6 +135,17 @@ export default function AdminLogs() {
           ))
         )}
       </div>
+
+      <ConfirmModal
+        open={confirmClearOpen}
+        title="Clear all activity logs?"
+        message="This permanently deletes all stored audit log entries. This action cannot be undone."
+        confirmLabel="Clear All Logs"
+        tone="danger"
+        loading={clearing}
+        onClose={() => !clearing && setConfirmClearOpen(false)}
+        onConfirm={handleClearAllLogs}
+      />
     </div>
   );
 }

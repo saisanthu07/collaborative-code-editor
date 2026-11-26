@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev.js",
-    "test": "npm test --prefix server",
+    "test": "npm test --prefix server && npm test --prefix client",
+    "test:server": "npm test --prefix server",
+    "test:client": "npm test --prefix client",
     "build": "npm run build --prefix client"
   }
 }

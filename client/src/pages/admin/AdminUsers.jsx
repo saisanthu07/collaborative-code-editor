@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { UserX, UserCheck, Ban, ShieldCheck, Trash2, Search, RefreshCw } from "lucide-react";
 import { api } from "../../services/api.js";
+import ConfirmModal from "../../components/common/ConfirmModal.jsx";
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [loading, setLoading] = useState(true);
+  const [confirmState, setConfirmState] = useState(null); // { type: "ban" | "delete", user }
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   async function loadUsers() {
     setLoading(true);
@@ -41,29 +44,40 @@ export default function AdminUsers() {
   }
 
   async function handleBanToggle(user) {
-    try {
-      if (user.status === "BANNED") {
+    if (user.status === "BANNED") {
+      try {
         await api.patch(`/admin/users/${user._id}/unban`);
         toast.success(`User ${user.username} unbanned`);
-      } else {
-        if (!window.confirm(`Ban user "${user.username}"? They will be signed out and blocked.`)) return;
-        await api.patch(`/admin/users/${user._id}/ban`);
-        toast.success(`User ${user.username} banned`);
+        loadUsers();
+      } catch (err) {
+        toast.error(err.response?.data?.error || "Operation failed");
       }
-      loadUsers();
-    } catch (err) {
-      toast.error(err.response?.data?.error || "Operation failed");
+      return;
     }
+    setConfirmState({ type: "ban", user });
   }
 
-  async function handleDeleteUser(user) {
-    if (!window.confirm(`Permanently delete "${user.username}" and all their owned rooms?`)) return;
+  function handleDeleteUser(user) {
+    setConfirmState({ type: "delete", user });
+  }
+
+  async function executeConfirmAction() {
+    if (!confirmState) return;
+    setConfirmBusy(true);
     try {
-      await api.delete(`/admin/users/${user._id}`);
-      toast.success(`Deleted user ${user.username}`);
+      if (confirmState.type === "ban") {
+        await api.patch(`/admin/users/${confirmState.user._id}/ban`);
+        toast.success(`User ${confirmState.user.username} banned`);
+      } else {
+        await api.delete(`/admin/users/${confirmState.user._id}`);
+        toast.success(`Deleted user ${confirmState.user.username}`);
+      }
+      setConfirmState(null);
       loadUsers();
     } catch (err) {
       toast.error(err.response?.data?.error || "Operation failed");
+    } finally {
+      setConfirmBusy(false);
     }
   }
 
@@ -208,6 +222,25 @@ export default function AdminUsers() {
           ))
         )}
       </div>
+
+      <ConfirmModal
+        open={Boolean(confirmState)}
+        title={
+          confirmState?.type === "ban"
+            ? `Ban "${confirmState?.user?.username}"?`
+            : `Delete "${confirmState?.user?.username}"?`
+        }
+        message={
+          confirmState?.type === "ban"
+            ? "They will be signed out of all active sessions and blocked from signing back in."
+            : "This permanently deletes the user account and all of their owned collaborative rooms."
+        }
+        confirmLabel={confirmState?.type === "ban" ? "Ban User" : "Delete User"}
+        tone={confirmState?.type === "ban" ? "warning" : "danger"}
+        loading={confirmBusy}
+        onClose={() => !confirmBusy && setConfirmState(null)}
+        onConfirm={executeConfirmAction}
+      />
     </div>
   );
 }

@@ -10,4 +10,6 @@ const yjsDocSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+yjsDocSchema.index({ roomId: 1, fileName: 1 });
+
 export default mongoose.model("YjsDoc", yjsDocSchema);

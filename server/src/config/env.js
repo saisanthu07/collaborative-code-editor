@@ -14,6 +14,12 @@ const envSchema = z.object({
   TURN_URLS: z.string().optional(),
   METRICS_TOKEN: z.string().optional(),
   ALLOW_UNSAFE_LOCAL_EXEC: z.enum(["true", "false"]).optional(),
+  EMAIL_FROM: z.string().optional(),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
+  SMTP_SECURE: z.enum(["true", "false"]).optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

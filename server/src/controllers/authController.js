@@ -4,8 +4,16 @@ import {
   changePassword,
   requestPasswordReset,
   resetPasswordWithToken,
+  issueEmailVerification,
+  verifyEmailWithToken,
   deleteOwnAccount,
 } from "../services/authService.js";
+import {
+  isEmailDeliveryConfigured,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from "../services/emailService.js";
+import { getAllowedOrigins } from "../config/env.js";
 import {
   issueRefreshToken,
   rotateRefreshToken,
@@ -44,7 +52,30 @@ export async function register(req, res, next) {
     const refreshToken = await issueRefreshToken(user._id, req.headers["user-agent"] || "");
     setRefreshTokenCookie(res, refreshToken);
     logEvent("AUTH_REGISTER", { userId: user._id.toString() });
-    res.status(201).json({ user, token });
+
+    let devVerifyToken;
+    try {
+      const verifyToken = await issueEmailVerification(user);
+      const clientOrigin = getAllowedOrigins()[0] || "http://localhost:5173";
+      const verifyUrl = `${clientOrigin}/verify-email?token=${encodeURIComponent(verifyToken)}`;
+      await sendVerificationEmail({
+        to: user.email,
+        username: user.username,
+        verifyUrl,
+        token: verifyToken,
+      });
+      if (!isProd() && !isEmailDeliveryConfigured()) {
+        devVerifyToken = verifyToken;
+      }
+    } catch {
+      // Verification email dispatch should never block account registration
+    }
+
+    res.status(201).json({
+      user,
+      token,
+      ...(devVerifyToken ? { devVerifyToken } : {}),
+    });
   } catch (err) {
     next(err);
   }
@@ -147,12 +178,24 @@ export async function forgotPassword(req, res, next) {
     const outcome = await requestPasswordReset(req.body.email);
     if (outcome) {
       logEvent("AUTH_PASSWORD_RESET_REQUEST", { userId: outcome.user._id.toString() });
+      const clientOrigin = getAllowedOrigins()[0] || "http://localhost:5173";
+      const resetUrl = `${clientOrigin}/reset-password?token=${encodeURIComponent(outcome.rawToken)}`;
+      try {
+        await sendPasswordResetEmail({
+          to: outcome.user.email,
+          username: outcome.user.username,
+          resetUrl,
+          token: outcome.rawToken,
+        });
+      } catch {
+        // Do not leak email failure or block dev fallback
+      }
     }
     const payload = {
       message: "If an account with that email exists, a reset token has been generated.",
     };
-    // Expose resetToken only outside production for local/dev workflows when no email provider is wired
-    if (!isProd() && outcome?.rawToken) {
+    // Expose resetToken only outside production when no external mailer is configured
+    if (!isProd() && !isEmailDeliveryConfigured() && outcome?.rawToken) {
       payload.devResetToken = outcome.rawToken;
     }
     res.json(payload);
@@ -166,6 +209,45 @@ export async function resetPassword(req, res, next) {
     const user = await resetPasswordWithToken(req.body.token, req.body.newPassword);
     logEvent("AUTH_PASSWORD_RESET_COMPLETE", { userId: user._id.toString() });
     res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function verifyEmail(req, res, next) {
+  try {
+    const user = await verifyEmailWithToken(req.body.token);
+    logEvent("AUTH_EMAIL_VERIFIED", { userId: user._id.toString() });
+    res.json({ success: true, user });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function resendVerification(req, res, next) {
+  try {
+    if (req.user.emailVerified) {
+      return res.json({ success: true, alreadyVerified: true });
+    }
+    const verifyToken = await issueEmailVerification(req.user);
+    const clientOrigin = getAllowedOrigins()[0] || "http://localhost:5173";
+    const verifyUrl = `${clientOrigin}/verify-email?token=${encodeURIComponent(verifyToken)}`;
+    await sendVerificationEmail({
+      to: req.user.email,
+      username: req.user.username,
+      verifyUrl,
+      token: verifyToken,
+    });
+    logEvent("AUTH_EMAIL_VERIFICATION_SENT", { userId: req.user._id.toString() });
+
+    const payload = {
+      success: true,
+      message: "Verification instructions sent.",
+    };
+    if (!isProd() && !isEmailDeliveryConfigured()) {
+      payload.devVerifyToken = verifyToken;
+    }
+    res.json(payload);
   } catch (err) {
     next(err);
   }
