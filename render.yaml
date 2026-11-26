@@ -20,16 +20,30 @@ services:
         value: 15m
       - key: REFRESH_TOKEN_DAYS
         value: 30
+      - key: GUEST_TOKEN_TTL_HOURS
+        value: 24
+      - key: MAX_GUESTS_PER_ROOM
+        value: 50
       - key: CLIENT_URL
         sync: false
       - key: JUDGE0_API_URL
-        value: https://judge0-ce.p.rapidapi.com
+        value: https://ce.judge0.com
       - key: JUDGE0_API_KEY
         sync: false
       - key: JUDGE0_API_HOST
-        value: judge0-ce.p.rapidapi.com
+        value: ce.judge0.com
+      - key: PISTON_API_URL
+        value: https://emkc.org/api/v2/piston
       - key: REDIS_URL
         sync: false
+      - key: TURN_URLS
+        sync: false
+      - key: TURN_USERNAME
+        sync: false
+      - key: TURN_CREDENTIAL
+        sync: false
+      - key: METRICS_TOKEN
+        generateValue: true
 
   - type: web
     name: collab-editor-client

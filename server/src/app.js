@@ -6,7 +6,12 @@ import mongoose from "mongoose";
 import { generalLimiter } from "./middleware/rateLimiter.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { getRedisHealthStatus } from "./config/redis.js";
+import { getAllowedOrigins } from "./config/env.js";
 import { isServerShuttingDown } from "./lifecycle.js";
+import { requestContextMiddleware } from "./utils/logger.js";
+import { metricsMiddleware, collectMetricsSnapshot } from "./utils/metrics.js";
+import { authMiddleware } from "./middleware/authMiddleware.js";
+import { adminMiddleware } from "./middleware/adminMiddleware.js";
 
 import authRoutes from "./routes/authRoutes.js";
 import roomRoutes from "./routes/roomRoutes.js";
@@ -17,10 +22,17 @@ export function createApp() {
 
   app.set("trust proxy", 1);
 
+  app.use(requestContextMiddleware);
+  app.use(metricsMiddleware);
   app.use(helmet());
   app.use(
     cors({
-      origin: process.env.CLIENT_URL || "http://localhost:5173",
+      origin(origin, callback) {
+        if (!origin) return callback(null, true);
+        const allowed = getAllowedOrigins();
+        if (allowed.includes(origin)) return callback(null, true);
+        return callback(new Error("CORS origin not allowed"));
+      },
       credentials: true,
     })
   );
@@ -47,6 +59,21 @@ export function createApp() {
       return res.status(503).json(payload);
     }
     res.json(payload);
+  });
+
+  // Operational metrics endpoint: accepts METRICS_TOKEN bearer or authenticated ADMIN
+  app.get("/api/metrics", (req, res, next) => {
+    const expectedToken = process.env.METRICS_TOKEN;
+    const authHeader = req.headers.authorization || "";
+    if (expectedToken && authHeader === `Bearer ${expectedToken}`) {
+      return res.json(collectMetricsSnapshot());
+    }
+    return authMiddleware(req, res, (authErr) => {
+      if (authErr) return next(authErr);
+      return adminMiddleware(req, res, () => {
+        res.json(collectMetricsSnapshot());
+      });
+    });
   });
 
   app.use("/api/auth", authRoutes);

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import ActivityLog from "../models/ActivityLog.js";
 
 const REDACTED_KEYS = new Set([
@@ -20,9 +21,21 @@ function sanitize(meta = {}) {
   return clean;
 }
 
+export function requestContextMiddleware(req, res, next) {
+  const incomingId = req.headers["x-request-id"];
+  const requestId =
+    typeof incomingId === "string" && incomingId.trim().length > 0 && incomingId.length <= 64
+      ? incomingId.trim()
+      : crypto.randomUUID();
+  req.requestId = requestId;
+  res.setHeader("X-Request-Id", requestId);
+  next();
+}
+
 export function logEvent(type, meta = {}) {
   const sanitized = sanitize(meta);
   const entry = {
+    level: "info",
     type,
     time: new Date().toISOString(),
     ...sanitized,
@@ -44,5 +57,11 @@ export function logEvent(type, meta = {}) {
 }
 
 export function logError(context, err) {
-  console.error(`[error] ${context}:`, err?.message || err);
+  const entry = {
+    level: "error",
+    context,
+    time: new Date().toISOString(),
+    message: err?.message || String(err),
+  };
+  console.error(`[error] ${JSON.stringify(entry)}`);
 }

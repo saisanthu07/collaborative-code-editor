@@ -8,6 +8,8 @@ import {
   createRoomSchema,
   updateRoomSchema,
   executeSchema,
+  executeBatchSchema,
+  updateTestCasesSchema,
   createFileSchema,
   renameFileSchema,
   saveFileSchema,
@@ -17,7 +19,9 @@ import {
 
 const router = Router();
 
-// Phase 5: Instant 1-click Playground (unauthenticated visitors or users)
+router.get("/ice-servers", roomController.getIceServers);
+
+// Instant 1-click Playground (unauthenticated visitors or users)
 router.post("/instant", optionalAuthMiddleware, roomController.createInstant);
 
 router.post("/", authMiddleware, validateRequest(createRoomSchema), roomController.create);
@@ -31,6 +35,13 @@ router.patch(
   requireRoomHost,
   validateRequest(updateRoomSchema),
   roomController.update
+);
+router.post(
+  "/:roomId/invite/rotate",
+  authMiddleware,
+  roomAccessMiddleware,
+  requireRoomHost,
+  roomController.rotateInvite
 );
 router.delete("/:roomId", authMiddleware, roomAccessMiddleware, requireRoomHost, roomController.remove);
 
@@ -54,6 +65,25 @@ router.post(
   requireRole("HOST", "EDITOR"),
   validateRequest(executeSchema),
   roomController.execute
+);
+
+router.post(
+  "/:roomId/execute-batch",
+  executeLimiter,
+  optionalAuthMiddleware,
+  roomAccessMiddleware,
+  requireRole("HOST", "EDITOR"),
+  validateRequest(executeBatchSchema),
+  roomController.executeBatch
+);
+
+router.put(
+  "/:roomId/test-cases",
+  optionalAuthMiddleware,
+  roomAccessMiddleware,
+  requireRole("HOST", "EDITOR"),
+  validateRequest(updateTestCasesSchema),
+  roomController.updateTestCases
 );
 
 // File management (restricted to HOST and EDITOR)
@@ -105,6 +135,13 @@ router.delete(
   roomAccessMiddleware,
   requireRoomHost,
   roomController.removeMember
+);
+router.post(
+  "/:roomId/unban/:username",
+  authMiddleware,
+  roomAccessMiddleware,
+  requireRoomHost,
+  roomController.unbanMember
 );
 
 export default router;

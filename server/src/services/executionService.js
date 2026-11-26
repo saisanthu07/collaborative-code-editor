@@ -1,6 +1,5 @@
 import axios from "axios";
-import vm from "node:vm";
-import { spawn } from "node:child_process";
+import { Worker } from "node:worker_threads";
 import { getJudge0Id, getPistonLang } from "../constants/languages.js";
 import { logError } from "../utils/logger.js";
 
@@ -12,7 +11,7 @@ const PISTON_URL = () => process.env.PISTON_API_URL || "https://emkc.org/api/v2/
 function judge0Headers() {
   const headers = {
     "Content-Type": "application/json",
-    "Accept": "application/json",
+    Accept: "application/json",
   };
   if (JUDGE0_KEY()) {
     headers["X-RapidAPI-Key"] = JUDGE0_KEY();
@@ -22,7 +21,7 @@ function judge0Headers() {
 }
 
 /**
- * Executes code using the free open-source Piston engine (emkc.org)
+ * Executes code using the Piston engine (emkc.org or self-hosted)
  */
 export async function runCodeViaPiston({ language, sourceCode, stdin = "" }) {
   const pistonLang = getPistonLang(language);
@@ -45,8 +44,8 @@ export async function runCodeViaPiston({ language, sourceCode, stdin = "" }) {
   const { data } = await axios.post(`${baseUrl}/execute`, payload, {
     headers: {
       "Content-Type": "application/json",
-      "Accept": "application/json",
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CodeTogether/1.0",
+      Accept: "application/json",
+      "User-Agent": "CodeTogether/1.0",
     },
     timeout: 12000,
   });
@@ -75,7 +74,7 @@ export async function runCodeViaPiston({ language, sourceCode, stdin = "" }) {
 }
 
 /**
- * Executes code using Judge0 (RapidAPI or local Docker)
+ * Executes code using Judge0 (RapidAPI, Community Edition, or self-hosted)
  */
 export async function runCodeViaJudge0({ language, sourceCode, stdin = "" }) {
   const languageId = getJudge0Id(language);
@@ -105,136 +104,89 @@ export async function runCodeViaJudge0({ language, sourceCode, stdin = "" }) {
 }
 
 /**
- * In-process JavaScript/TypeScript execution using Node.js vm
+ * Isolated Worker-thread JavaScript execution strictly opt-in for offline local dev only.
+ * Never enabled in production or by default because Node.js is not a multi-tenant OS sandbox.
  */
-function runJavaScriptLocally({ sourceCode, stdin = "" }) {
-  let stdout = "";
-  let stderr = "";
-
-  const customConsole = {
-    log: (...args) => {
-      stdout += args.map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a))).join(" ") + "\n";
-    },
-    error: (...args) => {
-      stderr += args.map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a))).join(" ") + "\n";
-    },
-    warn: (...args) => {
-      stderr += args.map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a))).join(" ") + "\n";
-    },
-    info: (...args) => {
-      stdout += args.map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a))).join(" ") + "\n";
-    },
-  };
-
-  const sandbox = {
-    console: customConsole,
-    stdin,
-    input: stdin,
-    setTimeout,
-    clearTimeout,
-    Math,
-    Date,
-    JSON,
-    Array,
-    Object,
-    Number,
-    String,
-    Boolean,
-    RegExp,
-    Map,
-    Set,
-    Promise,
-  };
-
-  const context = vm.createContext(sandbox);
-  const startTime = Date.now();
-
-  try {
-    vm.runInContext(sourceCode, context, { timeout: 4000 });
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(3);
-    return {
-      status: "Accepted",
-      stdout: stdout || "",
-      stderr: stderr || "",
-      compileOutput: "",
-      executionTime: `${elapsed}s`,
-      memory: "16 KB",
-      engine: "Local Node.js VM (Fallback)",
-    };
-  } catch (err) {
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(3);
-    return {
-      status: "Runtime Error",
-      stdout: stdout || "",
-      stderr: err?.message || String(err),
-      compileOutput: "",
-      executionTime: `${elapsed}s`,
-      memory: "16 KB",
-      engine: "Local Node.js VM (Fallback)",
-    };
-  }
-}
-
-/**
- * Local Python execution fallback using system python
- */
-function runPythonLocally({ sourceCode, stdin = "" }) {
+function runJavaScriptInWorker({ sourceCode, stdin = "" }) {
   return new Promise((resolve) => {
     const startTime = Date.now();
-    const proc = spawn("python", ["-c", sourceCode], { timeout: 5000 });
-    let stdout = "";
-    let stderr = "";
-
-    if (stdin) {
+    const workerScript = `
+      const { parentPort, workerData } = require("node:worker_threads");
+      const vm = require("node:vm");
+      let stdout = "";
+      let stderr = "";
+      const customConsole = {
+        log: (...args) => { stdout += args.map((a) => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ") + "\\n"; },
+        error: (...args) => { stderr += args.map((a) => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ") + "\\n"; },
+        warn: (...args) => { stderr += args.map((a) => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ") + "\\n"; },
+        info: (...args) => { stdout += args.map((a) => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ") + "\\n"; },
+      };
       try {
-        proc.stdin.write(stdin);
-        proc.stdin.end();
-      } catch {
-        // ignore
+        const ctx = vm.createContext({
+          console: customConsole,
+          stdin: workerData.stdin,
+          input: workerData.stdin,
+          Math, Date, JSON, Array, Object, Number, String, Boolean, RegExp, Map, Set, Promise,
+        }, { codeGeneration: { strings: false, wasm: false } });
+        vm.runInContext(workerData.sourceCode, ctx, { timeout: 3500 });
+        parentPort.postMessage({ status: "Accepted", stdout, stderr });
+      } catch (err) {
+        parentPort.postMessage({ status: "Runtime Error", stdout, stderr: err?.message || String(err) });
       }
-    }
+    `;
 
-    proc.stdout.on("data", (data) => {
-      stdout += data.toString();
-    });
-    proc.stderr.on("data", (data) => {
-      stderr += data.toString();
+    const worker = new Worker(workerScript, {
+      eval: true,
+      workerData: { sourceCode, stdin },
+      resourceLimits: { maxOldGenerationSizeMb: 64, maxYoungGenerationSizeMb: 16 },
     });
 
-    proc.on("close", (code, signal) => {
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(3);
-      if (signal === "SIGTERM") {
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        worker.terminate().catch(() => {});
         resolve({
           status: "Time Limit Exceeded",
-          stdout,
-          stderr: "Execution timed out (5s CPU limit)",
+          stdout: "",
+          stderr: "Execution timed out (4s limit)",
           compileOutput: "",
-          executionTime: `${elapsed}s`,
+          executionTime: "4.000s",
           memory: "",
-          engine: "Local Python 3 (Fallback)",
-        });
-      } else {
-        resolve({
-          status: code === 0 ? "Accepted" : "Runtime Error",
-          stdout,
-          stderr,
-          compileOutput: "",
-          executionTime: `${elapsed}s`,
-          memory: "",
-          engine: "Local Python 3 (Fallback)",
+          engine: "Local Dev Worker",
         });
       }
+    }, 4000);
+
+    worker.on("message", (msg) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(3);
+      resolve({
+        status: msg.status,
+        stdout: msg.stdout || "",
+        stderr: msg.stderr || "",
+        compileOutput: "",
+        executionTime: `${elapsed}s`,
+        memory: "",
+        engine: "Local Dev Worker",
+      });
     });
 
-    proc.on("error", (err) => {
+    worker.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(3);
       resolve({
-        status: "Error",
+        status: "Runtime Error",
         stdout: "",
-        stderr: err.message,
+        stderr: err?.message || String(err),
         compileOutput: "",
-        executionTime: "",
+        executionTime: `${elapsed}s`,
         memory: "",
-        engine: "Local Python (Fallback)",
+        engine: "Local Dev Worker",
       });
     });
   });
@@ -242,17 +194,18 @@ function runPythonLocally({ sourceCode, stdin = "" }) {
 
 /**
  * Unified robust runCode:
- * 1. Tries Judge0 if API key or local Docker is provided.
- * 2. Tries Piston (free external API).
- * 3. Falls back to local execution engine (Node VM or Python 3) if offline or network blocked.
- * 4. Never throws a raw 502 to client; returns structured status for the console UI.
+ * 1. Tries Judge0 if API key, local host, or public CE URL (ce.judge0.com) is configured.
+ * 2. Tries Piston (external or configured PISTON_API_URL).
+ * 3. Only runs local Worker fallback if NODE_ENV !== "production" AND ALLOW_UNSAFE_LOCAL_EXEC === "true".
+ * 4. Never throws raw 502 to client; returns structured status for the console UI.
  */
 export async function runCode({ language, sourceCode, stdin = "" }) {
+  const judge0Url = JUDGE0_URL();
   const hasJudge0Key = Boolean(JUDGE0_KEY() && JUDGE0_KEY().trim().length > 0);
-  const isLocalJudge0 = Boolean(JUDGE0_URL() && JUDGE0_URL().includes("localhost"));
+  const isLocalJudge0 = Boolean(judge0Url && judge0Url.includes("localhost"));
+  const isPublicCeJudge0 = Boolean(judge0Url && judge0Url.includes("ce.judge0.com"));
 
-  // 1. Try Judge0 if key configured or pointing to local Docker
-  if (hasJudge0Key || isLocalJudge0) {
+  if (hasJudge0Key || isLocalJudge0 || isPublicCeJudge0) {
     try {
       return await runCodeViaJudge0({ language, sourceCode, stdin });
     } catch (err) {
@@ -260,38 +213,55 @@ export async function runCode({ language, sourceCode, stdin = "" }) {
     }
   }
 
-  // 2. Try Piston API
   try {
     return await runCodeViaPiston({ language, sourceCode, stdin });
   } catch (pistonErr) {
-    logError("Piston execution failed, attempting local runner fallback", pistonErr);
+    logError("Piston execution failed", pistonErr);
   }
 
-  // 3. Local engine fallback (Node VM / Python)
-  if (language === "javascript" || language === "typescript") {
+  const allowUnsafeLocal =
+    process.env.NODE_ENV !== "production" && process.env.ALLOW_UNSAFE_LOCAL_EXEC === "true";
+
+  if (allowUnsafeLocal && language === "javascript") {
     try {
-      return runJavaScriptLocally({ sourceCode, stdin });
+      return await runJavaScriptInWorker({ sourceCode, stdin });
     } catch (localErr) {
-      logError("Local JS runner failed", localErr);
+      logError("Local dev JS worker failed", localErr);
     }
   }
 
-  if (language === "python") {
-    try {
-      return await runPythonLocally({ sourceCode, stdin });
-    } catch (localErr) {
-      logError("Local Python runner failed", localErr);
-    }
-  }
-
-  // 4. Graceful error result if all options are unreachable
   return {
     status: "Service Unavailable",
     stdout: "",
-    stderr: "Could not reach remote execution services (Judge0 / Piston). Please check your internet connection or install local compilers.",
+    stderr:
+      "Remote code execution engines (Judge0 / Piston) are currently unreachable. Configure JUDGE0_API_URL / JUDGE0_API_KEY or PISTON_API_URL.",
     compileOutput: "",
     executionTime: "",
     memory: "",
     engine: "Offline Fallback",
   };
+}
+
+/**
+ * Runs a batch of test cases for interview mode without hitting per-request HTTP rate limits.
+ */
+export async function runCodeBatch({ language, sourceCode, cases = [] }) {
+  const results = [];
+  for (const tc of cases) {
+    const res = await runCode({ language, sourceCode, stdin: tc.input || "" });
+    const actual = (res.stdout || "").trim();
+    const expected = (tc.expected || "").trim();
+    const passed = res.status === "Accepted" && actual === expected;
+    results.push({
+      id: tc.id,
+      input: tc.input || "",
+      expected: tc.expected || "",
+      actual: res.status === "Accepted" ? actual : res.stderr || res.compileOutput || res.status,
+      status: passed ? "passed" : "failed",
+      executionStatus: res.status,
+      executionTime: res.executionTime,
+      engine: res.engine,
+    });
+  }
+  return results;
 }

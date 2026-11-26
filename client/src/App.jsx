@@ -1,6 +1,6 @@
 import { useEffect, lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
-import { api } from "./services/api.js";
+import { api, refreshAccessToken } from "./services/api.js";
 import { useAuthStore } from "./store/authStore.js";
 import ErrorBoundary from "./components/common/ErrorBoundary.jsx";
 import PageLoading from "./components/common/PageLoading.jsx";
@@ -13,19 +13,21 @@ const Register = lazy(() => import("./pages/Register.jsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.jsx"));
 const Room = lazy(() => import("./pages/Room.jsx"));
 const Profile = lazy(() => import("./pages/Profile.jsx"));
-const Admin = lazy(() => import("./pages/Admin.jsx"));
+const AdminLayout = lazy(() => import("./pages/admin/AdminLayout.jsx"));
+const AdminOverview = lazy(() => import("./pages/admin/AdminOverview.jsx"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers.jsx"));
+const AdminRooms = lazy(() => import("./pages/admin/AdminRooms.jsx"));
+const AdminLogs = lazy(() => import("./pages/admin/AdminLogs.jsx"));
 const NotFound = lazy(() => import("./pages/NotFound.jsx"));
 
 export default function App() {
-  const { isInitialized, setAuth, setToken, setInitialized } = useAuthStore();
+  const { isInitialized, setAuth, logout } = useAuthStore();
 
   useEffect(() => {
     let isMounted = true;
     async function hydrate() {
       try {
-        const { data: refreshData } = await api.post("/auth/refresh");
-        const token = refreshData.token;
-        setToken(token);
+        const token = await refreshAccessToken();
         const { data: meData } = await api.get("/auth/me", {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -34,7 +36,7 @@ export default function App() {
         }
       } catch {
         if (isMounted) {
-          setInitialized(true);
+          logout();
         }
       }
     }
@@ -42,7 +44,7 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, [setAuth, setToken, setInitialized]);
+  }, [setAuth, logout]);
 
   if (!isInitialized) {
     return <PageLoading message="Initializing CodeTogether..." />;
@@ -77,10 +79,15 @@ export default function App() {
             path="/admin"
             element={
               <RequireAdmin>
-                <Admin />
+                <AdminLayout />
               </RequireAdmin>
             }
-          />
+          >
+            <Route index element={<AdminOverview />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="rooms" element={<AdminRooms />} />
+            <Route path="logs" element={<AdminLogs />} />
+          </Route>
           {/* Catch-all 404 route */}
           <Route path="*" element={<NotFound />} />
         </Routes>

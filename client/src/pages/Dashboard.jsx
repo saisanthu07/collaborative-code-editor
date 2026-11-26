@@ -1,13 +1,15 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Plus, LogIn, Star, Users, X, FileCode } from "lucide-react";
+import { Plus, LogIn, Star, Users, X, FileCode, Search, Lock } from "lucide-react";
 import { api } from "../services/api.js";
 import Navbar from "../components/common/Navbar.jsx";
 import { LANGUAGES } from "../constants/languages.js";
 
 export default function Dashboard() {
   const [rooms, setRooms] = useState({ owned: [], memberOf: [], starred: [] });
+  const [filterTab, setFilterTab] = useState("all"); // "all" | "owned" | "shared" | "starred"
+  const [searchQuery, setSearchQuery] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [joinId, setJoinId] = useState("");
   const [form, setForm] = useState({
@@ -35,7 +37,6 @@ export default function Dashboard() {
     loadRooms();
   }, []);
 
-  // Modal accessibility (Escape key and focus trap)
   useEffect(() => {
     if (!showCreate) return;
     firstInputRef.current?.focus();
@@ -90,19 +91,48 @@ export default function Dashboard() {
     navigate(`/room/${id}`);
   }
 
+  async function handleToggleStar(e, roomId) {
+    e.stopPropagation();
+    try {
+      const { data } = await api.post(`/rooms/${roomId}/star`);
+      toast.success(data.starred ? "Starred room" : "Removed star");
+      loadRooms();
+    } catch {
+      toast.error("Could not update star");
+    }
+  }
+
   const allRoomsMap = new Map();
   [...rooms.owned, ...rooms.memberOf, ...rooms.starred].forEach((r) => {
     if (!allRoomsMap.has(r.roomId)) {
       allRoomsMap.set(r.roomId, r);
     }
   });
-  const allRooms = Array.from(allRoomsMap.values());
+
+  const baseList =
+    filterTab === "owned"
+      ? rooms.owned
+      : filterTab === "shared"
+      ? rooms.memberOf
+      : filterTab === "starred"
+      ? rooms.starred
+      : Array.from(allRoomsMap.values());
+
+  const q = searchQuery.trim().toLowerCase();
+  const visibleRooms = q
+    ? baseList.filter(
+        (r) =>
+          r.name?.toLowerCase().includes(q) ||
+          r.description?.toLowerCase().includes(q) ||
+          r.roomId?.toLowerCase().includes(q) ||
+          r.language?.toLowerCase().includes(q)
+      )
+    : baseList;
 
   return (
     <div className="min-h-dvh bg-bg text-gray-100 flex flex-col">
       <Navbar />
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
-        {/* Top Action Cards */}
         <div className="grid sm:grid-cols-2 gap-4 mb-10">
           <button
             onClick={() => setShowCreate(true)}
@@ -133,7 +163,7 @@ export default function Dashboard() {
                 id="join-room-input"
                 value={joinId}
                 onChange={(e) => setJoinId(e.target.value)}
-                placeholder="Room ID or paste link"
+                placeholder="Room ID or paste invite link"
                 className="w-full bg-surface2 border border-border rounded-lg px-3 py-1.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-paper-sm"
               />
             </div>
@@ -147,7 +177,6 @@ export default function Dashboard() {
           </form>
         </div>
 
-        {/* Create Room Modal */}
         {showCreate && (
           <div
             className="fixed inset-0 bg-stone-900/40 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4"
@@ -240,7 +269,7 @@ export default function Dashboard() {
                     onChange={(e) => setForm({ ...form, visibility: e.target.value })}
                     className="w-full bg-surface2 border border-border rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-paper-sm"
                   >
-                    <option value="PRIVATE" className="bg-surface text-gray-100">Private (Link / Invited)</option>
+                    <option value="PRIVATE" className="bg-surface text-gray-100">Private (Invite Link)</option>
                     <option value="PUBLIC" className="bg-surface text-gray-100">Public</option>
                   </select>
                 </div>
@@ -266,21 +295,51 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Room List Section */}
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xs uppercase tracking-wider font-semibold text-gray-400 font-mono">
-              Your Rooms ({allRooms.length})
-            </h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-1.5 bg-surface border border-border rounded-xl p-1 w-fit">
+              {[
+                { key: "all", label: `All (${allRoomsMap.size})` },
+                { key: "owned", label: `Owned (${rooms.owned.length})` },
+                { key: "shared", label: `Shared (${rooms.memberOf.length})` },
+                { key: "starred", label: `Starred (${rooms.starred.length})` },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setFilterTab(tab.key)}
+                  className={`px-3 py-1 rounded-lg text-xs font-mono transition-colors ${
+                    filterTab === tab.key
+                      ? "bg-accent text-white font-semibold shadow-paper-sm"
+                      : "text-gray-400 hover:text-gray-100"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search rooms..."
+                aria-label="Search rooms"
+                className="w-full bg-surface border border-border rounded-xl pl-8 pr-3 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
           </div>
 
-          {allRooms.length === 0 ? (
+          {visibleRooms.length === 0 ? (
             <div className="text-center py-14 border border-dashed border-border rounded-2xl bg-surface/40">
-              <p className="text-gray-400 text-sm font-sans">No rooms yet — create one or join with a link to get started.</p>
+              <p className="text-gray-400 text-sm font-sans">
+                No matching rooms yet — create one or join with a link to get started.
+              </p>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3.5">
-              {allRooms.map((room) => (
+              {visibleRooms.map((room) => (
                 <div
                   key={room.roomId}
                   onClick={() => navigate(`/room/${room.roomId}`)}
@@ -297,16 +356,25 @@ export default function Dashboard() {
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold text-gray-100 font-serif text-base group-hover:text-accent transition-colors truncate">
-                        {room.name}
+                      <span className="font-semibold text-gray-100 font-serif text-base group-hover:text-accent transition-colors truncate flex items-center gap-1.5">
+                        {room.visibility === "PRIVATE" && (
+                          <Lock size={12} className="text-gray-400 shrink-0" />
+                        )}
+                        <span className="truncate">{room.name}</span>
                       </span>
-                      <Star
-                        size={15}
-                        aria-hidden="true"
-                        className={`shrink-0 ${
-                          room.isStarred ? "text-amber-500 fill-amber-500" : "text-gray-500"
-                        }`}
-                      />
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleStar(e, room.roomId)}
+                        aria-label={room.isStarred ? "Unstar room" : "Star room"}
+                        className="p-1 -m-1 rounded-md hover:bg-surface2 transition-colors shrink-0"
+                      >
+                        <Star
+                          size={15}
+                          className={
+                            room.isStarred ? "text-amber-500 fill-amber-500" : "text-gray-500"
+                          }
+                        />
+                      </button>
                     </div>
                     {room.description && (
                       <p className="text-xs text-gray-400 mt-1.5 line-clamp-2 leading-relaxed">

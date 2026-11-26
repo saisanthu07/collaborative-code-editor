@@ -18,6 +18,8 @@ export function useRoomSocket({
   onFileRenamed,
   onFileLanguageChanged,
   onRoomLocked,
+  onRoomSettingsUpdated,
+  onTestCasesUpdated,
   onRoomEnded,
   onErrorEvent,
   onTimerSynced,
@@ -29,7 +31,6 @@ export function useRoomSocket({
   const [socket, setSocket] = useState(null);
   const callbacksRef = useRef({});
 
-  // Keep latest callbacks in ref so handlers don't need re-attaching on callback identity changes
   callbacksRef.current = {
     onParticipantsUpdate,
     onChatMessage,
@@ -41,6 +42,8 @@ export function useRoomSocket({
     onFileRenamed,
     onFileLanguageChanged,
     onRoomLocked,
+    onRoomSettingsUpdated,
+    onTestCasesUpdated,
     onRoomEnded,
     onErrorEvent,
     onTimerSynced,
@@ -52,24 +55,21 @@ export function useRoomSocket({
 
   useEffect(() => {
     const authUser = useAuthStore.getState().user;
-    const effectiveToken = (authUser && token) ? token : (guestToken || token);
+    const effectiveToken = authUser && token ? token : (guestToken || token);
     if (!effectiveToken || !resolvedUsername || !roomId) return;
 
     const s = getSocket(effectiveToken);
     setSocket(s);
 
-    // Join room helper
     const emitJoin = () => {
       s.emit("join-room", { roomId });
     };
 
-    // If socket is already connected, join immediately; otherwise wait for connect
     if (s.connected) {
       emitJoin();
     }
     s.on("connect", emitJoin);
 
-    // Handler references for clean removal
     const handlePresence = ({ participants }) => {
       callbacksRef.current.onParticipantsUpdate?.(participants);
     };
@@ -103,27 +103,31 @@ export function useRoomSocket({
 
     const handleFileCreated = ({ file }) => {
       callbacksRef.current.onFileCreated?.(file);
-      toast.success(`File created: ${file.name}`);
     };
 
     const handleFileDeleted = ({ fileName }) => {
       callbacksRef.current.onFileDeleted?.(fileName);
-      toast(`File deleted: ${fileName}`, { icon: "🗑️" });
     };
 
     const handleFileRenamed = ({ oldName, newName }) => {
       callbacksRef.current.onFileRenamed?.({ oldName, newName });
-      toast(`File renamed: ${oldName} → ${newName}`, { icon: "✏️" });
     };
 
     const handleFileLanguageChanged = ({ fileName, language }) => {
       callbacksRef.current.onFileLanguageChanged?.({ fileName, language });
-      toast(`Language for ${fileName} updated to ${language}`, { icon: "🔤" });
     };
 
     const handleRoomLocked = ({ locked }) => {
       callbacksRef.current.onRoomLocked?.(locked);
       toast(locked ? "Room has been locked" : "Room has been unlocked", { icon: "🔒" });
+    };
+
+    const handleRoomSettingsUpdated = (data) => {
+      callbacksRef.current.onRoomSettingsUpdated?.(data);
+    };
+
+    const handleTestCasesUpdated = ({ testCases }) => {
+      callbacksRef.current.onTestCasesUpdated?.(testCases);
     };
 
     const handleRoomEnded = (data) => {
@@ -137,14 +141,13 @@ export function useRoomSocket({
       toast.error(err?.error || "Socket error");
     };
 
-    // Register all event listeners
-    s.on("presence-update", handlePresence);
     const handleTimerSynced = (data) => callbacksRef.current.onTimerSynced?.(data);
     const handleUserJoinedVoice = (data) => callbacksRef.current.onUserJoinedVoice?.(data);
     const handleVoiceSignal = (data) => callbacksRef.current.onVoiceSignal?.(data);
     const handleUserVoiceMute = (data) => callbacksRef.current.onUserVoiceMute?.(data);
     const handleUserLeftVoice = (data) => callbacksRef.current.onUserLeftVoice?.(data);
 
+    s.on("presence-update", handlePresence);
     s.on("timer-synced", handleTimerSynced);
     s.on("user-joined-voice", handleUserJoinedVoice);
     s.on("voice-signal", handleVoiceSignal);
@@ -160,17 +163,17 @@ export function useRoomSocket({
     s.on("file-renamed", handleFileRenamed);
     s.on("file-language-changed", handleFileLanguageChanged);
     s.on("room-locked", handleRoomLocked);
+    s.on("room-settings-updated", handleRoomSettingsUpdated);
+    s.on("test-cases-updated", handleTestCasesUpdated);
     s.on("room-ended", handleRoomEnded);
     s.on("error-event", handleErrorEvent);
 
-    // Heartbeat every 20s
     const heartbeatInterval = setInterval(() => {
       if (s.connected) {
         s.emit("heartbeat", { roomId });
       }
     }, 20_000);
 
-    // Idle presence tracking (AWAY after 2 min of inactivity)
     let idleTimer = null;
     let isAway = false;
 
@@ -213,6 +216,8 @@ export function useRoomSocket({
       s.off("file-renamed", handleFileRenamed);
       s.off("file-language-changed", handleFileLanguageChanged);
       s.off("room-locked", handleRoomLocked);
+      s.off("room-settings-updated", handleRoomSettingsUpdated);
+      s.off("test-cases-updated", handleTestCasesUpdated);
       s.off("room-ended", handleRoomEnded);
       s.off("error-event", handleErrorEvent);
       s.off("timer-synced", handleTimerSynced);

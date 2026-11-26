@@ -2,6 +2,20 @@ import crypto from "crypto";
 import Room from "../models/Room.js";
 import { LANGUAGES } from "../constants/languages.js";
 
+export function generateInviteCode() {
+  return crypto.randomBytes(12).toString("hex");
+}
+
+export function hasValidInviteCode(room, providedCode) {
+  if (!room?.inviteCode || !providedCode || typeof providedCode !== "string") {
+    return false;
+  }
+  const expected = Buffer.from(room.inviteCode, "utf8");
+  const actual = Buffer.from(providedCode.trim(), "utf8");
+  if (expected.length !== actual.length) return false;
+  return crypto.timingSafeEqual(expected, actual);
+}
+
 export function generateGuestName(existingMembers = []) {
   const existingNames = new Set(existingMembers.map((m) => m.username));
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -56,11 +70,13 @@ export function canChat(role, room) {
 }
 
 export async function createRoom(owner, { name, description, language, visibility }) {
+  const inviteCode = visibility === "PRIVATE" ? generateInviteCode() : null;
   const room = await Room.create({
     name,
     description,
     language,
     visibility,
+    inviteCode,
     ownerId: owner._id,
     files: [
       {

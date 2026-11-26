@@ -9,8 +9,11 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const { user, token } = useAuthStore.getState();
-  if (user && token) {
+  const { token } = useAuthStore.getState();
+  if (config.headers.Authorization) {
+    return config;
+  }
+  if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   } else {
     delete config.headers.Authorization;

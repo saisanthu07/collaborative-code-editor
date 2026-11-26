@@ -30,6 +30,31 @@ export const executeSchema = z.object({
   stdin: z.string().max(10_000).optional().default(""),
 });
 
+export const testCaseItemSchema = z.object({
+  id: z.number().int().min(1).max(100),
+  input: z.string().max(10_000).default(""),
+  expected: z.string().max(10_000).default(""),
+});
+
+export const updateTestCasesSchema = z.object({
+  testCases: z.array(testCaseItemSchema).min(1).max(15),
+});
+
+export const executeBatchSchema = z.object({
+  language: z.enum(languageKeys),
+  sourceCode: z.string().min(1).max(100_000),
+  cases: z
+    .array(
+      z.object({
+        id: z.number().int().min(1).max(100),
+        input: z.string().max(10_000).optional().default(""),
+        expected: z.string().max(10_000).optional().default(""),
+      })
+    )
+    .min(1)
+    .max(15),
+});
+
 export const messageSchema = z.object({
   text: z.string().min(1).max(2000),
 });

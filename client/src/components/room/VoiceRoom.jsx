@@ -1,45 +1,83 @@
 import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { Mic, MicOff, PhoneCall, PhoneOff, Radio } from "lucide-react";
 import toast from "react-hot-toast";
+import { api } from "../../services/api.js";
 
-const ICE_SERVERS = {
+const DEFAULT_ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
   ],
 };
 
-function VoiceRoom({ socket, roomId, username }) {
+function VoiceRoom({ socket, roomId }) {
   const [inVoice, setInVoice] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [voiceUsers, setVoiceUsers] = useState(new Set()); // socketIds in voice
+  const [voiceUsers, setVoiceUsers] = useState(new Set());
+  const [mutedUsers, setMutedUsers] = useState(new Set());
 
+  const inVoiceRef = useRef(false);
+  inVoiceRef.current = inVoice;
+
+  const iceConfigRef = useRef(DEFAULT_ICE_SERVERS);
   const localStreamRef = useRef(null);
   const peersRef = useRef(new Map()); // socketId -> RTCPeerConnection
+  const audioElsRef = useRef(new Map()); // socketId -> HTMLAudioElement
 
-  // Teardown all peers and audio tracks
-  const cleanupVoice = useCallback(() => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-      localStreamRef.current = null;
-    }
-    peersRef.current.forEach((peer) => {
+  // Fetch ICE/TURN configuration from backend once
+  useEffect(() => {
+    let active = true;
+    api
+      .get("/rooms/ice-servers")
+      .then(({ data }) => {
+        if (active && Array.isArray(data?.iceServers) && data.iceServers.length > 0) {
+          iceConfigRef.current = { iceServers: data.iceServers };
+        }
+      })
+      .catch(() => {
+        // Keep STUN defaults
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const cleanupPeer = useCallback((targetSocketId) => {
+    const peer = peersRef.current.get(targetSocketId);
+    if (peer) {
       try {
         peer.close();
       } catch {
         // ignore
       }
-    });
-    peersRef.current.clear();
-    setVoiceUsers(new Set());
-    setInVoice(false);
-    setIsMuted(false);
+      peersRef.current.delete(targetSocketId);
+    }
+    const audioEl = audioElsRef.current.get(targetSocketId);
+    if (audioEl) {
+      audioEl.pause();
+      audioEl.srcObject = null;
+      audioElsRef.current.delete(targetSocketId);
+    }
   }, []);
 
-  // Helper to create peer connection
+  const cleanupVoice = useCallback(() => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+    }
+    Array.from(peersRef.current.keys()).forEach((id) => cleanupPeer(id));
+    setVoiceUsers(new Set());
+    setMutedUsers(new Set());
+    setInVoice(false);
+    setIsMuted(false);
+  }, [cleanupPeer]);
+
   const createPeer = useCallback(
     (targetSocketId, isInitiator) => {
-      const peer = new RTCPeerConnection(ICE_SERVERS);
+      const existing = peersRef.current.get(targetSocketId);
+      if (existing) return existing;
+
+      const peer = new RTCPeerConnection(iceConfigRef.current);
       peersRef.current.set(targetSocketId, peer);
 
       if (localStreamRef.current) {
@@ -59,7 +97,12 @@ function VoiceRoom({ socket, roomId, username }) {
       };
 
       peer.ontrack = (event) => {
-        const audio = new Audio();
+        let audio = audioElsRef.current.get(targetSocketId);
+        if (!audio) {
+          audio = new Audio();
+          audio.autoplay = true;
+          audioElsRef.current.set(targetSocketId, audio);
+        }
         audio.srcObject = event.streams[0];
         audio.play().catch(() => {});
       };
@@ -85,7 +128,6 @@ function VoiceRoom({ socket, roomId, username }) {
     [roomId, socket]
   );
 
-  // Join Voice Call
   const handleJoinVoice = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       toast.error("Audio is not supported in this browser");
@@ -102,18 +144,18 @@ function VoiceRoom({ socket, roomId, username }) {
         video: false,
       });
       localStreamRef.current = stream;
+      inVoiceRef.current = true;
       setInVoice(true);
       toast.success("Joined voice call", { icon: "🎙️" });
 
       if (socket?.connected) {
         socket.emit("voice-join", { roomId });
       }
-    } catch (err) {
+    } catch {
       toast.error("Microphone permission denied or not available");
     }
   };
 
-  // Leave Voice Call
   const handleLeaveVoice = () => {
     if (socket?.connected) {
       socket.emit("voice-leave", { roomId });
@@ -122,7 +164,6 @@ function VoiceRoom({ socket, roomId, username }) {
     toast("Left voice call", { icon: "📞" });
   };
 
-  // Toggle Mute
   const handleToggleMute = () => {
     if (!localStreamRef.current) return;
     const audioTrack = localStreamRef.current.getAudioTracks()[0];
@@ -136,29 +177,33 @@ function VoiceRoom({ socket, roomId, username }) {
     }
   };
 
-  // Socket event listeners for signaling
   useEffect(() => {
     if (!socket) return;
 
-    // Another user joined voice
     const handleUserJoined = ({ socketId, username: uName }) => {
       setVoiceUsers((prev) => new Set([...prev, socketId]));
-      if (inVoice && socketId !== socket.id) {
+      if (inVoiceRef.current && socketId !== socket.id) {
         toast(`${uName || "A participant"} joined voice`, { icon: "🎙️" });
         createPeer(socketId, true);
       }
     };
 
-    // Received signal from peer
     const handleSignal = async ({ senderSocketId, signal }) => {
       let peer = peersRef.current.get(senderSocketId);
-      if (!peer && inVoice) {
+      if (!peer && inVoiceRef.current) {
         peer = createPeer(senderSocketId, false);
       }
       if (!peer) return;
 
       try {
         if (signal.description) {
+          const isOfferCollision =
+            signal.description.type === "offer" &&
+            (peer.signalingState !== "stable");
+          const polite = socket.id < senderSocketId;
+          if (isOfferCollision && !polite) {
+            return;
+          }
           await peer.setRemoteDescription(new RTCSessionDescription(signal.description));
           if (signal.description.type === "offer") {
             const answer = await peer.createAnswer();
@@ -177,32 +222,42 @@ function VoiceRoom({ socket, roomId, username }) {
       }
     };
 
-    // User left voice
+    const handleUserMute = ({ socketId, isMuted: peerMuted }) => {
+      setMutedUsers((prev) => {
+        const next = new Set(prev);
+        if (peerMuted) next.add(socketId);
+        else next.delete(socketId);
+        return next;
+      });
+    };
+
     const handleUserLeft = ({ socketId }) => {
       setVoiceUsers((prev) => {
         const next = new Set(prev);
         next.delete(socketId);
         return next;
       });
-      const peer = peersRef.current.get(socketId);
-      if (peer) {
-        peer.close();
-        peersRef.current.delete(socketId);
-      }
+      setMutedUsers((prev) => {
+        const next = new Set(prev);
+        next.delete(socketId);
+        return next;
+      });
+      cleanupPeer(socketId);
     };
 
     socket.on("user-joined-voice", handleUserJoined);
     socket.on("voice-signal", handleSignal);
+    socket.on("user-voice-mute", handleUserMute);
     socket.on("user-left-voice", handleUserLeft);
 
     return () => {
       socket.off("user-joined-voice", handleUserJoined);
       socket.off("voice-signal", handleSignal);
+      socket.off("user-voice-mute", handleUserMute);
       socket.off("user-left-voice", handleUserLeft);
     };
-  }, [socket, roomId, inVoice, createPeer]);
+  }, [socket, roomId, createPeer, cleanupPeer]);
 
-  // Teardown on unmount
   useEffect(() => {
     return () => cleanupVoice();
   }, [cleanupVoice]);
@@ -227,7 +282,10 @@ function VoiceRoom({ socket, roomId, username }) {
       <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium mr-1">
         <Radio size={13} className="animate-pulse" />
         <span className="hidden sm:inline">In Call</span>
-        <span className="text-[10px] bg-emerald-500/20 px-1.5 rounded-full font-bold">
+        <span
+          className="text-[10px] bg-emerald-500/20 px-1.5 rounded-full font-bold"
+          title={mutedUsers.size > 0 ? `${mutedUsers.size} peer(s) muted` : "All unmuted"}
+        >
           {voiceUsers.size + 1}
         </span>
       </div>

@@ -1,14 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Copy, Check, X, Share2 } from "lucide-react";
+import { Copy, Check, X, Share2, Lock } from "lucide-react";
 import toast from "react-hot-toast";
 import { copyToClipboard } from "../../utils/clipboard.js";
 
-export default function ShareModal({ url = "", onClose }) {
+export default function ShareModal({ url = "", inviteCode = null, visibility = "PUBLIC", onClose }) {
   const [copied, setCopied] = useState(false);
   const modalRef = useRef(null);
   const closeBtnRef = useRef(null);
-  const shareUrl = url || (typeof window !== "undefined" ? window.location.href : "");
+
+  const baseUrl = url
+    ? url.split("?")[0]
+    : typeof window !== "undefined"
+    ? `${window.location.origin}${window.location.pathname}`
+    : "";
+  const shareUrl =
+    visibility === "PRIVATE" && inviteCode ? `${baseUrl}?invite=${inviteCode}` : baseUrl;
 
   useEffect(() => {
     closeBtnRef.current?.focus();
@@ -89,8 +96,13 @@ export default function ShareModal({ url = "", onClose }) {
           <QRCodeSVG value={shareUrl} size={180} fgColor="#191816" bgColor="#ffffff" />
         </div>
 
-        <p className="text-xs text-gray-400 mb-3.5 leading-relaxed font-sans">
-          Anyone with this link can join the collaborative session
+        <p className="text-xs text-gray-400 mb-3.5 leading-relaxed font-sans flex items-center justify-center gap-1.5">
+          {visibility === "PRIVATE" && <Lock size={12} className="text-amber-500 shrink-0" />}
+          <span>
+            {visibility === "PRIVATE"
+              ? "Private invite link (authenticated users with this link can join)"
+              : "Anyone with this link can join the collaborative session"}
+          </span>
         </p>
 
         <div className="flex items-center gap-2 bg-surface2 border border-border rounded-lg px-3 py-2 text-xs text-gray-300 break-all shadow-paper-sm">

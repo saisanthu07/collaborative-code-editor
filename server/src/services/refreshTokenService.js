@@ -12,7 +12,6 @@ function generateRawToken() {
   return crypto.randomBytes(48).toString("hex");
 }
 
-// Issues a brand new refresh token with its own family (used at login/register).
 export async function issueRefreshToken(userId, userAgent = "") {
   const raw = generateRawToken();
   const familyId = crypto.randomUUID();
@@ -29,9 +28,6 @@ export async function issueRefreshToken(userId, userAgent = "") {
   return raw;
 }
 
-// Rotates a refresh token: atomically invalidates the presented token,
-// issues a successor in the same family, and grants a 10s grace window
-// for concurrent tab requests.
 export async function rotateRefreshToken(rawToken, userAgent = "") {
   const tokenHash = hashToken(rawToken);
   const record = await RefreshToken.findOne({ tokenHash });
@@ -42,15 +38,12 @@ export async function rotateRefreshToken(rawToken, userAgent = "") {
     throw err;
   }
 
-  // Check if token was already revoked
   if (record.revokedAt) {
     const elapsed = Date.now() - new Date(record.revokedAt).getTime();
     if (elapsed <= GRACE_PERIOD_MS && record.successorToken) {
-      // Multi-tab grace window: return the already-issued successor
       return { newRawToken: record.successorToken, userId: record.userId.toString() };
     }
 
-    // Token reuse detected outside grace window: revoke the entire token family
     await RefreshToken.updateMany(
       { familyId: record.familyId, revokedAt: null },
       { revokedAt: new Date() }
@@ -70,7 +63,6 @@ export async function rotateRefreshToken(rawToken, userAgent = "") {
   const newHash = hashToken(newRaw);
   const now = new Date();
 
-  // Atomically mark current token as revoked with successor info
   const updated = await RefreshToken.findOneAndUpdate(
     { tokenHash, revokedAt: null },
     { revokedAt: now, replacedByHash: newHash, successorToken: newRaw },
@@ -78,7 +70,6 @@ export async function rotateRefreshToken(rawToken, userAgent = "") {
   );
 
   if (!updated) {
-    // Concurrent rotation race: inspect what was set
     const concurrent = await RefreshToken.findOne({ tokenHash });
     if (
       concurrent &&
@@ -116,4 +107,25 @@ export async function revokeRefreshToken(rawToken) {
 
 export async function revokeAllForUser(userId) {
   await RefreshToken.updateMany({ userId, revokedAt: null }, { revokedAt: new Date() });
+}
+
+export async function listActiveSessions(userId) {
+  const sessions = await RefreshToken.find({
+    userId,
+    revokedAt: null,
+    expiresAt: { $gt: new Date() },
+  })
+    .select("_id familyId userAgent createdAt expiresAt")
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .lean();
+  return sessions;
+}
+
+export async function revokeSessionById(userId, sessionId) {
+  const res = await RefreshToken.updateOne(
+    { _id: sessionId, userId, revokedAt: null },
+    { revokedAt: new Date() }
+  );
+  return res.modifiedCount > 0;
 }

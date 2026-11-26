@@ -8,18 +8,17 @@ import { colorForUser } from "../../utils/color.js";
 import { useAuthStore } from "../../store/authStore.js";
 import { useThemeStore } from "../../store/themeStore.js";
 
-// Monaco instance and workers are configured in config/monaco.js
-
 function CollabEditor({
   roomId,
   fileName,
   language,
   username,
   guestToken,
+  canEdit = true,
   onConnectionChange,
   onEditorReady,
 }) {
-  const [status, setStatus] = useState("connecting"); // connecting | connected | disconnected | reconnecting
+  const [status, setStatus] = useState("connecting");
   const theme = useThemeStore((s) => s.theme);
   const monacoTheme = theme === "dark" ? "paper-midnight-kraft" : "paper-parchment";
   const [isMdScreen, setIsMdScreen] = useState(
@@ -37,7 +36,6 @@ function CollabEditor({
   const onEditorReadyRef = useRef(onEditorReady);
   onEditorReadyRef.current = onEditorReady;
 
-  // Responsive breakpoint listener for editor minimap
   useEffect(() => {
     function handleResize() {
       setIsMdScreen(window.innerWidth >= 768);
@@ -46,7 +44,13 @@ function CollabEditor({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Update dynamic awareness cursor styles
+  // Dynamically reflect permission changes in Monaco readOnly state
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.updateOptions({ readOnly: !canEdit });
+    }
+  }, [canEdit]);
+
   const updateAwarenessStyles = (awareness) => {
     if (!styleElRef.current) {
       const el = document.createElement("style");
@@ -139,7 +143,6 @@ function CollabEditor({
       onConnectionChangeRef.current?.("disconnected");
     });
 
-    // Wire binding if editor is already mounted
     if (editorRef.current && !bindingRef.current) {
       const yText = ydoc.getText("monaco");
       bindingRef.current = new MonacoBinding(
@@ -169,9 +172,9 @@ function CollabEditor({
 
   function handleMount(editor) {
     editorRef.current = editor;
+    editor.updateOptions({ readOnly: !canEdit });
     onEditorReadyRef.current?.(editor);
 
-    // If provider and ydoc are already ready, bind Monaco immediately
     if (!bindingRef.current && ydocRef.current && providerRef.current) {
       const yText = ydocRef.current.getText("monaco");
       bindingRef.current = new MonacoBinding(
@@ -185,16 +188,23 @@ function CollabEditor({
 
   return (
     <div className="relative h-full w-full">
-      <div
-        className={`absolute top-2 right-3 z-10 text-[11px] font-mono font-medium px-2.5 py-1 rounded-full border shadow-paper-sm transition-colors ${
-          status === "connected"
-            ? "border-emerald-500/30 text-emerald-800 dark:text-emerald-400 bg-emerald-500/15"
-            : status === "connecting"
-            ? "border-amber-500/30 text-amber-800 dark:text-amber-400 bg-amber-500/15"
-            : "border-rose-500/30 text-rose-800 dark:text-rose-400 bg-rose-500/15"
-        }`}
-      >
-        ● {status === "connected" ? "Connected" : status === "connecting" ? "Connecting..." : "Reconnecting..."}
+      <div className="absolute top-2 right-3 z-10 flex items-center gap-2">
+        {!canEdit && (
+          <span className="text-[11px] font-mono font-medium px-2.5 py-1 rounded-full border border-amber-500/30 text-amber-800 dark:text-amber-300 bg-amber-500/15 shadow-paper-sm">
+            Read-Only
+          </span>
+        )}
+        <div
+          className={`text-[11px] font-mono font-medium px-2.5 py-1 rounded-full border shadow-paper-sm transition-colors ${
+            status === "connected"
+              ? "border-emerald-500/30 text-emerald-800 dark:text-emerald-400 bg-emerald-500/15"
+              : status === "connecting"
+              ? "border-amber-500/30 text-amber-800 dark:text-amber-400 bg-amber-500/15"
+              : "border-rose-500/30 text-rose-800 dark:text-rose-400 bg-rose-500/15"
+          }`}
+        >
+          ● {status === "connected" ? "Connected" : status === "connecting" ? "Connecting..." : "Reconnecting..."}
+        </div>
       </div>
       <Editor
         height="100%"
@@ -203,6 +213,7 @@ function CollabEditor({
         onMount={handleMount}
         options={{
           fontSize: 14,
+          readOnly: !canEdit,
           minimap: { enabled: isMdScreen },
           automaticLayout: true,
           wordWrap: "on",

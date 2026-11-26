@@ -62,12 +62,19 @@ export const executionCompletedSchema = z.object({
   result: z.any().optional(),
 });
 
-// Phase 4: Interview Timer & WebRTC Voice Signaling Schemas
-export const timerSyncSchema = z.object({
-  roomId: roomIdSchema,
-  seconds: z.number().int().min(0).max(86400),
-  isRunning: z.boolean(),
-});
+// Interview Timer & WebRTC Voice Signaling Schemas
+export const timerSyncSchema = z
+  .object({
+    roomId: roomIdSchema,
+    mode: z.enum(["stopwatch", "countdown"]).optional(),
+    durationSeconds: z.number().int().min(0).max(86400).optional(),
+    remainingSeconds: z.number().int().min(0).max(86400).optional(),
+    seconds: z.number().int().min(0).max(86400).optional(),
+    isRunning: z.boolean(),
+  })
+  .refine((data) => data.seconds !== undefined || data.remainingSeconds !== undefined, {
+    message: "seconds or remainingSeconds is required",
+  });
 
 export const voiceJoinSchema = z.object({
   roomId: roomIdSchema,

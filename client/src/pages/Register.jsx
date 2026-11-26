@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation, Navigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Code2, ArrowLeft } from "lucide-react";
+import { Code2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { api } from "../services/api.js";
 import { useAuthStore } from "../store/authStore.js";
 import ThemeToggle from "../components/common/ThemeToggle.jsx";
 
 export default function Register() {
   const [form, setForm] = useState({ name: "", username: "", email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { user, token, setAuth } = useAuthStore();
   const navigate = useNavigate();
@@ -111,16 +112,27 @@ export default function Register() {
             <label htmlFor="reg-password" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1 font-mono">
               Password
             </label>
-            <input
-              id="reg-password"
-              type="password"
-              autoComplete="new-password"
-              required
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              className="w-full bg-surface2 border border-border rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors shadow-paper-sm"
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <input
+                id="reg-password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                required
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                className="w-full bg-surface2 border border-border rounded-lg pl-3.5 pr-10 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors shadow-paper-sm"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-accent transition-colors"
+              >
+                {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+              </button>
+            </div>
             <p className="text-[11px] text-gray-500 mt-1 font-sans">
               At least 8 characters, with uppercase, lowercase, and a number.
             </p>

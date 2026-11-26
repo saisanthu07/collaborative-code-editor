@@ -14,9 +14,10 @@ import {
   RefreshCw,
   LogOut,
   ChevronDown,
-  Layers,
   XCircle,
   Download,
+  Settings,
+  Star,
 } from "lucide-react";
 import { downloadFilesAsZip } from "../utils/zip.js";
 import { api } from "../services/api.js";
@@ -28,6 +29,7 @@ import OutputConsole from "../components/editor/OutputConsole.jsx";
 import ChatPanel from "../components/chat/ChatPanel.jsx";
 import ParticipantsPanel from "../components/room/ParticipantsPanel.jsx";
 import ShareModal from "../components/room/ShareModal.jsx";
+import HostSettingsModal from "../components/room/HostSettingsModal.jsx";
 import EndRoomModal from "../components/room/EndRoomModal.jsx";
 import LeaveRoomModal from "../components/room/LeaveRoomModal.jsx";
 import NewFileModal from "../components/room/NewFileModal.jsx";
@@ -41,32 +43,36 @@ import PageLoading from "../components/common/PageLoading.jsx";
 import ThemeToggle from "../components/common/ThemeToggle.jsx";
 import { LANGUAGES, monacoLangFor } from "../constants/languages.js";
 
+const DEFAULT_TEST_CASES = [
+  { id: 1, input: "5\n1 2 3 4 5", expected: "15", actual: "", status: "idle" },
+  { id: 2, input: "3\n10 20 30", expected: "60", actual: "", status: "idle" },
+];
+
 export default function Room() {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, token } = useAuthStore();
 
-  // Load flow states: "loading" | "ready" | "forbidden" | "notFound" | "locked" | "error"
   const [loadState, setLoadState] = useState("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
   const [room, setRoom] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [chatHasMore, setChatHasMore] = useState(false);
+  const [chatNextCursor, setChatNextCursor] = useState(null);
+  const [loadingMoreChat, setLoadingMoreChat] = useState(false);
+
   const [activeFileName, setActiveFileName] = useState("");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
   const [stdin, setStdin] = useState("");
+  const [isStarred, setIsStarred] = useState(false);
 
-  // Phase 4: Interview Test Cases
-  const [testCases, setTestCases] = useState([
-    { id: 1, input: "5\n1 2 3 4 5", expected: "15", actual: "", status: "idle" },
-    { id: 2, input: "3\n10 20 30", expected: "60", actual: "", status: "idle" },
-  ]);
+  const [testCases, setTestCases] = useState(DEFAULT_TEST_CASES);
   const [runningTestCases, setRunningTestCases] = useState(false);
 
-  // Multi-file tabs & File Explorer state
   const [fileExplorerOpen, setFileExplorerOpen] = useState(false);
   const [showNewFileModal, setShowNewFileModal] = useState(false);
   const [renameTargetFile, setRenameTargetFile] = useState(null);
@@ -75,18 +81,19 @@ export default function Room() {
   const [renamingFile, setRenamingFile] = useState(false);
   const [deletingFile, setDeletingFile] = useState(false);
 
-  // Desktop side panel: "participants" | "chat"
   const [rightTab, setRightTab] = useState("participants");
-  // Mobile active view: "editor" | "output" | "participants" | "chat"
   const [mobileTab, setMobileTab] = useState("editor");
   const [mobileTopBarExpanded, setMobileTopBarExpanded] = useState(false);
 
   const [showShare, setShowShare] = useState(false);
+  const [showHostSettings, setShowHostSettings] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [endingRoom, setEndingRoom] = useState(false);
   const [leavingRoom, setLeavingRoom] = useState(false);
   const editorRef = useRef(null);
+  const testCaseSyncTimerRef = useRef(null);
 
   const [resolvedUsername, setResolvedUsername] = useState(user?.username || null);
   const [guestToken, setGuestToken] = useState(() => {
@@ -98,14 +105,17 @@ export default function Room() {
     }
   });
 
-  // Load room + join session
+  const inviteCodeParam = new URLSearchParams(location.search).get("invite");
+
   const initRoom = useCallback(async () => {
     setLoadState("loading");
     setErrorMessage("");
 
     try {
-      // 1. Join room (handles authenticated user or creates stable guest)
-      const joinRes = await api.post(`/rooms/${roomId}/join`);
+      const joinRes = await api.post(
+        `/rooms/${roomId}/join`,
+        inviteCodeParam ? { inviteCode: inviteCodeParam } : {}
+      );
       const effectiveName = user?.username || joinRes.data.username;
       setResolvedUsername(effectiveName);
 
@@ -125,21 +135,30 @@ export default function Room() {
         }
       }
 
-      // 2. Fetch full room details
       const { data } = await api.get(`/rooms/${roomId}`);
       setRoom(data.room);
+      if (user?._id && Array.isArray(data.room?.starredBy)) {
+        setIsStarred(data.room.starredBy.some((id) => id.toString() === user._id.toString()));
+      }
+
+      if (Array.isArray(data.room?.testCases) && data.room.testCases.length > 0) {
+        setTestCases(
+          data.room.testCases.map((tc) => ({ ...tc, actual: "", status: "idle" }))
+        );
+      }
 
       const files = data.room.files || [];
       if (files.length > 0) {
         setActiveFileName(files[0].name);
       }
 
-      // 3. Fetch recent messages
       try {
         const { data: msgData } = await api.get(`/rooms/${roomId}/messages?limit=50`);
         setMessages(msgData.messages || []);
+        setChatHasMore(Boolean(msgData.hasMore));
+        setChatNextCursor(msgData.nextCursor || null);
       } catch {
-        // chat messages load error shouldn't block editor
+        // non-fatal
       }
 
       setLoadState("ready");
@@ -160,20 +179,19 @@ export default function Room() {
         setErrorMessage(msg);
       }
     }
-  }, [roomId, user?.username]);
+  }, [roomId, user?.username, user?._id, inviteCodeParam]);
 
   useEffect(() => {
     initRoom();
   }, [initRoom]);
 
-  // Clean up global socket when leaving room
   useEffect(() => {
     return () => {
+      if (testCaseSyncTimerRef.current) clearTimeout(testCaseSyncTimerRef.current);
       disconnectSocket();
     };
   }, []);
 
-  // Active file & language derivation
   const activeFile = room?.files?.find((f) => f.name === activeFileName) || room?.files?.[0];
   const activeLanguage = activeFile?.language || room?.language || "javascript";
   const memberRecord = room?.members?.find(
@@ -194,7 +212,6 @@ export default function Room() {
     isHost || userRole === "EDITOR" || (userRole === "GUEST" && room?.settings?.allowGuestEdit)
   );
 
-  // Socket event callbacks
   const handleParticipantsUpdate = useCallback((parts) => {
     setParticipants(parts);
   }, []);
@@ -202,6 +219,23 @@ export default function Room() {
   const handleChatMessage = useCallback((msg) => {
     setMessages((prev) => [...prev, msg]);
   }, []);
+
+  const handleLoadOlderMessages = useCallback(async () => {
+    if (!chatNextCursor || loadingMoreChat) return;
+    setLoadingMoreChat(true);
+    try {
+      const { data } = await api.get(
+        `/rooms/${roomId}/messages?limit=50&before=${encodeURIComponent(chatNextCursor)}`
+      );
+      setMessages((prev) => [...(data.messages || []), ...prev]);
+      setChatHasMore(Boolean(data.hasMore));
+      setChatNextCursor(data.nextCursor || null);
+    } catch {
+      toast.error("Could not load older messages");
+    } finally {
+      setLoadingMoreChat(false);
+    }
+  }, [roomId, chatNextCursor, loadingMoreChat]);
 
   const handleEditorReady = useCallback((editor) => {
     editorRef.current = editor;
@@ -241,10 +275,10 @@ export default function Room() {
     setRoom((prev) => {
       if (!prev) return prev;
       const remaining = prev.files.filter((f) => f.name !== fileName);
+      setActiveFileName((curr) => (curr === fileName ? remaining[0]?.name || "" : curr));
       return { ...prev, files: remaining };
     });
-    setActiveFileName((curr) => (curr === fileName ? room?.files?.[0]?.name || "" : curr));
-  }, [room?.files]);
+  }, []);
 
   const handleFileRenamed = useCallback(({ oldName, newName }) => {
     setRoom((prev) => {
@@ -274,6 +308,32 @@ export default function Room() {
     });
   }, []);
 
+  const handleRoomSettingsUpdated = useCallback(({ visibility, settings }) => {
+    setRoom((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        ...(visibility ? { visibility } : {}),
+        ...(settings ? { settings: { ...prev.settings, ...settings } } : {}),
+      };
+    });
+  }, []);
+
+  const handleTestCasesUpdated = useCallback((serverCases) => {
+    if (!Array.isArray(serverCases)) return;
+    setTestCases((prev) => {
+      const prevMap = new Map(prev.map((c) => [c.id, c]));
+      return serverCases.map((tc) => {
+        const existing = prevMap.get(tc.id);
+        return {
+          ...tc,
+          actual: existing?.input === tc.input && existing?.expected === tc.expected ? existing.actual : "",
+          status: existing?.input === tc.input && existing?.expected === tc.expected ? existing.status : "idle",
+        };
+      });
+    });
+  }, []);
+
   const handleRoomEnded = useCallback((msg) => {
     setLoadState("ended");
     setErrorMessage(msg || "The host has ended this collaborative session.");
@@ -291,7 +351,6 @@ export default function Room() {
     }
   }, []);
 
-  // Hook wires up all socket event listeners and handles reconnects
   const socket = useRoomSocket({
     roomId,
     token,
@@ -307,9 +366,99 @@ export default function Room() {
     onFileRenamed: handleFileRenamed,
     onFileLanguageChanged: handleFileLanguageChanged,
     onRoomLocked: handleRoomLocked,
+    onRoomSettingsUpdated: handleRoomSettingsUpdated,
+    onTestCasesUpdated: handleTestCasesUpdated,
     onRoomEnded: handleRoomEnded,
     onErrorEvent: handleErrorEvent,
   });
+
+  const handleToggleStar = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data } = await api.post(`/rooms/${roomId}/star`);
+      setIsStarred(Boolean(data.starred));
+      toast.success(data.starred ? "Room starred" : "Removed star");
+    } catch {
+      toast.error("Could not update star");
+    }
+  }, [roomId, user]);
+
+  const handleSaveHostSettings = useCallback(
+    async (payload) => {
+      setSavingSettings(true);
+      try {
+        const { data } = await api.patch(`/rooms/${roomId}`, payload);
+        setRoom(data.room);
+        setShowHostSettings(false);
+        toast.success("Room controls updated");
+      } catch (err) {
+        toast.error(err.response?.data?.error || "Could not update room settings");
+      } finally {
+        setSavingSettings(false);
+      }
+    },
+    [roomId]
+  );
+
+  const handleRotateInvite = useCallback(async () => {
+    try {
+      const { data } = await api.post(`/rooms/${roomId}/invite/rotate`);
+      setRoom((prev) => (prev ? { ...prev, inviteCode: data.inviteCode } : prev));
+      toast.success("Invite link rotated");
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Could not rotate invite");
+    }
+  }, [roomId]);
+
+  const handleChangeMemberRole = useCallback(
+    async (targetUsername, role) => {
+      try {
+        const { data } = await api.patch(`/rooms/${roomId}/members/permission`, {
+          targetUsername,
+          role,
+        });
+        setRoom(data.room);
+        toast.success(`Updated ${targetUsername} to ${role}`);
+      } catch (err) {
+        toast.error(err.response?.data?.error || "Could not update member role");
+      }
+    },
+    [roomId]
+  );
+
+  const handleKickMember = useCallback(
+    async (username) => {
+      try {
+        const { data } = await api.delete(`/rooms/${roomId}/members/${encodeURIComponent(username)}`);
+        setRoom(data.room);
+        toast.success(`Removed ${username} from room`);
+      } catch (err) {
+        toast.error(err.response?.data?.error || "Could not remove member");
+      }
+    },
+    [roomId]
+  );
+
+  const handleTestCasesChange = useCallback(
+    (updater) => {
+      setTestCases((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        if (canManageFiles) {
+          if (testCaseSyncTimerRef.current) clearTimeout(testCaseSyncTimerRef.current);
+          testCaseSyncTimerRef.current = setTimeout(() => {
+            const payload = next.map((c, idx) => ({
+              id: c.id || idx + 1,
+              input: c.input || "",
+              expected: c.expected || "",
+            }));
+            api.put(`/rooms/${roomId}/test-cases`, { testCases: payload }).catch(() => {});
+          }, 500);
+        }
+        return next;
+      });
+    },
+    [roomId, canManageFiles]
+  );
 
   const handleEndRoom = useCallback(async () => {
     setEndingRoom(true);
@@ -348,7 +497,6 @@ export default function Room() {
     }
   }, [roomId, resolvedUsername, socket, user, navigate]);
 
-  // Format Document (Monaco / Prettier format)
   const handleFormatDocument = useCallback(() => {
     if (!editorRef.current) return;
     try {
@@ -364,7 +512,6 @@ export default function Room() {
     }
   }, []);
 
-  // File Operations: Select, Create, Rename, Delete
   const handleSelectFile = useCallback((fileName) => {
     setActiveFileName(fileName);
   }, []);
@@ -378,14 +525,15 @@ export default function Room() {
           language,
           content: "",
         });
-        const createdFile = data.file || { name, language, content: "" };
+        const createdFile =
+          data.file ||
+          data.files?.find((f) => f.name === name) || { name, language, content: "" };
         setRoom((prev) => {
           if (!prev) return prev;
           if (prev.files?.some((f) => f.name === name)) return prev;
           return { ...prev, files: [...(prev.files || []), createdFile] };
         });
         setActiveFileName(name);
-        socket?.emit("file-created", { roomId, file: createdFile });
         setShowNewFileModal(false);
         toast.success(`Created ${name}`);
       } catch (err) {
@@ -394,7 +542,7 @@ export default function Room() {
         setCreatingFile(false);
       }
     },
-    [roomId, socket]
+    [roomId]
   );
 
   const handleRenameFile = useCallback(
@@ -414,7 +562,6 @@ export default function Room() {
           };
         });
         setActiveFileName((curr) => (curr === oldName ? newName : curr));
-        socket?.emit("file-renamed", { roomId, oldName, newName });
         setRenameTargetFile(null);
         toast.success(`Renamed to ${newName}`);
       } catch (err) {
@@ -423,7 +570,7 @@ export default function Room() {
         setRenamingFile(false);
       }
     },
-    [roomId, socket]
+    [roomId]
   );
 
   const handleDeleteFile = useCallback(async () => {
@@ -434,14 +581,9 @@ export default function Room() {
       setRoom((prev) => {
         if (!prev) return prev;
         const remaining = (prev.files || []).filter((f) => f.name !== deleteTargetFile);
+        setActiveFileName((curr) => (curr === deleteTargetFile ? remaining[0]?.name || "" : curr));
         return { ...prev, files: remaining };
       });
-      setActiveFileName((curr) => {
-        if (curr !== deleteTargetFile) return curr;
-        const remaining = (room?.files || []).filter((f) => f.name !== deleteTargetFile);
-        return remaining[0]?.name || "";
-      });
-      socket?.emit("file-deleted", { roomId, fileName: deleteTargetFile });
       setDeleteTargetFile(null);
       toast.success(`Deleted ${deleteTargetFile}`);
     } catch (err) {
@@ -449,9 +591,8 @@ export default function Room() {
     } finally {
       setDeletingFile(false);
     }
-  }, [roomId, deleteTargetFile, room?.files, socket]);
+  }, [roomId, deleteTargetFile]);
 
-  // Execute code
   const handleRun = useCallback(async () => {
     const currentCode = editorRef.current?.getValue() || "";
     if (!currentCode.trim()) {
@@ -482,7 +623,6 @@ export default function Room() {
     }
   }, [roomId, activeLanguage, stdin, socket]);
 
-  // Phase 4: Run all test cases sequentially
   const handleRunTestCases = useCallback(async () => {
     const currentCode = editorRef.current?.getValue() || "";
     if (!currentCode.trim()) {
@@ -494,45 +634,30 @@ export default function Room() {
     toast("Running test cases...", { icon: "⏳" });
 
     try {
-      const updated = [...testCases];
-      for (let i = 0; i < updated.length; i++) {
-        const tc = updated[i];
-        try {
-          const { data } = await api.post(`/rooms/${roomId}/execute`, {
-            language: activeLanguage,
-            sourceCode: currentCode,
-            stdin: tc.input || "",
-          });
-          const actualOutput = (data.result?.stdout || "").trim();
-          const expectedTrimmed = (tc.expected || "").trim();
-          const passed = actualOutput === expectedTrimmed;
-          updated[i] = {
-            ...tc,
-            actual: actualOutput,
-            status: passed ? "passed" : "failed",
-          };
-        } catch (err) {
-          updated[i] = {
-            ...tc,
-            actual: err.response?.data?.error || "Execution error",
-            status: "failed",
-          };
-        }
-      }
+      const { data } = await api.post(`/rooms/${roomId}/execute-batch`, {
+        language: activeLanguage,
+        sourceCode: currentCode,
+        cases: testCases.map((tc, idx) => ({
+          id: tc.id || idx + 1,
+          input: tc.input || "",
+          expected: tc.expected || "",
+        })),
+      });
+      const updated = data.results || [];
       setTestCases(updated);
-      const allPassed = updated.every((c) => c.status === "passed");
-      if (allPassed) {
-        toast.success("All test cases passed! 🎉");
+      const passedNum = updated.filter((c) => c.status === "passed").length;
+      if (updated.length > 0 && passedNum === updated.length) {
+        toast.success("All test cases passed!");
       } else {
-        const passedNum = updated.filter((c) => c.status === "passed").length;
         toast(`${passedNum}/${updated.length} test cases passed`, { icon: "⚠️" });
       }
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Batch test execution failed");
     } finally {
       setRunningTestCases(false);
     }
   }, [roomId, activeLanguage, testCases]);
 
-  // Phase 5: Download project as ZIP
   const handleDownloadZip = useCallback(() => {
     if (!room?.files || room.files.length === 0) return;
     const currentCode = editorRef.current?.getValue();
@@ -545,12 +670,10 @@ export default function Room() {
     toast.success("Downloaded project ZIP", { icon: "📦" });
   }, [room, activeFileName]);
 
-  // Update file language (Host and Editors only)
   const handleLanguageChange = useCallback(
     async (newLang) => {
-      if (!activeFile) return;
+      if (!activeFile || !canManageFiles) return;
 
-      // Optimistically update local room files
       setRoom((prev) => ({
         ...prev,
         files: prev.files.map((f) =>
@@ -558,26 +681,16 @@ export default function Room() {
         ),
       }));
 
-      // Broadcast via socket
-      socket?.emit("file-language-change", {
-        roomId,
-        fileName: activeFile.name,
-        language: newLang,
-      });
-
-      // Persist to server API
       try {
         await api.put(`/rooms/${roomId}/files/${encodeURIComponent(activeFile.name)}`, {
           language: newLang,
         });
-      } catch {
-        // Handled or caught by socket
+      } catch (err) {
+        toast.error(err.response?.data?.error || "Could not change language");
       }
     },
-    [activeFile, roomId, socket]
+    [activeFile, roomId, canManageFiles]
   );
-
-  // --- RENDER LOAD FLOW STATES ---
 
   if (loadState === "loading") {
     return <PageLoading message="Joining collaborative room..." />;
@@ -617,7 +730,7 @@ export default function Room() {
           </div>
           <h1 className="text-xl font-bold font-serif text-gray-100">Private Room</h1>
           <p className="text-sm text-gray-400 leading-relaxed font-sans">
-            This room is private. You must be an authorized scribe or log in to access it.
+            This room is private. Ask the host for an invite link or sign in with an authorized account.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
             {!user ? (
@@ -728,14 +841,10 @@ export default function Room() {
     );
   }
 
-  // --- READY STATE: FULL COLLABORATIVE ROOM ---
-
   return (
     <div className="h-dvh flex flex-col bg-bg text-gray-100 overflow-hidden">
-      {/* Top Navbar */}
       <header className="px-3 sm:px-4 py-2 border-b border-border bg-surface/90 backdrop-blur-md shrink-0 shadow-paper-sm z-30">
         <div className="flex items-center justify-between gap-2">
-          {/* Left: Dashboard link & Room title */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link
               to="/dashboard"
@@ -749,6 +858,19 @@ export default function Room() {
                 {room.name}
               </h1>
             </div>
+            {user && (
+              <button
+                type="button"
+                onClick={handleToggleStar}
+                aria-label={isStarred ? "Unstar room" : "Star room"}
+                className="p-1 rounded-lg hover:bg-surface2 transition-colors"
+              >
+                <Star
+                  size={15}
+                  className={isStarred ? "text-amber-500 fill-amber-500" : "text-gray-400"}
+                />
+              </button>
+            )}
             {room.settings?.locked && (
               <span className="flex items-center gap-1 text-[11px] bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-full shrink-0 font-medium font-mono">
                 <Lock size={11} /> Locked
@@ -756,9 +878,7 @@ export default function Room() {
             )}
           </div>
 
-          {/* Desktop & Tablet Controls */}
-          <div className="hidden sm:flex items-center gap-2.5">
-            {/* File & Language Selector */}
+          <div className="hidden sm:flex items-center gap-2">
             <div className="flex items-center gap-1.5 bg-surface2 border border-border rounded-lg px-2.5 py-1 text-xs shadow-paper-sm">
               <FileCode size={14} className="text-accent" />
               <span className="font-semibold text-gray-200 font-mono text-[11px]">{activeFileName || "main"}</span>
@@ -769,8 +889,9 @@ export default function Room() {
               <select
                 id="language-select"
                 value={activeLanguage}
+                disabled={!canManageFiles}
                 onChange={(e) => handleLanguageChange(e.target.value)}
-                className="bg-transparent text-gray-300 hover:text-gray-100 text-xs focus:outline-none cursor-pointer font-sans"
+                className="bg-transparent text-gray-300 hover:text-gray-100 text-xs focus:outline-none cursor-pointer font-sans disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {LANGUAGES.map((l) => (
                   <option key={l.key} value={l.key} className="bg-surface text-gray-100">
@@ -780,10 +901,9 @@ export default function Room() {
               </select>
             </div>
 
-            {/* Run Button */}
             <button
               onClick={handleRun}
-              disabled={running}
+              disabled={running || !canManageFiles}
               aria-label="Run Code"
               className="flex items-center gap-1.5 bg-accent hover:opacity-90 text-white rounded-lg px-3 py-1.5 text-xs font-semibold shadow-paper-sm disabled:opacity-50 transition-all focus:outline-none focus:ring-2 focus:ring-accent active:scale-95"
             >
@@ -791,11 +911,27 @@ export default function Room() {
               <span>{running ? "Running..." : "Run"}</span>
             </button>
 
-            {/* Phase 4: Interview Timer & Voice Call */}
-            <InterviewTimer socket={socket} roomId={roomId} isHost={isHost} />
-            <VoiceRoom socket={socket} roomId={roomId} username={resolvedUsername} />
+            <InterviewTimer
+              socket={socket}
+              roomId={roomId}
+              isHost={isHost}
+              initialState={room?.timerState}
+            />
+            <VoiceRoom socket={socket} roomId={roomId} />
 
-            {/* Share Button */}
+            {isHost && (
+              <button
+                type="button"
+                onClick={() => setShowHostSettings(true)}
+                aria-label="Room Host Controls"
+                title="Room Host Controls"
+                className="flex items-center gap-1 text-xs text-gray-300 hover:text-gray-100 bg-surface2 border border-border rounded-lg px-2.5 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent shadow-paper-sm"
+              >
+                <Settings size={13} />
+                <span className="hidden lg:inline">Controls</span>
+              </button>
+            )}
+
             <button
               onClick={() => setShowShare(true)}
               aria-label="Share Room"
@@ -805,7 +941,6 @@ export default function Room() {
               <span>Share</span>
             </button>
 
-            {/* Phase 5: Export / Download ZIP Button */}
             <button
               onClick={handleDownloadZip}
               title="Download project as ZIP"
@@ -816,10 +951,8 @@ export default function Room() {
               <span className="hidden lg:inline">Export ZIP</span>
             </button>
 
-            {/* Paper Theme Switcher */}
             <ThemeToggle compact />
 
-            {/* End Room (Host) or Leave Room (User/Guest) */}
             {isHost ? (
               <button
                 onClick={() => setShowEndModal(true)}
@@ -840,7 +973,6 @@ export default function Room() {
               </button>
             )}
 
-            {/* Panels Toggle */}
             <div className="flex items-center border border-border rounded-lg overflow-hidden bg-surface2 shadow-paper-sm p-0.5">
               <button
                 onClick={() => setRightTab("participants")}
@@ -869,17 +1001,26 @@ export default function Room() {
             </div>
           </div>
 
-          {/* Mobile Quick Action Buttons */}
           <div className="flex sm:hidden items-center gap-1.5">
             <button
               onClick={handleRun}
-              disabled={running}
+              disabled={running || !canManageFiles}
               aria-label="Run Code"
-              className="flex items-center gap-1 bg-accent text-white rounded-lg px-2.5 py-1 text-xs font-semibold shadow-paper-sm"
+              className="flex items-center gap-1 bg-accent text-white rounded-lg px-2.5 py-1 text-xs font-semibold shadow-paper-sm disabled:opacity-50"
             >
               <Play size={12} fill="currentColor" />
               <span>Run</span>
             </button>
+            {isHost && (
+              <button
+                type="button"
+                onClick={() => setShowHostSettings(true)}
+                aria-label="Room Host Controls"
+                className="p-1.5 text-gray-400 hover:text-gray-100 rounded-lg hover:bg-surface2"
+              >
+                <Settings size={16} />
+              </button>
+            )}
             <button
               onClick={() => setShowShare(true)}
               aria-label="Share Room"
@@ -917,15 +1058,15 @@ export default function Room() {
           </div>
         </div>
 
-        {/* Mobile Collapsible Sub-Bar */}
         {mobileTopBarExpanded && (
           <div className="sm:hidden pt-2.5 pb-1 border-t border-border mt-2 flex items-center justify-between text-xs animate-in fade-in slide-in-from-top-1 duration-150">
             <div className="flex items-center gap-2">
               <span className="text-gray-400">Language:</span>
               <select
                 value={activeLanguage}
+                disabled={!canManageFiles}
                 onChange={(e) => handleLanguageChange(e.target.value)}
-                className="bg-surface2 border border-border rounded-lg px-2 py-1 text-gray-200 text-xs"
+                className="bg-surface2 border border-border rounded-lg px-2 py-1 text-gray-200 text-xs disabled:opacity-60"
               >
                 {LANGUAGES.map((l) => (
                   <option key={l.key} value={l.key}>
@@ -944,9 +1085,7 @@ export default function Room() {
         )}
       </header>
 
-      {/* Main Content Workspace */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
-        {/* Desktop Collapsible File Explorer */}
         {fileExplorerOpen && (
           <div className="hidden md:block h-full">
             <FileExplorer
@@ -961,13 +1100,11 @@ export default function Room() {
           </div>
         )}
 
-        {/* Editor and Output Area */}
         <div
           className={`flex-1 flex flex-col min-w-0 ${
             mobileTab !== "editor" && mobileTab !== "output" ? "hidden md:flex" : "flex"
           }`}
         >
-          {/* Horizontal File Tabs Bar */}
           <FileTabs
             files={room?.files || []}
             activeFileName={activeFileName}
@@ -980,7 +1117,6 @@ export default function Room() {
             onToggleFileExplorer={() => setFileExplorerOpen((prev) => !prev)}
           />
 
-          {/* Editor Container */}
           <div
             className={`flex-1 min-h-0 ${
               mobileTab === "output" ? "hidden md:block" : "block"
@@ -994,12 +1130,12 @@ export default function Room() {
                 language={monacoLangFor(activeLanguage)}
                 username={resolvedUsername || "Guest"}
                 guestToken={guestToken}
+                canEdit={canManageFiles}
                 onEditorReady={handleEditorReady}
               />
             )}
           </div>
 
-          {/* Output Console with STDIN (Desktop lower panel / Mobile Output tab) */}
           <div
             className={`border-t border-border bg-paper-console ${
               mobileTab === "output"
@@ -1014,31 +1150,47 @@ export default function Room() {
               setStdin={setStdin}
               onClearOutput={() => setResult(null)}
               testCases={testCases}
-              setTestCases={setTestCases}
+              setTestCases={handleTestCasesChange}
               onRunTestCases={handleRunTestCases}
               runningTestCases={runningTestCases}
             />
           </div>
         </div>
 
-        {/* Right Sidebar (Desktop) */}
         <aside className="hidden md:block w-80 border-l border-border bg-surface shrink-0 h-full">
           {rightTab === "participants" ? (
-            <ParticipantsPanel participants={participants} />
+            <ParticipantsPanel
+              participants={participants}
+              members={room?.members || []}
+              isHost={isHost}
+              currentUsername={resolvedUsername}
+              onChangeRole={handleChangeMemberRole}
+              onKickMember={handleKickMember}
+            />
           ) : (
             <ChatPanel
               socket={socket}
               roomId={roomId}
               messages={messages}
-              setMessages={setMessages}
+              hasMore={chatHasMore}
+              loadingMore={loadingMoreChat}
+              onLoadMore={handleLoadOlderMessages}
+              chatMuted={Boolean(room?.settings?.chatMuted)}
+              isHost={isHost}
             />
           )}
         </aside>
 
-        {/* Mobile View Panels for Participants and Chat */}
         {mobileTab === "participants" && (
           <div className="md:hidden flex-1 min-h-0 bg-surface">
-            <ParticipantsPanel participants={participants} />
+            <ParticipantsPanel
+              participants={participants}
+              members={room?.members || []}
+              isHost={isHost}
+              currentUsername={resolvedUsername}
+              onChangeRole={handleChangeMemberRole}
+              onKickMember={handleKickMember}
+            />
           </div>
         )}
         {mobileTab === "chat" && (
@@ -1047,13 +1199,16 @@ export default function Room() {
               socket={socket}
               roomId={roomId}
               messages={messages}
-              setMessages={setMessages}
+              hasMore={chatHasMore}
+              loadingMore={loadingMoreChat}
+              onLoadMore={handleLoadOlderMessages}
+              chatMuted={Boolean(room?.settings?.chatMuted)}
+              isHost={isHost}
             />
           </div>
         )}
       </div>
 
-      {/* Mobile Bottom Tab Bar */}
       <nav
         aria-label="Mobile View Navigation"
         className="md:hidden flex items-center justify-around border-t border-border bg-surface py-2 px-1 shrink-0 z-20"
@@ -1101,15 +1256,25 @@ export default function Room() {
         </button>
       </nav>
 
-      {/* Share Modal Dialog */}
       {showShare && (
         <ShareModal
           url={typeof window !== "undefined" ? window.location.href : ""}
+          inviteCode={room?.inviteCode}
+          visibility={room?.visibility}
           onClose={() => setShowShare(false)}
         />
       )}
 
-      {/* Host End Room Confirmation Modal */}
+      {showHostSettings && (
+        <HostSettingsModal
+          room={room}
+          onSaveSettings={handleSaveHostSettings}
+          onRotateInvite={handleRotateInvite}
+          onClose={() => setShowHostSettings(false)}
+          saving={savingSettings}
+        />
+      )}
+
       {showEndModal && (
         <EndRoomModal
           onConfirm={handleEndRoom}
@@ -1118,7 +1283,6 @@ export default function Room() {
         />
       )}
 
-      {/* Participant Leave Room Confirmation Modal */}
       {showLeaveModal && (
         <LeaveRoomModal
           onConfirm={handleLeaveRoom}
@@ -1127,7 +1291,6 @@ export default function Room() {
         />
       )}
 
-      {/* Create New File Modal */}
       {showNewFileModal && (
         <NewFileModal
           existingFiles={room?.files || []}
@@ -1137,7 +1300,6 @@ export default function Room() {
         />
       )}
 
-      {/* Rename File Modal */}
       {renameTargetFile && (
         <RenameFileModal
           currentName={renameTargetFile}
@@ -1148,7 +1310,6 @@ export default function Room() {
         />
       )}
 
-      {/* Delete File Confirmation Modal */}
       {deleteTargetFile && (
         <DeleteFileModal
           fileName={deleteTargetFile}

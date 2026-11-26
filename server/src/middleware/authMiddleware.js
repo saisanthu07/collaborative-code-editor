@@ -21,6 +21,9 @@ export async function authMiddleware(req, res, next) {
     if (!user) {
       return res.status(401).json({ error: "User not found" });
     }
+    if (user.status === "BANNED") {
+      return res.status(403).json({ error: "Account banned" });
+    }
     if (user.status === "SUSPENDED") {
       return res.status(403).json({ error: "Account suspended" });
     }
@@ -56,6 +59,9 @@ export async function optionalAuthMiddleware(req, res, next) {
     const user = await User.findById(decoded.sub);
     if (!user) {
       return res.status(401).json({ error: "User not found" });
+    }
+    if (user.status === "BANNED") {
+      return res.status(403).json({ error: "Account banned" });
     }
     if (user.status === "SUSPENDED") {
       return res.status(403).json({ error: "Account suspended" });

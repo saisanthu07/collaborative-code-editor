@@ -2,12 +2,41 @@ import crypto from "crypto";
 import mongoose from "mongoose";
 import Room from "../models/Room.js";
 import Message from "../models/Message.js";
-import { createRoom, addMemberIfNeeded, generateGuestName } from "../services/roomService.js";
-import { runCode } from "../services/executionService.js";
 import Execution from "../models/Execution.js";
+import {
+  createRoom,
+  generateGuestName,
+  generateInviteCode,
+  hasValidInviteCode,
+} from "../services/roomService.js";
+import { runCode, runCodeBatch } from "../services/executionService.js";
 import { logEvent } from "../utils/logger.js";
-import { disconnectYjsUser, disconnectAllRoomYjs } from "../sockets/yjsServer.js";
+import {
+  disconnectYjsUser,
+  disconnectAllRoomYjs,
+  invalidateRoomPolicyCache,
+  migrateYjsDoc,
+  deleteYjsDoc,
+  deleteRoomYjsDocs,
+} from "../sockets/yjsServer.js";
 import { signGuestToken, verifyGuestToken } from "../utils/guestToken.js";
+
+function sanitizeRoomForGuest(roomDoc) {
+  const roomObj = roomDoc.toObject ? roomDoc.toObject() : { ...roomDoc };
+  delete roomObj.starredBy;
+  delete roomObj.ownerId;
+  delete roomObj.inviteCode;
+  if (Array.isArray(roomObj.members)) {
+    roomObj.members = roomObj.members.map((m) => ({
+      username: m.username,
+      role: m.role,
+      isGuest: m.isGuest,
+      joinedAt: m.joinedAt,
+      lastActiveAt: m.lastActiveAt,
+    }));
+  }
+  return roomObj;
+}
 
 export async function create(req, res, next) {
   try {
@@ -30,7 +59,7 @@ export async function createInstant(req, res, next) {
 
     if (user) {
       room = await createRoom(user, {
-        name: `Instant Playground`,
+        name: "Instant Playground",
         description: `Collaborative session created on ${new Date().toLocaleDateString()}`,
         language,
         visibility: "PUBLIC",
@@ -40,6 +69,8 @@ export async function createInstant(req, res, next) {
       const guestId = crypto.randomBytes(8).toString("hex");
       username = generateGuestName();
       const mockOwnerId = new mongoose.Types.ObjectId();
+      const guestTtlHours = Number(process.env.GUEST_TOKEN_TTL_HOURS) || 24;
+      const expiresAt = new Date(Date.now() + guestTtlHours * 60 * 60 * 1000);
 
       const defaultCode =
         language === "python"
@@ -52,11 +83,12 @@ export async function createInstant(req, res, next) {
         language === "python" ? "main.py" : language === "cpp" ? "main.cpp" : "index.js";
 
       room = await Room.create({
-        name: `Instant Playground`,
-        description: `Temporary collaborative playground`,
+        name: "Instant Playground",
+        description: "Temporary collaborative playground",
         language,
         visibility: "PUBLIC",
         ownerId: mockOwnerId,
+        expiresAt,
         files: [
           {
             name: initialFileName,
@@ -132,11 +164,11 @@ export async function listMine(req, res, next) {
       };
     };
 
-    const owned = ownedDocs.map(formatRoom);
-    const memberOf = memberOfDocs.map(formatRoom);
-    const starred = starredDocs.map(formatRoom);
-
-    res.json({ owned, memberOf, starred });
+    res.json({
+      owned: ownedDocs.map(formatRoom),
+      memberOf: memberOfDocs.map(formatRoom),
+      starred: starredDocs.map(formatRoom),
+    });
   } catch (err) {
     next(err);
   }
@@ -144,21 +176,13 @@ export async function listMine(req, res, next) {
 
 export async function getOne(req, res) {
   if (!req.user) {
-    const roomObj = req.room.toObject ? req.room.toObject() : { ...req.room };
-    delete roomObj.starredBy;
-    delete roomObj.ownerId;
-    if (Array.isArray(roomObj.members)) {
-      roomObj.members = roomObj.members.map((m) => ({
-        username: m.username,
-        role: m.role,
-        isGuest: m.isGuest,
-        joinedAt: m.joinedAt,
-        lastActiveAt: m.lastActiveAt,
-      }));
-    }
-    return res.json({ room: roomObj });
+    return res.json({ room: sanitizeRoomForGuest(req.room) });
   }
-  res.json({ room: req.room });
+  const roomObj = req.room.toObject ? req.room.toObject() : { ...req.room };
+  if (!req.isRoomOwner) {
+    delete roomObj.inviteCode;
+  }
+  res.json({ room: roomObj });
 }
 
 export async function update(req, res, next) {
@@ -166,14 +190,22 @@ export async function update(req, res, next) {
     const $set = {};
     if (req.body.name !== undefined) $set.name = req.body.name;
     if (req.body.description !== undefined) $set.description = req.body.description;
-    if (req.body.visibility !== undefined) $set.visibility = req.body.visibility;
+    if (req.body.visibility !== undefined) {
+      $set.visibility = req.body.visibility;
+      if (req.body.visibility === "PRIVATE" && !req.room.inviteCode) {
+        $set.inviteCode = generateInviteCode();
+      }
+    }
     if (req.body.language !== undefined) $set.language = req.body.language;
     if (req.body.settings) {
-      if (req.body.settings.allowGuestEdit !== undefined) $set["settings.allowGuestEdit"] = req.body.settings.allowGuestEdit;
-      if (req.body.settings.defaultRole !== undefined) $set["settings.defaultRole"] = req.body.settings.defaultRole;
-      if (req.body.settings.locked !== undefined) $set["settings.locked"] = req.body.settings.locked;
-      if (req.body.settings.chatMuted !== undefined) $set["settings.chatMuted"] = req.body.settings.chatMuted;
-      // settings.lockedByAdmin is never writable by host
+      if (req.body.settings.allowGuestEdit !== undefined)
+        $set["settings.allowGuestEdit"] = req.body.settings.allowGuestEdit;
+      if (req.body.settings.defaultRole !== undefined)
+        $set["settings.defaultRole"] = req.body.settings.defaultRole;
+      if (req.body.settings.locked !== undefined)
+        $set["settings.locked"] = req.body.settings.locked;
+      if (req.body.settings.chatMuted !== undefined)
+        $set["settings.chatMuted"] = req.body.settings.chatMuted;
     }
 
     const room = await Room.findOneAndUpdate(
@@ -181,12 +213,35 @@ export async function update(req, res, next) {
       { $set },
       { new: true }
     );
+    invalidateRoomPolicyCache(req.room.roomId);
 
-    if (req.body.settings?.locked !== undefined) {
-      req.app.get("io")?.to(req.room.roomId).emit("room-locked", { locked: req.body.settings.locked });
+    const io = req.app.get("io");
+    if (io) {
+      if (req.body.settings?.locked !== undefined) {
+        io.to(req.room.roomId).emit("room-locked", { locked: req.body.settings.locked });
+      }
+      io.to(req.room.roomId).emit("room-settings-updated", {
+        visibility: room.visibility,
+        settings: room.settings,
+      });
     }
 
     res.json({ room });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function rotateInvite(req, res, next) {
+  try {
+    const inviteCode = generateInviteCode();
+    const room = await Room.findOneAndUpdate(
+      { roomId: req.room.roomId },
+      { $set: { inviteCode } },
+      { new: true }
+    );
+    logEvent("ROOM_INVITE_ROTATE", { roomId: req.room.roomId, userId: req.user._id.toString() });
+    res.json({ inviteCode: room.inviteCode });
   } catch (err) {
     next(err);
   }
@@ -196,7 +251,6 @@ export async function remove(req, res, next) {
   try {
     const roomId = req.room.roomId;
 
-    // Broadcast room-ended event to notify all connected clients
     const io = req.app.get("io");
     if (io) {
       io.to(roomId).emit("room-ended", {
@@ -209,7 +263,8 @@ export async function remove(req, res, next) {
     }
 
     disconnectAllRoomYjs(roomId);
-
+    await deleteRoomYjsDocs(roomId);
+    await Message.deleteMany({ roomId });
     await req.room.deleteOne();
     logEvent("ROOM_DELETE", { userId: req.user._id.toString(), roomId });
     res.json({ success: true });
@@ -224,12 +279,12 @@ export async function leave(req, res, next) {
     const userId = req.user?._id;
     const username = req.user?.username || req.body?.username;
 
-    // If an authenticated member leaves, remove them from room members
     if (userId) {
       req.room.members = req.room.members.filter(
         (m) => m.userId?.toString() !== userId.toString()
       );
       await req.room.save();
+      invalidateRoomPolicyCache(roomId);
     }
 
     logEvent("ROOM_LEAVE_MEMBER", { roomId, userId: userId?.toString(), username });
@@ -242,18 +297,29 @@ export async function leave(req, res, next) {
 export async function join(req, res, next) {
   try {
     const roomId = req.room.roomId;
-    if (req.room.settings?.locked || req.room.settings?.lockedByAdmin) {
+    if (req.room.settings?.lockedByAdmin) {
+      return res.status(403).json({ error: "Room is locked by an administrator" });
+    }
+    if (req.room.settings?.locked && !req.isRoomOwner) {
       return res.status(403).json({ error: "This room is locked" });
     }
 
     if (req.user) {
       const username = req.user.username;
       const isOwner = req.room.ownerId.toString() === req.user._id.toString();
-      const role = isOwner ? "HOST" : (req.room.settings?.defaultRole || "EDITOR");
-
       const existingMember = req.room.members.find(
         (m) => m.userId && m.userId.toString() === req.user._id.toString()
       );
+
+      if (req.room.visibility === "PRIVATE" && !isOwner && !existingMember) {
+        const suppliedInvite =
+          req.body?.inviteCode || req.query?.invite || req.headers["x-invite-code"];
+        if (!hasValidInviteCode(req.room, suppliedInvite)) {
+          return res.status(403).json({ error: "Private room requires a valid invite link" });
+        }
+      }
+
+      const role = isOwner ? "HOST" : req.room.settings?.defaultRole || "EDITOR";
 
       if (existingMember) {
         await Room.updateOne(
@@ -278,12 +344,16 @@ export async function join(req, res, next) {
         );
       }
 
+      invalidateRoomPolicyCache(roomId);
       const freshRoom = await Room.findOne({ roomId });
+      const roomObj = freshRoom.toObject();
+      if (!isOwner) delete roomObj.inviteCode;
+
       logEvent("ROOM_JOIN", { roomId, username, userId: req.user._id.toString() });
-      return res.json({ room: freshRoom, username, guestId: null, guestToken: null });
+      return res.json({ room: roomObj, username, guestId: null, guestToken: null });
     }
 
-    // Unauthenticated guest join
+    // Unauthenticated guest join (PUBLIC rooms only, enforced by roomAccessMiddleware)
     const guestTokenHeader = req.headers["x-guest-token"];
     let guestId = null;
     let username = null;
@@ -298,7 +368,7 @@ export async function join(req, res, next) {
           tokenMatchesRoom = true;
         }
       } catch {
-        // Invalid or expired token: fall through to generating a new guest
+        // Invalid or expired token
       }
     }
 
@@ -307,7 +377,6 @@ export async function join(req, res, next) {
     const maxGuests = Number(process.env.MAX_GUESTS_PER_ROOM) || 50;
     const expiredCutoff = new Date(now.getTime() - guestTtlHours * 60 * 60 * 1000);
 
-    // Clean up stale guests older than 24h
     await Room.updateOne(
       { roomId },
       {
@@ -322,7 +391,6 @@ export async function join(req, res, next) {
 
     let freshRoom = await Room.findOne({ roomId });
 
-    // If existing guestToken matches, refresh and reuse
     if (tokenMatchesRoom && guestId) {
       const existing = freshRoom.members.find((m) => m.guestId === guestId);
       if (existing) {
@@ -333,11 +401,15 @@ export async function join(req, res, next) {
         freshRoom = await Room.findOne({ roomId });
         const guestToken = signGuestToken({ guestId, username, roomId });
         logEvent("ROOM_JOIN_GUEST_REUSED", { roomId, guestId, username });
-        return res.json({ room: freshRoom, username, guestId, guestToken });
+        return res.json({
+          room: sanitizeRoomForGuest(freshRoom),
+          username,
+          guestId,
+          guestToken,
+        });
       }
     }
 
-    // New guest join: check 50 guest cap
     const currentGuests = freshRoom.members.filter((m) => Boolean(m.guestId));
     if (currentGuests.length >= maxGuests) {
       return res.status(429).json({ error: "Room is full for guests" });
@@ -362,10 +434,16 @@ export async function join(req, res, next) {
       }
     );
 
+    invalidateRoomPolicyCache(roomId);
     const guestToken = signGuestToken({ guestId, username, roomId });
     freshRoom = await Room.findOne({ roomId });
     logEvent("ROOM_JOIN_GUEST", { roomId, guestId, username });
-    return res.json({ room: freshRoom, username, guestId, guestToken });
+    return res.json({
+      room: sanitizeRoomForGuest(freshRoom),
+      username,
+      guestId,
+      guestToken,
+    });
   } catch (err) {
     next(err);
   }
@@ -433,7 +511,6 @@ export async function execute(req, res, next) {
       ...result,
     });
 
-    // Server broadcasts execution results directly to room sockets
     const io = req.app.get("io");
     if (io) {
       io.to(req.room.roomId).emit("execution-completed", { result });
@@ -444,6 +521,65 @@ export async function execute(req, res, next) {
     logEvent("EXEC_FAILURE", { roomId: req.room?.roomId, error: err.message });
     next(err);
   }
+}
+
+export async function executeBatch(req, res, next) {
+  try {
+    const { language, sourceCode, cases } = req.body;
+    logEvent("EXEC_BATCH_REQUEST", {
+      roomId: req.room.roomId,
+      userId: req.user?._id?.toString(),
+      language,
+      count: cases.length,
+    });
+
+    const results = await runCodeBatch({ language, sourceCode, cases });
+    res.json({ results });
+  } catch (err) {
+    logEvent("EXEC_BATCH_FAILURE", { roomId: req.room?.roomId, error: err.message });
+    next(err);
+  }
+}
+
+export async function updateTestCases(req, res, next) {
+  try {
+    const { testCases } = req.body;
+    const room = await Room.findOneAndUpdate(
+      { roomId: req.room.roomId },
+      { $set: { testCases, lastActiveAt: new Date() } },
+      { new: true }
+    );
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(req.room.roomId).emit("test-cases-updated", { testCases: room.testCases });
+    }
+
+    res.json({ testCases: room.testCases });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export function getIceServers(req, res) {
+  const iceServers = [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+  ];
+
+  const turnUrls = (process.env.TURN_URLS || "")
+    .split(",")
+    .map((u) => u.trim())
+    .filter(Boolean);
+
+  if (turnUrls.length > 0) {
+    const turnEntry = { urls: turnUrls };
+    if (process.env.TURN_USERNAME) turnEntry.username = process.env.TURN_USERNAME;
+    if (process.env.TURN_CREDENTIAL) turnEntry.credential = process.env.TURN_CREDENTIAL;
+    iceServers.push(turnEntry);
+  }
+
+  res.json({ iceServers });
 }
 
 // --- File management ---
@@ -469,7 +605,7 @@ export async function createFile(req, res, next) {
     }
 
     logEvent("ROOM_FILE_CREATE", { roomId: req.room.roomId, name });
-    res.status(201).json({ files: req.room.files });
+    res.status(201).json({ file, files: req.room.files });
   } catch (err) {
     next(err);
   }
@@ -505,6 +641,7 @@ export async function renameFile(req, res, next) {
     const oldName = req.params.fileName;
     file.name = req.body.newName;
     await req.room.save();
+    await migrateYjsDoc(req.room.roomId, oldName, req.body.newName);
 
     const io = req.app.get("io");
     if (io) {
@@ -525,6 +662,7 @@ export async function deleteFile(req, res, next) {
     }
     req.room.files = req.room.files.filter((f) => f.name !== req.params.fileName);
     await req.room.save();
+    await deleteYjsDoc(req.room.roomId, req.params.fileName);
 
     const io = req.app.get("io");
     if (io) {
@@ -547,13 +685,25 @@ export async function changeMemberPermission(req, res, next) {
     if (!member) return res.status(404).json({ error: "Member not found in this room" });
     member.role = role;
     await req.room.save();
+    invalidateRoomPolicyCache(req.room.roomId);
 
     const io = req.app.get("io");
     if (io) {
+      const roomSockets = await io.in(req.room.roomId).fetchSockets();
+      for (const s of roomSockets) {
+        if (s.data?.identity?.username === targetUsername) {
+          s.data.role = role;
+        }
+      }
       io.to(req.room.roomId).emit("permission-change", { targetUsername, role });
     }
 
-    logEvent("ROOM_PERMISSION_CHANGE", { roomId: req.room.roomId, targetUsername, role, changedBy: req.user.username });
+    logEvent("ROOM_PERMISSION_CHANGE", {
+      roomId: req.room.roomId,
+      targetUsername,
+      role,
+      changedBy: req.user.username,
+    });
     res.json({ room: req.room });
   } catch (err) {
     next(err);
@@ -575,6 +725,7 @@ export async function removeMember(req, res, next) {
     }
     req.room.members = req.room.members.filter((m) => m.username !== req.params.username);
     await req.room.save();
+    invalidateRoomPolicyCache(req.room.roomId);
 
     const io = req.app.get("io");
     if (io) {
@@ -590,6 +741,19 @@ export async function removeMember(req, res, next) {
     disconnectYjsUser(req.room.roomId, req.params.username);
 
     logEvent("ROOM_MEMBER_REMOVE", { roomId: req.room.roomId, username: req.params.username });
+    res.json({ room: req.room });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function unbanMember(req, res, next) {
+  try {
+    const targetUsername = req.params.username;
+    req.room.bannedUsernames = (req.room.bannedUsernames || []).filter((u) => u !== targetUsername);
+    await req.room.save();
+    invalidateRoomPolicyCache(req.room.roomId);
+    logEvent("ROOM_MEMBER_UNBAN", { roomId: req.room.roomId, username: targetUsername });
     res.json({ room: req.room });
   } catch (err) {
     next(err);

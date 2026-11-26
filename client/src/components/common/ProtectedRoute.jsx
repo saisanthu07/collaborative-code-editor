@@ -2,12 +2,12 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore.js";
 
 export default function ProtectedRoute({ children }) {
-  const { token, isInitialized } = useAuthStore();
+  const { user, token, isInitialized } = useAuthStore();
   const location = useLocation();
 
   if (!isInitialized) return null;
 
-  if (!token) {
+  if (!token || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

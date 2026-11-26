@@ -5,29 +5,43 @@ import { Server as SocketIOServer } from "socket.io";
 import { createApp } from "./app.js";
 import { connectDB } from "./config/db.js";
 import { attachRedisAdapter } from "./config/redis.js";
+import { validateStartupEnv, getAllowedOrigins } from "./config/env.js";
 import { registerSocketHandlers } from "./sockets/index.js";
-import { attachYjsWebsocketServer, flushAllYjsDocs, closeYjsServer } from "./sockets/yjsServer.js";
+import {
+  attachYjsWebsocketServer,
+  attachYjsRedisBridge,
+  flushAllYjsDocs,
+  closeYjsServer,
+} from "./sockets/yjsServer.js";
+import { setRateLimitRedisClient } from "./middleware/rateLimiter.js";
+import { setMetricsContext } from "./utils/metrics.js";
 import { validateJwtSecret } from "./utils/jwt.js";
 import { createShutdownHandler } from "./lifecycle.js";
-import "./config/env.js"; // Validates environment variables on startup
 
 async function main() {
   validateJwtSecret();
+  validateStartupEnv();
   await connectDB();
 
   const app = createApp();
   const httpServer = http.createServer(app);
 
+  const allowedOrigins = getAllowedOrigins();
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || "http://localhost:5173",
+      origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
       credentials: true,
     },
   });
 
   app.set("io", io);
+  setMetricsContext({ io });
 
   const redis = await attachRedisAdapter(io);
+  if (redis) {
+    setRateLimitRedisClient(redis.pubClient);
+    await attachYjsRedisBridge(redis.pubClient, redis.subClient);
+  }
   registerSocketHandlers(io, redis?.pubClient || null);
 
   attachYjsWebsocketServer(httpServer, "/yjs");

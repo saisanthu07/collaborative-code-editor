@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/dev.js"
+    "dev": "node scripts/dev.js",
+    "test": "npm test --prefix server",
+    "build": "npm run build --prefix client"
   }
 }

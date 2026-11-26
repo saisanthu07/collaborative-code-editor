@@ -1,5 +1,5 @@
 import Room from "../models/Room.js";
-import { resolveRole, canEdit } from "../services/roomService.js";
+import { resolveRole, canEdit, hasValidInviteCode } from "../services/roomService.js";
 import { verifyGuestToken } from "../utils/guestToken.js";
 
 // Loads the room by :roomId param onto req.room, enforces access permissions,
@@ -12,31 +12,6 @@ export async function roomAccessMiddleware(req, res, next) {
     const userId = req.user?._id?.toString();
     const isOwner = Boolean(userId && room.ownerId.toString() === userId);
     const isMember = Boolean(userId && room.members.some((m) => m.userId?.toString() === userId));
-    const isAuthenticatedJoin =
-      req.method === "POST" && req.path.endsWith("/join") && Boolean(userId);
-
-    // Banned check
-    if (
-      (userId && room.bannedUserIds?.some((id) => id.toString() === userId)) ||
-      (req.user && room.bannedUsernames?.includes(req.user.username))
-    ) {
-      return res.status(403).json({ error: "You are banned from this room" });
-    }
-
-    // Access check for private rooms
-    if (room.visibility === "PRIVATE" && !isOwner && !isMember && !isAuthenticatedJoin) {
-      return res.status(403).json({ error: "You don't have access to this room" });
-    }
-
-    // Lock check: block everything but GET for locked rooms except for the host
-    if (req.method !== "GET") {
-      if (room.settings?.lockedByAdmin) {
-        return res.status(403).json({ error: "Room is locked by an administrator" });
-      }
-      if (room.settings?.locked && !isOwner) {
-        return res.status(403).json({ error: "This room is locked" });
-      }
-    }
 
     // Extract guestId if request has X-Guest-Token or req.guest
     let guestId = req.guest?.guestId || null;
@@ -49,6 +24,49 @@ export async function roomAccessMiddleware(req, res, next) {
         }
       } catch {
         // ignore invalid guest token in middleware
+      }
+    }
+
+    const isGuestMember = Boolean(
+      guestId && room.members.some((m) => m.guestId && m.guestId === guestId)
+    );
+
+    // Banned check
+    if (
+      (userId && room.bannedUserIds?.some((id) => id.toString() === userId)) ||
+      (req.user && room.bannedUsernames?.includes(req.user.username))
+    ) {
+      return res.status(403).json({ error: "You are banned from this room" });
+    }
+
+    // Access check for private rooms:
+    // Only owner, existing members, or callers joining with a valid invite code are permitted.
+    const suppliedInvite =
+      (typeof req.body?.inviteCode === "string" && req.body.inviteCode) ||
+      (typeof req.query?.invite === "string" && req.query.invite) ||
+      (typeof req.headers["x-invite-code"] === "string" && req.headers["x-invite-code"]) ||
+      null;
+    const validInviteJoin =
+      req.method === "POST" &&
+      req.path.endsWith("/join") &&
+      Boolean(userId) &&
+      hasValidInviteCode(room, suppliedInvite);
+
+    if (room.visibility === "PRIVATE" && !isOwner && !isMember && !isGuestMember && !validInviteJoin) {
+      return res.status(403).json({
+        error: userId
+          ? "Private room requires an invite link from the host"
+          : "You don't have access to this room",
+      });
+    }
+
+    // Lock check: block everything but GET for locked rooms except for the host
+    if (req.method !== "GET") {
+      if (room.settings?.lockedByAdmin) {
+        return res.status(403).json({ error: "Room is locked by an administrator" });
+      }
+      if (room.settings?.locked && !isOwner) {
+        return res.status(403).json({ error: "This room is locked" });
       }
     }
 
