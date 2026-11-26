@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation, Navigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
+import { AtSign, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { api } from "../services/api.js";
 import { useAuthStore } from "../store/authStore.js";
 import BrandMark from "../components/common/BrandMark.jsx";
 import AuthLayout from "../components/auth/AuthLayout.jsx";
 
 export default function Login() {
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ identifier: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { user, token, setAuth } = useAuthStore();
@@ -65,26 +65,26 @@ export default function Login() {
       <form onSubmit={handleSubmit} className="space-y-4" noValidate={false}>
         <div>
           <label
-            htmlFor="login-email"
+            htmlFor="login-identifier"
             className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono"
           >
-            Email Address
+            Email or Username
           </label>
           <div className="relative">
-            <Mail
+            <AtSign
               size={16}
               aria-hidden="true"
               className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
             />
             <input
-              id="login-email"
-              type="email"
-              autoComplete="email"
+              id="login-identifier"
+              type="text"
+              autoComplete="username"
               required
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              value={form.identifier}
+              onChange={(e) => setForm({ ...form, identifier: e.target.value })}
               className="w-full bg-surface2/75 hover:bg-surface2 focus:bg-surface border border-border rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/35 focus:border-accent transition-all shadow-paper-sm"
-              placeholder="you@example.com"
+              placeholder="you@example.com or username"
             />
           </div>
         </div>

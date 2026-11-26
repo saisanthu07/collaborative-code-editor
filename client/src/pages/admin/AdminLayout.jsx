@@ -1,5 +1,5 @@
-import { NavLink, Outlet } from "react-router-dom";
-import { Shield, LayoutDashboard, Users, FolderKanban, Activity } from "lucide-react";
+import { Link, NavLink, Outlet } from "react-router-dom";
+import { Shield, LayoutDashboard, Users, FolderKanban, Activity, ArrowLeft } from "lucide-react";
 import Navbar from "../../components/common/Navbar.jsx";
 
 const TABS = [
@@ -20,7 +20,16 @@ export default function AdminLayout() {
               <Shield size={20} />
             </div>
             <div>
-              <h1 className="text-xl font-bold font-serif text-gray-100">Archival Administration</h1>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-xl font-bold font-serif text-gray-100">Archival Administration</h1>
+                <Link
+                  to="/dashboard"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-gray-100 px-2 py-0.5 rounded-md border border-border bg-surface hover:bg-surface2 transition-colors"
+                >
+                  <ArrowLeft size={11} />
+                  <span>Dashboard</span>
+                </Link>
+              </div>
               <p className="text-xs text-gray-400">Platform registry, moderation, and audit governance</p>
             </div>
           </div>

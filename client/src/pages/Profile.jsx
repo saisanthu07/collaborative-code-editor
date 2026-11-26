@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { User, KeyRound, Laptop, LogOut, Trash2 } from "lucide-react";
+import { User, KeyRound, Laptop, LogOut, Trash2, AtSign, Copy, Check, ArrowLeft } from "lucide-react";
 import { api } from "../services/api.js";
 import { useAuthStore } from "../store/authStore.js";
 import Navbar from "../components/common/Navbar.jsx";
+import { copyToClipboard } from "../utils/clipboard.js";
+import { colorForUser } from "../utils/color.js";
 
 export default function Profile() {
   const { user, updateUser, logout } = useAuthStore();
@@ -12,6 +14,7 @@ export default function Profile() {
 
   const [name, setName] = useState(user?.name || "");
   const [avatar, setAvatar] = useState(user?.avatar || "");
+  const [copiedUsername, setCopiedUsername] = useState(false);
   const [passwords, setPasswords] = useState({ currentPassword: "", newPassword: "" });
   const [sessions, setSessions] = useState([]);
   const [deletePassword, setDeletePassword] = useState("");
@@ -98,18 +101,98 @@ export default function Profile() {
     }
   }
 
+  async function handleCopyUsername() {
+    if (!user?.username) return;
+    const ok = await copyToClipboard(user.username);
+    if (ok) {
+      setCopiedUsername(true);
+      toast.success("Username copied");
+      setTimeout(() => setCopiedUsername(false), 1800);
+    }
+  }
+
   return (
     <div className="min-h-dvh bg-bg text-gray-100 flex flex-col">
       <Navbar />
       <main className="max-w-lg mx-auto px-4 sm:px-6 py-8 space-y-8 flex-1 w-full">
         <div>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/25 flex items-center justify-center text-accent">
-              <User size={18} />
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/25 flex items-center justify-center text-accent">
+                <User size={18} />
+              </div>
+              <h1 className="text-xl font-bold font-serif text-gray-100">User Profile</h1>
             </div>
-            <h1 className="text-xl font-bold font-serif text-gray-100">User Profile</h1>
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-100 px-2.5 py-1.5 rounded-lg border border-border bg-surface hover:bg-surface2 transition-colors shadow-paper-sm"
+            >
+              <ArrowLeft size={13} />
+              <span>Dashboard</span>
+            </Link>
           </div>
+
+          <div className="mb-4 bg-surface border border-border rounded-2xl p-4 sm:p-5 shadow-paper flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5 min-w-0">
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user.username}
+                  className="w-11 h-11 rounded-xl object-cover border border-border shrink-0"
+                />
+              ) : (
+                <div
+                  style={{ backgroundColor: colorForUser(user?.username || "User") }}
+                  className="w-11 h-11 rounded-xl text-white font-serif font-bold text-lg flex items-center justify-center uppercase shrink-0 shadow-paper-sm"
+                >
+                  {(user?.username || "U").slice(0, 1)}
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="font-semibold font-serif text-base text-gray-100 truncate">
+                  {user?.name || user?.username}
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-400 font-mono truncate">
+                  <span className="text-accent">@{user?.username}</span>
+                  {user?.email && <span className="text-gray-500 truncate">· {user.email}</span>}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleCopyUsername}
+              aria-label="Copy username"
+              title="Copy username for room invites"
+              className="inline-flex items-center gap-1.5 text-xs font-mono bg-surface2 hover:bg-border border border-border px-2.5 py-1.5 rounded-lg text-gray-200 transition-colors shrink-0"
+            >
+              {copiedUsername ? (
+                <Check size={13} className="text-accent2" />
+              ) : (
+                <Copy size={13} />
+              )}
+              <span>{copiedUsername ? "Copied" : "Copy"}</span>
+            </button>
+          </div>
+
           <form onSubmit={saveProfile} className="space-y-4 bg-surface border border-border rounded-2xl p-6 shadow-paper">
+            <div>
+              <label htmlFor="profile-username" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                Username <span className="text-gray-500 font-sans lowercase font-normal">(public handle)</span>
+              </label>
+              <div className="relative">
+                <AtSign size={14} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                  id="profile-username"
+                  type="text"
+                  readOnly
+                  value={user?.username || ""}
+                  className="w-full bg-surface2/60 border border-border rounded-lg pl-8 pr-3.5 py-2 text-sm text-gray-400 font-mono cursor-default focus:outline-none"
+                />
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1">
+                Used for room invites, live editor cursors, chat, and login.
+              </p>
+            </div>
             <div>
               <label htmlFor="profile-name" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
                 Full Name

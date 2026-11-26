@@ -1,94 +1,121 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Plus, LogIn, Star, Users, X, FileCode, Search, Lock } from "lucide-react";
+import {
+  Plus,
+  LogIn,
+  Search,
+  X,
+  Feather,
+  Sparkles,
+  LayoutGrid,
+  List,
+  FolderOpen,
+  Star,
+  Users,
+  ArrowRight,
+  SlidersHorizontal,
+} from "lucide-react";
 import { api } from "../services/api.js";
+import { useAuthStore } from "../store/authStore.js";
 import Navbar from "../components/common/Navbar.jsx";
 import { LANGUAGES } from "../constants/languages.js";
+import CreateRoomModal, { ROOM_TEMPLATES } from "../components/dashboard/CreateRoomModal.jsx";
+import DeleteRoomModal from "../components/dashboard/DeleteRoomModal.jsx";
+import RoomCard from "../components/dashboard/RoomCard.jsx";
+
+const INITIAL_FORM = {
+  name: "",
+  description: "",
+  language: "javascript",
+  visibility: "PRIVATE",
+  template: "blank",
+};
 
 export default function Dashboard() {
-  const [rooms, setRooms] = useState({ owned: [], memberOf: [], starred: [] });
-  const [filterTab, setFilterTab] = useState("all"); // "all" | "owned" | "shared" | "starred"
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
-  const [joinId, setJoinId] = useState("");
-  const [form, setForm] = useState({
-    name: "",
-    description: "",
-    language: "javascript",
-    visibility: "PRIVATE",
-    template: "blank",
-  });
-  const [loading, setLoading] = useState(false);
+  const { user } = useAuthStore();
   const navigate = useNavigate();
 
-  const modalRef = useRef(null);
-  const firstInputRef = useRef(null);
+  const [rooms, setRooms] = useState({ owned: [], memberOf: [], starred: [] });
+  const [roomsLoading, setRoomsLoading] = useState(true);
+  const [filterTab, setFilterTab] = useState("all"); // "all" | "owned" | "shared" | "starred"
+  const [languageFilter, setLanguageFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("recent"); // "recent" | "name" | "members"
+  const [viewMode, setViewMode] = useState("grid"); // "grid" | "list"
+  const [searchQuery, setSearchQuery] = useState("");
 
-  async function loadRooms() {
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState(INITIAL_FORM);
+  const [creating, setCreating] = useState(false);
+  const [creatingInstant, setCreatingInstant] = useState(false);
+
+  const [joinId, setJoinId] = useState("");
+  const [roomToDelete, setRoomToDelete] = useState(null);
+  const [deletingRoom, setDeletingRoom] = useState(false);
+
+  const loadRooms = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setRoomsLoading(true);
     try {
       const { data } = await api.get("/rooms");
-      setRooms(data);
+      setRooms({
+        owned: data.owned || [],
+        memberOf: data.memberOf || [],
+        starred: data.starred || [],
+      });
     } catch {
       toast.error("Could not load your rooms");
+    } finally {
+      if (!silent) setRoomsLoading(false);
     }
-  }
-
-  useEffect(() => {
-    loadRooms();
   }, []);
 
   useEffect(() => {
-    if (!showCreate) return;
-    firstInputRef.current?.focus();
+    loadRooms();
+  }, [loadRooms]);
 
-    function handleKeyDown(e) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setShowCreate(false);
-        return;
-      }
-      if (e.key === "Tab") {
-        const focusable = modalRef.current?.querySelectorAll(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        if (!focusable || focusable.length === 0) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showCreate]);
+  function openCreateWithTemplate(templateKey = "blank") {
+    setForm((prev) => ({
+      ...INITIAL_FORM,
+      language: templateKey === "web-preview" ? "javascript" : prev.language || "javascript",
+      template: templateKey,
+    }));
+    setShowCreate(true);
+  }
 
   async function handleCreate(e) {
     e.preventDefault();
-    setLoading(true);
+    setCreating(true);
     try {
       const { data } = await api.post("/rooms", form);
       toast.success("Room created");
       setShowCreate(false);
+      setForm(INITIAL_FORM);
       navigate(`/room/${data.room.roomId}`);
     } catch (err) {
       toast.error(err.response?.data?.error || "Could not create room");
     } finally {
-      setLoading(false);
+      setCreating(false);
+    }
+  }
+
+  async function handleInstantPlayground() {
+    setCreatingInstant(true);
+    try {
+      const { data } = await api.post("/rooms/instant", { language: "javascript" });
+      toast.success("Instant Playground Ready!");
+      navigate(`/room/${data.room.roomId}`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Could not launch playground");
+    } finally {
+      setCreatingInstant(false);
     }
   }
 
   function handleJoin(e) {
     e.preventDefault();
     if (!joinId.trim()) return;
-    const id = joinId.trim().split("/room/").pop().trim();
+    const id = joinId.trim().split("/room/").pop().replace(/^\/+/, "").trim();
+    if (!id) return;
     navigate(`/room/${id}`);
   }
 
@@ -97,324 +124,529 @@ export default function Dashboard() {
     try {
       const { data } = await api.post(`/rooms/${roomId}/star`);
       toast.success(data.starred ? "Starred room" : "Removed star");
-      loadRooms();
+      loadRooms({ silent: true });
     } catch {
       toast.error("Could not update star");
     }
   }
 
-  const allRoomsMap = new Map();
-  [...rooms.owned, ...rooms.memberOf, ...rooms.starred].forEach((r) => {
-    if (!allRoomsMap.has(r.roomId)) {
-      allRoomsMap.set(r.roomId, r);
+  async function handleDeleteRoom(room) {
+    setDeletingRoom(true);
+    try {
+      await api.delete(`/rooms/${room.roomId}`);
+      toast.success(`Deleted "${room.name}"`);
+      setRoomToDelete(null);
+      loadRooms({ silent: true });
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Could not delete room");
+    } finally {
+      setDeletingRoom(false);
     }
-  });
+  }
 
-  const baseList =
-    filterTab === "owned"
-      ? rooms.owned
-      : filterTab === "shared"
-      ? rooms.memberOf
-      : filterTab === "starred"
-      ? rooms.starred
-      : Array.from(allRoomsMap.values());
+  const ownedRoomIds = useMemo(
+    () => new Set(rooms.owned.map((r) => r.roomId)),
+    [rooms.owned]
+  );
 
-  const q = searchQuery.trim().toLowerCase();
-  const visibleRooms = q
-    ? baseList.filter(
-        (r) =>
-          r.name?.toLowerCase().includes(q) ||
-          r.description?.toLowerCase().includes(q) ||
-          r.roomId?.toLowerCase().includes(q) ||
-          r.language?.toLowerCase().includes(q)
-      )
-    : baseList;
+  const allRooms = useMemo(() => {
+    const map = new Map();
+    [...rooms.owned, ...rooms.memberOf, ...rooms.starred].forEach((r) => {
+      if (!map.has(r.roomId)) {
+        map.set(r.roomId, r);
+      }
+    });
+    return Array.from(map.values());
+  }, [rooms]);
+
+  const availableLanguages = useMemo(() => {
+    const keys = new Set(allRooms.map((r) => r.language).filter(Boolean));
+    return LANGUAGES.filter((l) => keys.has(l.key));
+  }, [allRooms]);
+
+  const visibleRooms = useMemo(() => {
+    const baseList =
+      filterTab === "owned"
+        ? rooms.owned
+        : filterTab === "shared"
+        ? rooms.memberOf
+        : filterTab === "starred"
+        ? rooms.starred
+        : allRooms;
+
+    const q = searchQuery.trim().toLowerCase();
+    const filtered = baseList.filter((r) => {
+      if (languageFilter !== "all" && r.language !== languageFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        r.name?.toLowerCase().includes(q) ||
+        r.description?.toLowerCase().includes(q) ||
+        r.roomId?.toLowerCase().includes(q) ||
+        r.language?.toLowerCase().includes(q)
+      );
+    });
+
+    const sorted = [...filtered];
+    if (sortBy === "name") {
+      sorted.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    } else if (sortBy === "members") {
+      sorted.sort(
+        (a, b) =>
+          (b.memberCount ?? b.members?.length ?? 0) -
+          (a.memberCount ?? a.members?.length ?? 0)
+      );
+    } else {
+      sorted.sort(
+        (a, b) =>
+          new Date(b.lastActiveAt || 0).getTime() -
+          new Date(a.lastActiveAt || 0).getTime()
+      );
+    }
+    return sorted;
+  }, [filterTab, rooms, allRooms, searchQuery, languageFilter, sortBy]);
+
+  const hasActiveFilters = Boolean(searchQuery.trim()) || languageFilter !== "all";
+  const displayName = user?.name?.trim() || user?.username || "Developer";
+
+  const tabs = [
+    { key: "all", label: "All", count: allRooms.length },
+    { key: "owned", label: "Owned", count: rooms.owned.length },
+    { key: "shared", label: "Shared", count: rooms.memberOf.length },
+    { key: "starred", label: "Starred", count: rooms.starred.length },
+  ];
 
   return (
-    <div className="min-h-dvh bg-bg text-gray-100 flex flex-col">
-      <Navbar />
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
-        <div className="grid sm:grid-cols-2 gap-4 mb-10">
-          <button
-            onClick={() => setShowCreate(true)}
-            aria-label="Create a new collaborative room"
-            className="bg-surface border border-border hover:border-accent transition-all rounded-2xl p-6 text-left flex items-center gap-4 focus:outline-none focus:ring-2 focus:ring-accent group shadow-paper hover:shadow-paper-md active:scale-[0.99]"
-          >
-            <div className="bg-accent/15 text-accent p-3.5 rounded-xl border border-accent/25 group-hover:bg-accent group-hover:text-white transition-all shadow-paper-sm">
-              <Plus size={22} />
-            </div>
-            <div>
-              <div className="font-semibold text-gray-100 font-serif text-base">New Room</div>
-              <div className="text-xs text-gray-400 mt-0.5">Start a collaborative code session</div>
-            </div>
-          </button>
+    <div className="min-h-dvh bg-bg text-gray-100 flex flex-col relative overflow-x-hidden selection:bg-accent/25">
+      {/* Subtle editorial radial paper glow */}
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-32 -left-24 w-96 h-96 rounded-full bg-accent/10 blur-3xl" />
+        <div className="absolute -bottom-32 -right-24 w-96 h-96 rounded-full bg-accent2/10 blur-3xl" />
+      </div>
 
+      <Navbar />
+
+      <main className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10 flex-1 w-full space-y-8">
+        {/* Editorial Workspace Header */}
+        <section className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 border-b border-border pb-7">
+          <div className="space-y-2.5">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-surface text-accent text-xs font-medium shadow-paper-sm">
+              <Feather size={12} aria-hidden="true" />
+              <span>Developer Studio</span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-extrabold font-serif tracking-tight text-gray-100">
+              Welcome back,{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent via-[#B8741A] to-accent2">
+                {displayName}
+              </span>
+              .
+            </h1>
+            <p className="text-sm text-gray-400 max-w-xl leading-relaxed">
+              Launch a permanent coding room from a starter template, spin up an instant playground, or pick up right where your team left off.
+            </p>
+          </div>
+
+          {/* Workspace Summary Counters */}
+          <div className="grid grid-cols-3 divide-x divide-border bg-surface border border-border rounded-2xl shadow-paper shrink-0 w-full lg:w-auto lg:min-w-[320px]">
+            <button
+              type="button"
+              onClick={() => setFilterTab("owned")}
+              className="px-4 py-3 text-center hover:bg-surface2/60 transition-colors rounded-l-2xl focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent"
+            >
+              <div className="text-xl font-bold font-serif text-gray-100">{rooms.owned.length}</div>
+              <div className="text-[11px] text-gray-400 font-mono mt-0.5">Owned</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTab("shared")}
+              className="px-4 py-3 text-center hover:bg-surface2/60 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent"
+            >
+              <div className="text-xl font-bold font-serif text-accent2">{rooms.memberOf.length}</div>
+              <div className="text-[11px] text-gray-400 font-mono mt-0.5">Shared</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTab("starred")}
+              className="px-4 py-3 text-center hover:bg-surface2/60 transition-colors rounded-r-2xl focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent"
+            >
+              <div className="text-xl font-bold font-serif text-accent">{rooms.starred.length}</div>
+              <div className="text-[11px] text-gray-400 font-mono mt-0.5">Starred</div>
+            </button>
+          </div>
+        </section>
+
+        {/* Action Studio Row */}
+        <section className="grid lg:grid-cols-12 gap-4">
+          {/* Create & Quick Templates Card */}
+          <div className="lg:col-span-7 bg-surface border border-border rounded-2xl p-5 sm:p-6 shadow-paper flex flex-col justify-between gap-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="bg-accent/15 text-accent p-3 rounded-xl border border-accent/25 shrink-0 shadow-paper-sm">
+                  <Plus size={22} />
+                </div>
+                <div>
+                  <h2 className="font-bold text-gray-100 font-serif text-lg leading-tight">
+                    Start a Collaborative Session
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Real-time Yjs CRDTs, sandboxed execution, whiteboard &amp; interview tools.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleInstantPlayground}
+                  disabled={creatingInstant}
+                  className="inline-flex items-center gap-1.5 text-xs bg-accent2/15 text-accent2 border border-accent2/30 hover:bg-accent2/25 px-3 py-2 rounded-xl font-semibold transition-colors shadow-paper-sm disabled:opacity-60"
+                >
+                  <Sparkles size={13} />
+                  <span>{creatingInstant ? "Launching..." : "Instant"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openCreateWithTemplate("blank")}
+                  aria-label="Create a new collaborative room"
+                  className="inline-flex items-center gap-1.5 text-xs bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-xl font-semibold transition-all shadow-paper-sm focus:outline-none focus:ring-2 focus:ring-accent active:scale-95"
+                >
+                  <Plus size={14} />
+                  <span>New Room</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Template Launch Strip */}
+            <div className="pt-4 border-t border-border/80 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-gray-500 mr-1">
+                Templates:
+              </span>
+              {ROOM_TEMPLATES.map(({ key, shortLabel, icon: Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => openCreateWithTemplate(key)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface2/80 hover:bg-surface2 border border-border hover:border-accent/50 text-xs text-gray-300 hover:text-gray-100 transition-all"
+                >
+                  <Icon size={12} className="text-accent" />
+                  <span>{shortLabel}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Join Room Card */}
           <form
             onSubmit={handleJoin}
-            className="bg-surface border border-border rounded-2xl p-6 flex items-center gap-4 shadow-paper"
+            className="lg:col-span-5 bg-surface border border-border rounded-2xl p-5 sm:p-6 shadow-paper flex flex-col justify-between gap-4"
           >
-            <div className="bg-accent2/15 text-accent2 p-3.5 rounded-xl border border-accent2/25 shrink-0 shadow-paper-sm">
-              <LogIn size={22} />
+            <div className="flex items-start gap-3.5">
+              <div className="bg-accent2/15 text-accent2 p-3 rounded-xl border border-accent2/25 shrink-0 shadow-paper-sm">
+                <LogIn size={22} />
+              </div>
+              <div>
+                <h2 className="font-bold text-gray-100 font-serif text-lg leading-tight">
+                  Join Existing Session
+                </h2>
+                <p className="text-xs text-gray-400 mt-1">
+                  Paste a room ID or secret invite URL to jump straight in.
+                </p>
+              </div>
             </div>
-            <div className="flex-1">
-              <label htmlFor="join-room-input" className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-gray-400 font-mono">
-                Join Session
+
+            <div className="flex items-center gap-2">
+              <label htmlFor="join-room-input" className="sr-only">
+                Room ID or invite link
               </label>
               <input
                 id="join-room-input"
                 value={joinId}
                 onChange={(e) => setJoinId(e.target.value)}
-                placeholder="Room ID or paste invite link"
-                className="w-full bg-surface2 border border-border rounded-lg px-3 py-1.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-paper-sm"
+                placeholder="Room ID or paste invite link..."
+                className="flex-1 min-w-0 bg-surface2/75 hover:bg-surface2 focus:bg-surface border border-border rounded-xl px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/35 focus:border-accent transition-all shadow-paper-sm"
               />
+              <button
+                type="submit"
+                aria-label="Join room"
+                disabled={!joinId.trim()}
+                className="inline-flex items-center gap-1.5 text-xs bg-accent2 hover:bg-accent2-hover px-4 py-2.5 rounded-xl font-semibold text-white transition-all shadow-paper-sm focus:outline-none focus:ring-2 focus:ring-accent2 disabled:opacity-50 active:scale-95 shrink-0"
+              >
+                <span>Join</span>
+                <ArrowRight size={13} />
+              </button>
             </div>
-            <button
-              type="submit"
-              aria-label="Join room"
-              className="text-xs bg-accent hover:opacity-90 px-4 py-2.5 rounded-lg font-semibold text-white transition-all shadow-paper-sm focus:outline-none focus:ring-2 focus:ring-accent self-end active:scale-95"
-            >
-              Join
-            </button>
           </form>
-        </div>
+        </section>
 
-        {showCreate && (
-          <div
-            className="fixed inset-0 bg-stone-900/40 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4"
-            onClick={() => setShowCreate(false)}
-            role="presentation"
-          >
-            <form
-              ref={modalRef}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="create-room-title"
-              onSubmit={handleCreate}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-surface border border-border rounded-2xl p-6 sm:p-7 w-full max-w-md space-y-4 shadow-paper-lg animate-in fade-in zoom-in-95 duration-150"
-            >
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/25 flex items-center justify-center text-accent">
-                    <FileCode size={18} />
-                  </div>
-                  <h2 id="create-room-title" className="font-semibold text-lg font-serif text-gray-100">
-                    New Collaborative Room
-                  </h2>
-                </div>
+        {/* Rooms Library */}
+        <section className="space-y-4">
+          {/* Filter & Search Toolbar */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-center gap-1 bg-surface border border-border rounded-xl p-1 w-full md:w-fit overflow-x-auto shadow-paper-sm">
+              {tabs.map((tab) => (
                 <button
+                  key={tab.key}
                   type="button"
-                  onClick={() => setShowCreate(false)}
-                  aria-label="Close dialog"
-                  className="text-gray-400 hover:text-gray-100 hover:bg-surface2 p-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent transition-colors"
+                  onClick={() => setFilterTab(tab.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                    filterTab === tab.key
+                      ? "bg-accent text-white font-semibold shadow-paper-sm"
+                      : "text-gray-400 hover:text-gray-100 hover:bg-surface2/70"
+                  }`}
                 >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div>
-                <label htmlFor="room-name-input" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
-                  Room Name
-                </label>
-                <input
-                  ref={firstInputRef}
-                  id="room-name-input"
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="e.g. Algorithms Pair Session"
-                  className="w-full bg-surface2 border border-border rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-paper-sm"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="room-desc-input" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
-                  Description <span className="text-gray-500 font-sans lowercase font-normal">(optional)</span>
-                </label>
-                <textarea
-                  id="room-desc-input"
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="What are you building or discussing?"
-                  className="w-full bg-surface2 border border-border rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-paper-sm"
-                  rows={2}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="room-lang-select" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
-                    Language
-                  </label>
-                  <select
-                    id="room-lang-select"
-                    value={form.language}
-                    onChange={(e) => setForm({ ...form, language: e.target.value })}
-                    className="w-full bg-surface2 border border-border rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-paper-sm"
+                  <span>{tab.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0 rounded-full ${
+                      filterTab === tab.key
+                        ? "bg-white/20 text-white"
+                        : "bg-surface2 text-gray-400"
+                    }`}
                   >
-                    {LANGUAGES.map((l) => (
-                      <option key={l.key} value={l.key} className="bg-surface text-gray-100">
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+              {/* Search */}
+              <div className="relative flex-1 sm:w-56 md:w-64">
+                <Search
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search rooms, ID, language..."
+                  aria-label="Search rooms"
+                  className="w-full bg-surface border border-border rounded-xl pl-8 pr-8 py-2 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent shadow-paper-sm"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    aria-label="Clear search"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-100 p-0.5 rounded"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+
+              {/* Language Filter */}
+              {availableLanguages.length > 1 && (
+                <div className="relative">
+                  <SlidersHorizontal
+                    size={12}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                  />
+                  <select
+                    aria-label="Filter by language"
+                    value={languageFilter}
+                    onChange={(e) => setLanguageFilter(e.target.value)}
+                    className="bg-surface border border-border rounded-xl pl-7 pr-3 py-2 text-xs text-gray-200 font-mono focus:outline-none focus:ring-2 focus:ring-accent shadow-paper-sm"
+                  >
+                    <option value="all" className="bg-surface">
+                      All Languages
+                    </option>
+                    {availableLanguages.map((l) => (
+                      <option key={l.key} value={l.key} className="bg-surface">
                         {l.label}
                       </option>
                     ))}
                   </select>
                 </div>
+              )}
 
-                <div>
-                  <label htmlFor="room-visibility-select" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
-                    Visibility
-                  </label>
-                  <select
-                    id="room-visibility-select"
-                    value={form.visibility}
-                    onChange={(e) => setForm({ ...form, visibility: e.target.value })}
-                    className="w-full bg-surface2 border border-border rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-paper-sm"
-                  >
-                    <option value="PRIVATE" className="bg-surface text-gray-100">Private (Invite Link)</option>
-                    <option value="PUBLIC" className="bg-surface text-gray-100">Public</option>
-                  </select>
-                </div>
-              </div>
+              {/* Sort */}
+              <select
+                aria-label="Sort rooms"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="bg-surface border border-border rounded-xl px-3 py-2 text-xs text-gray-200 font-mono focus:outline-none focus:ring-2 focus:ring-accent shadow-paper-sm"
+              >
+                <option value="recent" className="bg-surface">
+                  Recent
+                </option>
+                <option value="name" className="bg-surface">
+                  Name A–Z
+                </option>
+                <option value="members" className="bg-surface">
+                  Members
+                </option>
+              </select>
 
-              <div>
-                <label htmlFor="room-template-select" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
-                  Starter Template
-                </label>
-                <select
-                  id="room-template-select"
-                  value={form.template}
-                  onChange={(e) => setForm({ ...form, template: e.target.value })}
-                  className="w-full bg-surface2 border border-border rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-paper-sm"
-                >
-                  <option value="blank" className="bg-surface text-gray-100">Blank Single File</option>
-                  <option value="algorithms" className="bg-surface text-gray-100">Algorithms Interview Starter</option>
-                  <option value="web-preview" className="bg-surface text-gray-100">Web Preview (HTML / CSS / JS)</option>
-                  <option value="multi-file-node" className="bg-surface text-gray-100">Multi-File Node.js Project</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-border/60">
+              {/* View Mode Toggle */}
+              <div className="flex items-center bg-surface border border-border rounded-xl p-1 shadow-paper-sm">
                 <button
                   type="button"
-                  onClick={() => setShowCreate(false)}
-                  className="px-4 py-2 text-xs font-medium text-gray-400 hover:text-gray-100 hover:bg-surface2 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-5 py-2 text-xs bg-accent rounded-lg hover:opacity-90 text-white font-semibold shadow-paper-sm disabled:opacity-60 transition-all focus:outline-none focus:ring-2 focus:ring-accent active:scale-95"
-                >
-                  {loading ? "Creating..." : "Create Room"}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        <section>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-1.5 bg-surface border border-border rounded-xl p-1 w-fit">
-              {[
-                { key: "all", label: `All (${allRoomsMap.size})` },
-                { key: "owned", label: `Owned (${rooms.owned.length})` },
-                { key: "shared", label: `Shared (${rooms.memberOf.length})` },
-                { key: "starred", label: `Starred (${rooms.starred.length})` },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setFilterTab(tab.key)}
-                  className={`px-3 py-1 rounded-lg text-xs font-mono transition-colors ${
-                    filterTab === tab.key
-                      ? "bg-accent text-white font-semibold shadow-paper-sm"
+                  onClick={() => setViewMode("grid")}
+                  aria-label="Grid view"
+                  aria-pressed={viewMode === "grid"}
+                  className={`p-1.5 rounded-lg transition-colors ${
+                    viewMode === "grid"
+                      ? "bg-surface2 text-accent"
                       : "text-gray-400 hover:text-gray-100"
                   }`}
                 >
-                  {tab.label}
+                  <LayoutGrid size={14} />
                 </button>
-              ))}
-            </div>
-
-            <div className="relative w-full sm:w-64">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search rooms..."
-                aria-label="Search rooms"
-                className="w-full bg-surface border border-border rounded-xl pl-8 pr-3 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent"
-              />
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  aria-label="List view"
+                  aria-pressed={viewMode === "list"}
+                  className={`p-1.5 rounded-lg transition-colors ${
+                    viewMode === "list"
+                      ? "bg-surface2 text-accent"
+                      : "text-gray-400 hover:text-gray-100"
+                  }`}
+                >
+                  <List size={14} />
+                </button>
+              </div>
             </div>
           </div>
 
-          {visibleRooms.length === 0 ? (
-            <div className="text-center py-14 border border-dashed border-border rounded-2xl bg-surface/40">
-              <p className="text-gray-400 text-sm font-sans">
-                No matching rooms yet — create one or join with a link to get started.
-              </p>
-            </div>
-          ) : (
-            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3.5">
-              {visibleRooms.map((room) => (
+          {/* Room Cards / Skeleton / Empty States */}
+          {roomsLoading ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
                 <div
-                  key={room.roomId}
-                  onClick={() => navigate(`/room/${room.roomId}`)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate(`/room/${room.roomId}`);
-                    }
-                  }}
-                  tabIndex={0}
-                  role="button"
-                  aria-label={`Open room ${room.name}`}
-                  className="bg-surface border border-border rounded-2xl p-4 sm:p-5 cursor-pointer hover:border-accent hover:shadow-paper-md transition-all focus:outline-none focus:ring-2 focus:ring-accent flex flex-col justify-between shadow-paper group active:scale-[0.99]"
+                  key={i}
+                  className="bg-surface border border-border rounded-2xl p-5 shadow-paper animate-pulse space-y-4"
                 >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold text-gray-100 font-serif text-base group-hover:text-accent transition-colors truncate flex items-center gap-1.5">
-                        {room.visibility === "PRIVATE" && (
-                          <Lock size={12} className="text-gray-400 shrink-0" />
-                        )}
-                        <span className="truncate">{room.name}</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => handleToggleStar(e, room.roomId)}
-                        aria-label={room.isStarred ? "Unstar room" : "Star room"}
-                        className="p-1 -m-1 rounded-md hover:bg-surface2 transition-colors shrink-0"
-                      >
-                        <Star
-                          size={15}
-                          className={
-                            room.isStarred ? "text-amber-500 fill-amber-500" : "text-gray-500"
-                          }
-                        />
-                      </button>
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-2">
+                      <div className="h-5 w-12 bg-surface2 rounded-full" />
+                      <div className="h-5 w-16 bg-surface2 rounded-full" />
                     </div>
-                    {room.description && (
-                      <p className="text-xs text-gray-400 mt-1.5 line-clamp-2 leading-relaxed">
-                        {room.description}
-                      </p>
-                    )}
+                    <div className="h-5 w-10 bg-surface2 rounded-lg" />
                   </div>
-                  <div className="flex items-center justify-between text-xs text-gray-400 mt-4 pt-3 border-t border-border">
-                    <span className="bg-surface2 border border-border/80 px-2.5 py-0.5 rounded-full text-[11px] text-gray-300 font-mono capitalize">
-                      {room.language}
-                    </span>
-                    <div className="flex items-center gap-1.5 text-gray-400">
-                      <Users size={13} aria-hidden="true" />
-                      <span className="font-mono text-xs">{room.memberCount ?? room.members?.length ?? 0}</span>
-                    </div>
+                  <div className="space-y-2">
+                    <div className="h-5 w-3/4 bg-surface2 rounded" />
+                    <div className="h-3.5 w-full bg-surface2 rounded" />
+                    <div className="h-3.5 w-2/3 bg-surface2 rounded" />
+                  </div>
+                  <div className="pt-3 border-t border-border flex justify-between">
+                    <div className="h-5 w-20 bg-surface2 rounded-full" />
+                    <div className="h-5 w-14 bg-surface2 rounded-full" />
                   </div>
                 </div>
+              ))}
+            </div>
+          ) : visibleRooms.length === 0 ? (
+            <div className="text-center py-14 px-6 border border-dashed border-border rounded-2xl bg-surface/60 shadow-paper-sm space-y-3">
+              <div className="w-11 h-11 rounded-2xl bg-surface2 border border-border flex items-center justify-center mx-auto text-accent">
+                {filterTab === "starred" ? (
+                  <Star size={20} />
+                ) : filterTab === "shared" ? (
+                  <Users size={20} />
+                ) : (
+                  <FolderOpen size={20} />
+                )}
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-serif font-bold text-base text-gray-100">
+                  {hasActiveFilters
+                    ? "No rooms match your filters"
+                    : filterTab === "starred"
+                    ? "No starred rooms yet"
+                    : filterTab === "shared"
+                    ? "No shared rooms yet"
+                    : "Your workspace is ready"}
+                </h3>
+                <p className="text-gray-400 text-xs max-w-md mx-auto leading-relaxed">
+                  {hasActiveFilters
+                    ? "Try adjusting your search query or switching the language filter."
+                    : filterTab === "starred"
+                    ? "Click the star icon on any room card to pin your favorite sessions here."
+                    : filterTab === "shared"
+                    ? "Rooms you join via an invite link or team collaboration will appear here."
+                    : "Create your first collaborative coding room or paste an invite link above to begin."}
+                </p>
+              </div>
+              <div className="pt-1 flex items-center justify-center gap-2.5">
+                {hasActiveFilters ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setLanguageFilter("all");
+                    }}
+                    className="px-4 py-2 text-xs font-semibold rounded-xl bg-surface2 hover:bg-border border border-border text-gray-100 transition-colors"
+                  >
+                    Clear Filters
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => openCreateWithTemplate("blank")}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-accent hover:bg-accent-hover text-white shadow-paper-sm transition-all active:scale-95"
+                  >
+                    <Plus size={14} />
+                    <span>Create Room</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : viewMode === "list" ? (
+            <div className="space-y-2.5">
+              {visibleRooms.map((room) => (
+                <RoomCard
+                  key={room.roomId}
+                  room={room}
+                  isOwner={
+                    ownedRoomIds.has(room.roomId) ||
+                    (user?._id && room.ownerId?.toString() === user._id.toString())
+                  }
+                  currentUsername={user?.username}
+                  viewMode="list"
+                  onOpen={(id) => navigate(`/room/${id}`)}
+                  onToggleStar={handleToggleStar}
+                  onRequestDelete={setRoomToDelete}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {visibleRooms.map((room) => (
+                <RoomCard
+                  key={room.roomId}
+                  room={room}
+                  isOwner={
+                    ownedRoomIds.has(room.roomId) ||
+                    (user?._id && room.ownerId?.toString() === user._id.toString())
+                  }
+                  currentUsername={user?.username}
+                  viewMode="grid"
+                  onOpen={(id) => navigate(`/room/${id}`)}
+                  onToggleStar={handleToggleStar}
+                  onRequestDelete={setRoomToDelete}
+                />
               ))}
             </div>
           )}
         </section>
       </main>
+
+      <CreateRoomModal
+        open={showCreate}
+        form={form}
+        setForm={setForm}
+        loading={creating}
+        onClose={() => setShowCreate(false)}
+        onSubmit={handleCreate}
+      />
+
+      <DeleteRoomModal
+        room={roomToDelete}
+        deleting={deletingRoom}
+        onClose={() => !deletingRoom && setRoomToDelete(null)}
+        onConfirm={handleDeleteRoom}
+      />
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import { Link, useNavigate } from "react-router-dom";
-import { LogOut, User, Shield } from "lucide-react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { LogOut, User, Shield, LayoutDashboard } from "lucide-react";
 import { useAuthStore } from "../../store/authStore.js";
 import { api } from "../../services/api.js";
 import { disconnectSocket } from "../../services/socket.js";
@@ -27,32 +27,58 @@ export default function Navbar() {
       <Link
         to={user ? "/dashboard" : "/"}
         aria-label="CodeTogether Home"
-        className="flex items-center gap-2.5 font-semibold text-base sm:text-lg text-gray-100 hover:text-accent transition-colors focus:outline-none focus:ring-2 focus:ring-accent rounded-lg"
+        className="flex items-center gap-2.5 font-semibold text-base sm:text-lg text-gray-100 hover:text-accent transition-colors focus:outline-none focus:ring-2 focus:ring-accent rounded-lg shrink-0"
       >
         <BrandMark size={32} className="text-accent" />
         <span className="tracking-tight font-serif text-lg font-bold">CodeTogether</span>
       </Link>
-      <div className="flex items-center gap-3 sm:gap-4">
+      <div className="flex items-center gap-2 sm:gap-3">
         <ThemeToggle />
         {user && (
-          <nav aria-label="User Navigation" className="flex items-center gap-2 sm:gap-3 text-sm text-gray-300">
-            <Link
+          <nav aria-label="User Navigation" className="flex items-center gap-1.5 sm:gap-2 text-sm text-gray-300">
+            <NavLink
+              to="/dashboard"
+              aria-label="Dashboard"
+              className={({ isActive }) =>
+                `flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all focus:outline-none focus:ring-2 focus:ring-accent text-xs font-medium ${
+                  isActive
+                    ? "bg-accent/10 text-accent border-accent/25 font-semibold shadow-paper-sm"
+                    : "border-transparent text-gray-300 hover:text-gray-100 hover:border-border hover:bg-surface2"
+                }`
+              }
+            >
+              <LayoutDashboard size={15} aria-hidden="true" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </NavLink>
+            <NavLink
               to="/profile"
               aria-label={`Profile for ${user.username}`}
-              className="flex items-center gap-1.5 hover:text-gray-100 px-2.5 py-1.5 rounded-lg border border-transparent hover:border-border hover:bg-surface2 transition-all focus:outline-none focus:ring-2 focus:ring-accent"
+              className={({ isActive }) =>
+                `flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all focus:outline-none focus:ring-2 focus:ring-accent text-xs font-medium ${
+                  isActive
+                    ? "bg-accent/10 text-accent border-accent/25 font-semibold shadow-paper-sm"
+                    : "border-transparent text-gray-300 hover:text-gray-100 hover:border-border hover:bg-surface2"
+                }`
+              }
             >
               <User size={15} aria-hidden="true" />
-              <span className="hidden sm:inline font-medium text-xs text-gray-200">{user.username}</span>
-            </Link>
+              <span className="hidden sm:inline">{user.username}</span>
+            </NavLink>
             {user.role === "ADMIN" && (
-              <Link
+              <NavLink
                 to="/admin"
                 aria-label="Admin Console"
-                className="flex items-center gap-1 text-accent hover:opacity-90 px-2.5 py-1.5 rounded-lg border border-accent/20 bg-accent/10 transition-colors focus:outline-none focus:ring-2 focus:ring-accent text-xs font-medium"
+                className={({ isActive }) =>
+                  `flex items-center gap-1 px-2.5 py-1.5 rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-accent text-xs font-medium ${
+                    isActive
+                      ? "bg-accent text-white border-accent font-semibold shadow-paper-sm"
+                      : "text-accent hover:opacity-90 border-accent/20 bg-accent/10"
+                  }`
+                }
               >
                 <Shield size={14} aria-hidden="true" />
                 <span className="hidden sm:inline">Admin</span>
-              </Link>
+              </NavLink>
             )}
             <button
               onClick={handleLogout}

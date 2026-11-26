@@ -28,18 +28,24 @@ export async function registerUser({ name, username, email, password }) {
   return { user, token };
 }
 
-export async function loginUser({ email, password }) {
-  const user = await User.findOne({ email });
+export async function loginUser({ identifier, email, username, password }) {
+  const raw = (identifier || email || username || "").trim().toLowerCase();
+  const normalized = raw.startsWith("@") ? raw.slice(1) : raw;
+  const query = normalized.includes("@")
+    ? { email: normalized }
+    : { $or: [{ username: normalized }, { email: normalized }] };
+
+  const user = await User.findOne(query);
   if (!user) {
     await bcrypt.compare(password, DUMMY_HASH);
-    const err = new Error("Invalid email or password");
+    const err = new Error("Invalid email, username, or password");
     err.status = 401;
     throw err;
   }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
-    const err = new Error("Invalid email or password");
+    const err = new Error("Invalid email, username, or password");
     err.status = 401;
     throw err;
   }

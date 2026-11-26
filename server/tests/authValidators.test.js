@@ -67,9 +67,31 @@ describe("registerSchema", () => {
 });
 
 describe("loginSchema", () => {
-  test("accepts valid login credentials", () => {
+  test("accepts valid email login credentials", () => {
     const result = loginSchema.safeParse({ email: "a@b.com", password: "anything" });
     assert.equal(result.success, true);
+    assert.equal(result.data.identifier, "a@b.com");
+  });
+
+  test("accepts identifier with username or email", () => {
+    const byUsername = loginSchema.safeParse({
+      identifier: "  Santhu_Dev ",
+      password: "anything",
+    });
+    assert.equal(byUsername.success, true);
+    assert.equal(byUsername.data.identifier, "santhu_dev");
+
+    const byEmail = loginSchema.safeParse({
+      identifier: " SANTHU@Example.COM ",
+      password: "anything",
+    });
+    assert.equal(byEmail.success, true);
+    assert.equal(byEmail.data.identifier, "santhu@example.com");
+  });
+
+  test("rejects missing identifier and email", () => {
+    const result = loginSchema.safeParse({ password: "anything" });
+    assert.equal(result.success, false);
   });
 
   test("rejects missing password", () => {
