@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Link, useNavigate, useLocation, Navigate } from "react-router-dom";
+import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Code2, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { User, AtSign, Mail, Lock, Eye, EyeOff, ArrowRight, Check } from "lucide-react";
 import { api } from "../services/api.js";
 import { useAuthStore } from "../store/authStore.js";
-import ThemeToggle from "../components/common/ThemeToggle.jsx";
+import BrandMark from "../components/common/BrandMark.jsx";
+import AuthLayout from "../components/auth/AuthLayout.jsx";
 
 export default function Register() {
   const [form, setForm] = useState({ name: "", username: "", email: "", password: "" });
@@ -20,6 +21,13 @@ export default function Register() {
   if (token && user) {
     return <Navigate to={destination} replace />;
   }
+
+  const passwordChecks = [
+    { label: "8+ chars", met: form.password.length >= 8 },
+    { label: "Uppercase", met: /[A-Z]/.test(form.password) },
+    { label: "Lowercase", met: /[a-z]/.test(form.password) },
+    { label: "Number", met: /[0-9]/.test(form.password) },
+  ];
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -38,65 +46,98 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-bg px-4 py-6">
-      {/* Top Navigation */}
-      <div className="flex items-center justify-between max-w-sm sm:max-w-md w-full mx-auto">
-        <Link
-          to="/"
-          aria-label="Back to home"
-          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-100 transition-colors py-1 px-2 rounded-lg hover:bg-surface2"
-        >
-          <ArrowLeft size={14} />
-          <span>Back to Home</span>
-        </Link>
-        <ThemeToggle compact />
+    <AuthLayout
+      eyebrow="New Developer Desk"
+      title="Claim your desk in"
+      highlight="the collaborative studio."
+      subtitle="Create permanent rooms with custom invite links, role-based access, starter templates, and full checkpoint history."
+      previewFile="templates/interview-kit.js"
+      previewBadge="Ready to Ship"
+      alternateText="Already have an account?"
+      alternateLinkLabel="Log in"
+      alternateTo="/login"
+      alternateState={location.state}
+    >
+      <div className="flex flex-col items-center text-center mb-5">
+        <div className="w-12 h-12 rounded-2xl bg-accent/15 border border-accent/25 flex items-center justify-center text-accent mb-3 shadow-paper-sm">
+          <BrandMark size={28} />
+        </div>
+        <h2 className="text-2xl font-bold font-serif tracking-tight text-gray-100">
+          Create your account
+        </h2>
+        <p className="text-xs text-gray-400 mt-1">
+          Set up your developer identity in seconds
+        </p>
       </div>
 
-      {/* Main Form Card */}
-      <div className="w-full max-w-sm sm:max-w-md mx-auto my-auto bg-surface border border-border rounded-2xl p-7 sm:p-8 shadow-paper-lg">
-        <div className="flex flex-col items-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent mb-3 shadow-paper-sm">
-            <Code2 size={24} aria-hidden="true" />
-          </div>
-          <span className="text-xl font-bold font-serif text-gray-100">CodeTogether</span>
-          <p className="text-xs text-gray-400 mt-1">Create your developer identity</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+      <form onSubmit={handleSubmit} className="space-y-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
-            <label htmlFor="reg-name" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1 font-mono">
+            <label
+              htmlFor="reg-name"
+              className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono"
+            >
               Full Name
             </label>
-            <input
-              id="reg-name"
-              type="text"
-              autoComplete="name"
-              required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full bg-surface2 border border-border rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors shadow-paper-sm"
-              placeholder="Jane Doe"
-            />
+            <div className="relative">
+              <User
+                size={15}
+                aria-hidden="true"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+              />
+              <input
+                id="reg-name"
+                type="text"
+                autoComplete="name"
+                required
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="w-full bg-surface2/75 hover:bg-surface2 focus:bg-surface border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/35 focus:border-accent transition-all shadow-paper-sm"
+                placeholder="Jane Doe"
+              />
+            </div>
           </div>
+
           <div>
-            <label htmlFor="reg-username" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1 font-mono">
+            <label
+              htmlFor="reg-username"
+              className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono"
+            >
               Username
             </label>
-            <input
-              id="reg-username"
-              type="text"
-              autoComplete="username"
-              required
-              value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value })}
-              className="w-full bg-surface2 border border-border rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors shadow-paper-sm"
-              placeholder="janedoe"
-            />
+            <div className="relative">
+              <AtSign
+                size={15}
+                aria-hidden="true"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+              />
+              <input
+                id="reg-username"
+                type="text"
+                autoComplete="username"
+                required
+                value={form.username}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
+                className="w-full bg-surface2/75 hover:bg-surface2 focus:bg-surface border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/35 focus:border-accent transition-all shadow-paper-sm"
+                placeholder="janedoe"
+              />
+            </div>
           </div>
-          <div>
-            <label htmlFor="reg-email" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1 font-mono">
-              Email Address
-            </label>
+        </div>
+
+        <div>
+          <label
+            htmlFor="reg-email"
+            className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono"
+          >
+            Email Address
+          </label>
+          <div className="relative">
+            <Mail
+              size={16}
+              aria-hidden="true"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+            />
             <input
               id="reg-email"
               type="email"
@@ -104,64 +145,89 @@ export default function Register() {
               required
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full bg-surface2 border border-border rounded-lg px-3.5 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors shadow-paper-sm"
+              className="w-full bg-surface2/75 hover:bg-surface2 focus:bg-surface border border-border rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/35 focus:border-accent transition-all shadow-paper-sm"
               placeholder="jane@example.com"
             />
           </div>
-          <div>
-            <label htmlFor="reg-password" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1 font-mono">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                id="reg-password"
-                type={showPassword ? "text" : "password"}
-                autoComplete="new-password"
-                required
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full bg-surface2 border border-border rounded-lg pl-3.5 pr-10 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors shadow-paper-sm"
-                placeholder="••••••••"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((prev) => !prev)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                aria-pressed={showPassword}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-accent transition-colors"
-              >
-                {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
-              </button>
-            </div>
-            <p className="text-[11px] text-gray-500 mt-1 font-sans">
-              At least 8 characters, with uppercase, lowercase, and a number.
-            </p>
+        </div>
+
+        <div>
+          <label
+            htmlFor="reg-password"
+            className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono"
+          >
+            Password
+          </label>
+          <div className="relative">
+            <Lock
+              size={16}
+              aria-hidden="true"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+            />
+            <input
+              id="reg-password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              required
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              className="w-full bg-surface2/75 hover:bg-surface2 focus:bg-surface border border-border rounded-xl pl-10 pr-10 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/35 focus:border-accent transition-all shadow-paper-sm"
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-100 rounded-lg hover:bg-surface2 focus:outline-none focus:ring-2 focus:ring-accent transition-colors"
+            >
+              {showPassword ? (
+                <EyeOff size={16} aria-hidden="true" />
+              ) : (
+                <Eye size={16} aria-hidden="true" />
+              )}
+            </button>
           </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-accent hover:opacity-90 transition-all rounded-lg py-2.5 text-sm font-semibold text-white shadow-paper hover:shadow-paper-md disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-surface active:scale-95 mt-2"
-          >
-            {loading ? "Creating account..." : "Register"}
-          </button>
-        </form>
 
-        <p className="text-xs text-gray-400 mt-5 text-center">
-          Already have an account?{" "}
-          <Link
-            to="/login"
-            state={location.state}
-            className="text-accent hover:underline font-semibold focus:outline-none focus:ring-1 focus:ring-accent rounded"
-          >
-            Log in
-          </Link>
-        </p>
-      </div>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {passwordChecks.map(({ label, met }) => (
+              <span
+                key={label}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono border transition-colors ${
+                  met
+                    ? "bg-accent2/15 text-accent2 border-accent2/30 font-semibold"
+                    : "bg-surface2/70 text-gray-500 border-border"
+                }`}
+              >
+                {met ? (
+                  <Check size={10} aria-hidden="true" />
+                ) : (
+                  <span className="w-1.5 h-1.5 rounded-full bg-gray-500/60" />
+                )}
+                <span>{label}</span>
+              </span>
+            ))}
+          </div>
+        </div>
 
-      {/* Footer Note */}
-      <div className="text-center text-[11px] text-gray-500 font-serif">
-        <span>Editorial Parchment & Midnight Kraft</span>
-      </div>
-    </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover transition-all rounded-xl py-2.5 text-sm font-semibold text-white shadow-paper hover:shadow-paper-md disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-surface active:scale-[0.99] mt-2"
+        >
+          {loading ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span>Creating account...</span>
+            </>
+          ) : (
+            <>
+              <span>Create Account</span>
+              <ArrowRight size={15} aria-hidden="true" />
+            </>
+          )}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }

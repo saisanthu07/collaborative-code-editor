@@ -4,90 +4,93 @@ import {
   Users,
   Zap,
   MessageSquare,
-  Shield,
   PhoneCall,
-  CheckCircle2,
   Play,
   ArrowRight,
   FolderTree,
   Sparkles,
   Clock,
-  Download,
   Feather,
   Globe2,
   GitBranch,
   TerminalSquare,
+  PenTool,
+  ShieldCheck,
+  History,
+  LayoutDashboard,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../services/api.js";
+import { useAuthStore } from "../store/authStore.js";
 import ThemeToggle from "../components/common/ThemeToggle.jsx";
 import BrandMark from "../components/common/BrandMark.jsx";
 
 const FEATURES = [
   {
     icon: Users,
-    title: "Conflict-Free Collaboration",
-    desc: "Real-time collaborative editing powered by Yjs CRDTs. Track peer cursors and simultaneous edits with sub-10ms sync.",
+    title: "Yjs CRDTs & Follow Mode",
+    desc: "Conflict-free collaborative editing with live peer cursors, Follow Mode spotlighting, and strict read-only viewer enforcement.",
   },
   {
     icon: Zap,
-    title: "Multi-Language Execution",
-    desc: "Execute JavaScript, Python, C++, Go, Java, and 10+ languages instantly with standard input (stdin) support.",
-  },
-  {
-    icon: PhoneCall,
-    title: "In-Room WebRTC Voice Call",
-    desc: "Talk with peers directly inside the room without needing external Zoom or Discord links.",
-  },
-  {
-    icon: FolderTree,
-    title: "Multi-File Project Tabs",
-    desc: "Create and edit multiple files with automatic language detection, file tree explorer, and instant ZIP export.",
+    title: "Multi-File Run & Web Preview",
+    desc: "Execute 15+ languages with multi-file imports and stdin, or preview HTML, CSS, and JS live in an isolated sandbox iframe.",
   },
   {
     icon: Clock,
-    title: "Interview Mode & Timer",
-    desc: "Built-in synchronized interview timer with LeetCode-style multi-case automated test runner.",
+    title: "Interview Suite & Scorecard",
+    desc: "Host-controlled countdown/stopwatch timer, batch test-case runner, and a private host-only candidate scorecard.",
   },
   {
-    icon: MessageSquare,
-    title: "Integrated Marginalia Chat",
-    desc: "Discuss algorithms, paste snippets, and collaborate with your team without switching tabs.",
+    icon: PenTool,
+    title: "Whiteboard & Line Comments",
+    desc: "Switch between code and a real-time system-design canvas with PNG export, plus line-anchored code review threads.",
+  },
+  {
+    icon: FolderTree,
+    title: "Tree Explorer & Checkpoints",
+    desc: "Collapsible folder tree, drag-and-drop uploads, starter templates, named version checkpoints with live restore, and ZIP export.",
+  },
+  {
+    icon: PhoneCall,
+    title: "WebRTC Voice & Chat",
+    desc: "Peer-to-peer mesh audio with STUN/TURN support, mute controls, and paginated Marginalia chat inside every room.",
   },
 ];
 
 const USE_CASES = [
   "Pair Programming",
   "Technical Interviews",
+  "System Design Rounds",
   "Classroom Teaching",
   "Hackathons",
-  "Competitive Programming",
-  "Code Reviews",
+  "Async Code Reviews",
 ];
 
 const WORKFLOW = [
   {
     step: "01",
     icon: GitBranch,
-    title: "Start a room",
-    desc: "Create a private workspace in one click or jump into an instant playground with no account.",
+    title: "Pick a template",
+    desc: "Start from blank, algorithms, web preview, or multi-file Node—or launch an instant guest playground.",
   },
   {
     step: "02",
     icon: Users,
-    title: "Invite your crew",
-    desc: "Share one link and watch teammates appear with live cursors, presence, and permissions.",
+    title: "Invite with control",
+    desc: "Share a secret private invite link or invite teammates directly with Editor or Viewer permissions.",
   },
   {
     step: "03",
     icon: TerminalSquare,
-    title: "Ship together",
-    desc: "Run, discuss, and export your project without leaving the room or losing your flow.",
+    title: "Code, sketch & review",
+    desc: "Run batch tests, sketch architecture on the board, leave line comments, and grade privately.",
   },
 ];
 
 export default function Landing() {
   const navigate = useNavigate();
+  const { user, token } = useAuthStore();
   const [creatingInstant, setCreatingInstant] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [demoOutput, setDemoOutput] = useState("");
@@ -119,8 +122,8 @@ export default function Landing() {
     setDemoOutput("");
     setTimeout(() => {
       setDemoRunning(false);
-      setDemoOutput("✨ Output: Hello, Collaborative World! [32ms]");
-    }, 700);
+      setDemoOutput("✨ Output: CodeTogether: Yjs CRDT + Monaco + Whiteboard + WebRTC [28ms]");
+    }, 600);
   }
 
   return (
@@ -143,18 +146,30 @@ export default function Landing() {
               <Sparkles size={13} />
               <span>Instant Playground</span>
             </button>
-            <Link
-              to="/login"
-              className="text-gray-300 hover:text-gray-100 px-3 py-1.5 transition-colors font-medium text-xs sm:text-sm"
-            >
-              Log In
-            </Link>
-            <Link
-              to="/register"
-              className="bg-accent px-4 py-1.5 rounded-lg text-white font-medium hover:opacity-90 transition-all shadow-paper-sm text-xs sm:text-sm active:scale-95"
-            >
-              Sign Up Free
-            </Link>
+            {user && token ? (
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center gap-1.5 bg-accent px-4 py-1.5 rounded-lg text-white font-medium hover:opacity-90 transition-all shadow-paper-sm text-xs sm:text-sm active:scale-95"
+              >
+                <LayoutDashboard size={14} />
+                <span>Dashboard</span>
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="text-gray-300 hover:text-gray-100 px-3 py-1.5 transition-colors font-medium text-xs sm:text-sm"
+                >
+                  Log In
+                </Link>
+                <Link
+                  to="/register"
+                  className="bg-accent px-4 py-1.5 rounded-lg text-white font-medium hover:opacity-90 transition-all shadow-paper-sm text-xs sm:text-sm active:scale-95"
+                >
+                  Sign Up Free
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -163,7 +178,7 @@ export default function Landing() {
       <section className="text-center pt-16 pb-12 px-6 max-w-4xl mx-auto space-y-6">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-border bg-surface text-accent text-xs font-medium shadow-paper-sm">
           <Feather size={13} className="text-accent" />
-          <span>One room for every brilliant idea</span>
+          <span>Collaborative IDE, Technical Interviews & System Design Studio</span>
         </div>
 
         <h1 className="text-4xl sm:text-6xl font-extrabold font-serif leading-tight tracking-tight text-gray-100">
@@ -174,8 +189,8 @@ export default function Landing() {
         </h1>
 
         <p className="text-gray-400 max-w-2xl mx-auto text-base sm:text-lg leading-relaxed font-sans">
-          CodeTogether is the calm, capable workspace for pair programming, interviews, teaching, and hackathons.
-          Edit the same code, talk through the hard parts, and see ideas become working software in real time.
+          CodeTogether brings conflict-free multi-file coding, sandboxed execution, live web previews,
+          system-design whiteboarding, voice calls, and private interview scorecards into one calm workspace.
         </p>
 
         {/* Action CTAs */}
@@ -199,26 +214,26 @@ export default function Landing() {
           </button>
 
           <Link
-            to="/register"
+            to={user && token ? "/dashboard" : "/register"}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-border bg-surface hover:bg-surface2 px-6 py-3 rounded-xl font-medium text-gray-200 transition-colors shadow-paper-sm"
           >
-            Create Permanent Room
+            {user && token ? "Open Your Dashboard" : "Create Permanent Room"}
           </Link>
         </div>
 
         {/* Feature Counters */}
         <div className="grid grid-cols-3 max-w-lg mx-auto pt-6 text-center divide-x divide-border bg-surface border border-border rounded-xl p-3 shadow-paper-sm">
           <div>
-            <div className="text-2xl font-bold font-serif text-gray-100">1 link</div>
-            <div className="text-xs text-gray-400 mt-0.5">To start collaborating</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold font-serif text-accent2">Real-time</div>
-            <div className="text-xs text-gray-400 mt-0.5">Shared editing</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold font-serif text-accent">10+</div>
+            <div className="text-2xl font-bold font-serif text-gray-100">15+</div>
             <div className="text-xs text-gray-400 mt-0.5">Languages ready</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold font-serif text-accent2">CRDT</div>
+            <div className="text-xs text-gray-400 mt-0.5">Binary + Redis sync</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold font-serif text-accent">4 roles</div>
+            <div className="text-xs text-gray-400 mt-0.5">RBAC & private invites</div>
           </div>
         </div>
       </section>
@@ -235,7 +250,7 @@ export default function Landing() {
               From blank page to breakthrough.
             </h2>
             <p className="text-sm text-gray-400 leading-relaxed mt-3">
-              No setup maze. No context switching. Just a focused room where everyone can contribute.
+              No setup maze. No context switching. Just a focused room where everyone can code, sketch, and test together.
             </p>
           </div>
           <div className="grid sm:grid-cols-3 gap-3">
@@ -256,16 +271,18 @@ export default function Landing() {
       {/* Interactive Hero Preview Component */}
       <section className="max-w-4xl mx-auto px-6 pb-16">
         <div className="rounded-2xl border border-border bg-surface shadow-paper-lg overflow-hidden">
-          {/* Mock Window Top Bar */}
           <div className="flex items-center justify-between px-4 py-2.5 bg-surface2 border-b border-border text-xs">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-rose-500/80 inline-block" />
               <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block" />
               <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
-              <span className="text-gray-400 ml-2 font-mono text-[11px]">room: interactive-playground</span>
+              <span className="text-gray-400 ml-2 font-mono text-[11px]">room: interview-studio</span>
             </div>
 
             <div className="flex items-center gap-2">
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-gray-300 bg-surface border border-border px-2 py-0.5 rounded-full font-mono">
+                <History size={10} className="text-accent" /> Checkpoints
+              </span>
               <span className="inline-flex items-center gap-1 text-[11px] text-accent2 bg-accent2/10 border border-accent2/30 px-2 py-0.5 rounded-full font-medium">
                 ● 2 Active Scribes
               </span>
@@ -280,14 +297,19 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* Code Body */}
           <div className="p-5 font-mono text-xs text-gray-100 space-y-1 bg-paper-editor">
-            <div className="text-gray-400 italic">// Collaborative parchment code editor</div>
+            <div className="text-gray-400 italic">// Collaborative multi-file & interview studio</div>
             <div>
-              <span className="text-accent font-semibold">function</span> <span className="text-accent font-medium">collaborate</span>() &#123;
+              <span className="text-accent font-semibold">function</span>{" "}
+              <span className="text-accent font-medium">collaborate</span>() &#123;
             </div>
             <div className="pl-4">
-              <span className="text-accent font-semibold">const</span> <span className="text-amber-700 dark:text-amber-400">stack</span> = [<span className="text-accent2">"Yjs CRDT"</span>, <span className="text-accent2">"Monaco"</span>, <span className="text-accent2">"WebRTC Voice"</span>];
+              <span className="text-accent font-semibold">const</span>{" "}
+              <span className="text-amber-700 dark:text-amber-400">stack</span> = [
+              <span className="text-accent2">"Yjs CRDT"</span>,{" "}
+              <span className="text-accent2">"Monaco"</span>,{" "}
+              <span className="text-accent2">"Whiteboard"</span>,{" "}
+              <span className="text-accent2">"WebRTC"</span>];
             </div>
             <div className="pl-4 flex items-center">
               <span>return `CodeTogether: $&#123;stack.join(" + ")&#125;`;</span>
@@ -300,12 +322,11 @@ export default function Landing() {
             <div className="pt-2 text-accent">console.log(collaborate());</div>
           </div>
 
-          {/* Output Preview */}
           <div className="px-5 py-3 bg-paper-console border-t border-border text-xs font-mono text-gray-200 min-h-[44px] flex items-center">
             {demoRunning ? (
               <span className="text-amber-700 dark:text-amber-400 animate-pulse flex items-center gap-1.5 font-medium">
                 <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping inline-block" />
-                Compiling in sandbox...
+                Executing in isolated sandbox...
               </span>
             ) : demoOutput ? (
               <span className="text-emerald-700 dark:text-emerald-400 font-semibold">{demoOutput}</span>
@@ -323,7 +344,7 @@ export default function Landing() {
             Engineered for Peak Developer Flow
           </h2>
           <p className="text-sm text-gray-400">
-            Everything you need for seamless pair programming and mock technical interviews.
+            Everything you need for pair programming, system design rounds, and technical interviews.
           </p>
         </div>
 
@@ -340,6 +361,31 @@ export default function Landing() {
               <div className="text-xs text-gray-400 leading-relaxed font-sans">{desc}</div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Security & Governance Callout */}
+      <section className="max-w-5xl mx-auto px-6 py-8">
+        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-paper">
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 flex items-center justify-center shrink-0">
+              <ShieldCheck size={20} />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-100 font-serif text-base">
+                Hardened RBAC, Private Invites & Host-Only Scorecards
+              </h3>
+              <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                Rotating refresh tokens, secret invite URLs for private rooms, host moderation controls, and strict database isolation for private candidate evaluations.
+              </p>
+            </div>
+          </div>
+          <Link
+            to={user && token ? "/dashboard" : "/register"}
+            className="shrink-0 bg-surface2 hover:bg-border border border-border px-4 py-2 rounded-xl text-xs font-semibold text-gray-100 transition-colors"
+          >
+            {user && token ? "Go to Workspace" : "Get Started"}
+          </Link>
         </div>
       </section>
 

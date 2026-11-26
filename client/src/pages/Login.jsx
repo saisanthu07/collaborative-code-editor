@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation, Navigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Code2, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { api } from "../services/api.js";
 import { useAuthStore } from "../store/authStore.js";
-import ThemeToggle from "../components/common/ThemeToggle.jsx";
+import BrandMark from "../components/common/BrandMark.jsx";
+import AuthLayout from "../components/auth/AuthLayout.jsx";
 
 export default function Login() {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -37,35 +38,44 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-bg px-4 py-6">
-      {/* Top Header */}
-      <div className="flex items-center justify-between max-w-sm sm:max-w-md w-full mx-auto">
-        <Link
-          to="/"
-          aria-label="Back to home"
-          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-100 transition-colors py-1 px-2 rounded-lg hover:bg-surface2"
-        >
-          <ArrowLeft size={14} />
-          <span>Back to Home</span>
-        </Link>
-        <ThemeToggle compact />
+    <AuthLayout
+      eyebrow="Session Gateway"
+      title="Pick up right where"
+      highlight="your team left off."
+      subtitle="Rejoin permanent coding rooms, inspect saved version checkpoints, and run technical interviews with private scorecards."
+      previewFile="rooms/pair-session.js"
+      previewBadge="Live Cursors · Active"
+      alternateText="Don't have an account?"
+      alternateLinkLabel="Create an account"
+      alternateTo="/register"
+      alternateState={location.state}
+    >
+      <div className="flex flex-col items-center text-center mb-6">
+        <div className="w-12 h-12 rounded-2xl bg-accent/15 border border-accent/25 flex items-center justify-center text-accent mb-3.5 shadow-paper-sm">
+          <BrandMark size={28} />
+        </div>
+        <h2 className="text-2xl font-bold font-serif tracking-tight text-gray-100">
+          Welcome back
+        </h2>
+        <p className="text-xs text-gray-400 mt-1">
+          Sign in to enter your collaborative workspace
+        </p>
       </div>
 
-      {/* Main Form Card */}
-      <div className="w-full max-w-sm sm:max-w-md mx-auto my-auto bg-surface border border-border rounded-2xl p-7 sm:p-8 shadow-paper-lg">
-        <div className="flex flex-col items-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent mb-3 shadow-paper-sm">
-            <Code2 size={24} aria-hidden="true" />
-          </div>
-          <span className="text-xl font-bold font-serif text-gray-100">CodeTogether</span>
-          <p className="text-xs text-gray-400 mt-1">Sign in to your collaborative workspace</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate={false}>
-          <div>
-            <label htmlFor="login-email" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
-              Email Address
-            </label>
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate={false}>
+        <div>
+          <label
+            htmlFor="login-email"
+            className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono"
+          >
+            Email Address
+          </label>
+          <div className="relative">
+            <Mail
+              size={16}
+              aria-hidden="true"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+            />
             <input
               id="login-email"
               type="email"
@@ -73,69 +83,77 @@ export default function Login() {
               required
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full bg-surface2 border border-border rounded-lg px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors shadow-paper-sm"
+              className="w-full bg-surface2/75 hover:bg-surface2 focus:bg-surface border border-border rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/35 focus:border-accent transition-all shadow-paper-sm"
               placeholder="you@example.com"
             />
           </div>
-          <div>
-            <label htmlFor="login-password" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label
+              htmlFor="login-password"
+              className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 font-mono"
+            >
               Password
             </label>
-            <div className="relative">
-              <input
-                id="login-password"
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
-                required
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full bg-surface2 border border-border rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors shadow-paper-sm"
-                placeholder="••••••••"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((prev) => !prev)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                aria-pressed={showPassword}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-accent transition-colors"
-              >
-                {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
-              </button>
-            </div>
-          </div>
-          <div className="flex justify-end">
             <Link
               to="/forgot-password"
-              className="text-xs text-accent hover:underline font-medium"
+              className="text-[11px] text-accent hover:underline font-medium"
             >
               Forgot password?
             </Link>
           </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-accent hover:opacity-90 transition-all rounded-lg py-2.5 text-sm font-semibold text-white shadow-paper hover:shadow-paper-md disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-surface active:scale-95"
-          >
-            {loading ? "Signing In..." : "Log In"}
-          </button>
-        </form>
+          <div className="relative">
+            <Lock
+              size={16}
+              aria-hidden="true"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+            />
+            <input
+              id="login-password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              required
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              className="w-full bg-surface2/75 hover:bg-surface2 focus:bg-surface border border-border rounded-xl pl-10 pr-10 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/35 focus:border-accent transition-all shadow-paper-sm"
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-100 rounded-lg hover:bg-surface2 focus:outline-none focus:ring-2 focus:ring-accent transition-colors"
+            >
+              {showPassword ? (
+                <EyeOff size={16} aria-hidden="true" />
+              ) : (
+                <Eye size={16} aria-hidden="true" />
+              )}
+            </button>
+          </div>
+        </div>
 
-        <p className="text-xs text-gray-400 mt-6 text-center">
-          Don't have an account?{" "}
-          <Link
-            to="/register"
-            state={location.state}
-            className="text-accent hover:underline font-semibold focus:outline-none focus:ring-1 focus:ring-accent rounded"
-          >
-            Register
-          </Link>
-        </p>
-      </div>
-
-      {/* Footer Note */}
-      <div className="text-center text-[11px] text-gray-500 font-serif">
-        <span>Editorial Parchment & Midnight Kraft</span>
-      </div>
-    </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover transition-all rounded-xl py-2.5 text-sm font-semibold text-white shadow-paper hover:shadow-paper-md disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-surface active:scale-[0.99] mt-1"
+        >
+          {loading ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span>Signing In...</span>
+            </>
+          ) : (
+            <>
+              <span>Log In</span>
+              <ArrowRight size={15} aria-hidden="true" />
+            </>
+          )}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }

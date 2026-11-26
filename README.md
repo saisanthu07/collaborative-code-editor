@@ -7,10 +7,10 @@
 ![Node](https://img.shields.io/badge/Node.js-%3E%3D18-221c16?style=for-the-badge&logo=node.js)
 ![React](https://img.shields.io/badge/React-18-221c16?style=for-the-badge&logo=react)
 ![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=for-the-badge&logo=vite)
-![Tests](https://img.shields.io/badge/Tests-79%20Passing-3c6e47?style=for-the-badge)
+![Tests](https://img.shields.io/badge/Tests-98%20Passing-3c6e47?style=for-the-badge)
 
 <p align="center">
-  <strong>A high-performance, full-stack collaborative IDE and technical interview platform.</strong><br>
+  <strong>A production-hardened collaborative IDE, system-design studio, and technical interview platform.</strong><br>
   Built with <strong>React 18</strong>, <strong>Monaco Editor</strong>, <strong>Yjs CRDTs</strong>, <strong>WebRTC Voice</strong>, <strong>Socket.IO</strong>, <strong>Express</strong>, <strong>MongoDB</strong>, <strong>Redis</strong>, and <strong>Judge0/Piston sandboxes</strong>.
 </p>
 
@@ -30,75 +30,63 @@
 
 ## 🌟 Executive Summary
 
-**CodeTogether** is an enterprise-grade collaborative coding environment engineered for pair programming, mock technical interviews, classroom instruction, and real-time remote debugging. Multiple scribes can seamlessly co-author code in the same workspace with conflict-free synchronization (sub-10ms CRDT merges), see live colored cursors and text selections, talk directly through peer-to-peer WebRTC voice calls, run synchronized interview timers, test code against LeetCode-style automated test suites, and execute multi-language source files inside isolated sandboxes.
+**CodeTogether** is a full-stack collaborative coding and technical interview studio engineered for pair programming, live interviews, system-design rounds, classroom instruction, and remote code reviews. Multiple participants co-author multi-file projects with binary CRDT synchronization, follow teammates across files, sketch architecture on a shared whiteboard, leave line-anchored review comments, talk over peer-to-peer WebRTC voice calls, run batch test suites, preview HTML/CSS/JS live, and evaluate candidates via private host-only scorecards.
 
-The application is wrapped in an artisanal **Editorial Paper Design System** featuring **Editorial Parchment** (Light Paper) and **Midnight Kraft** (Dark Paper) themes, complete with tactile micro-textures, fountain-ink typography, sealing-wax accents, and custom Monaco syntax definitions.
+The UI uses an artisanal **Editorial Paper Design System** featuring **Editorial Parchment** (Light Paper) and **Midnight Kraft** (Dark Paper) themes with matching custom Monaco syntax themes.
 
 ---
 
 ## 🚀 Key Features
 
-### ⚡ Conflict-Free Real-Time Collaboration
-- **Yjs CRDT Synchronization**: Pure Conflict-Free Replicated Data Type document sync via a dedicated `y-websocket` binary relay. Concurrent keystrokes merge deterministically without race conditions or data loss.
-- **Monaco Editor Integration**: Full-featured VS Code editing experience with syntax highlighting, IntelliSense auto-completion, line numbers, mini-map, and automatic document formatting.
-- **Archival Ink Awareness**: Real-time peer cursors and selections rendered via Yjs Awareness with an 8-tone fountain ink and sealing wax palette (`Terracotta`, `Olive Sage`, `Blueprint Indigo`, `Amber Ochre`, `Mulberry Plum`, etc.).
-- **Live Presence & De-Duplication**: Tracks active connections per user; automatically collapses multiple open browser tabs into unified presence badges.
+### ⚡ Conflict-Free Real-Time Collaboration & Follow Mode
+- **Yjs Binary CRDT Sync & Persistence**: Dedicated `y-websocket` relay (`/yjs`) backed by binary `YjsDoc` snapshots and `Room.files` text sync in MongoDB, plus optional Redis Pub/Sub synchronization across multiple server instances.
+- **Monaco Editor & Read-Only Enforcement**: VS Code editing experience with live colored peer cursors (Yjs Awareness), cursor-line tracking, document formatting, and live `readOnly` enforcement for `VIEWER` / disallowed `GUEST` roles.
+- **Follow Mode (Spotlight)**: Click **Follow** on any participant in the sidebar to follow their active file tab changes in real time.
+- **Live Presence & De-Duplication**: Tracks active connections per user (`presence:<roomId>` in Redis or memory) and collapses multiple tabs into unified presence badges.
 
-### 🎨 Tactile Paper Themes (Light & Dark)
-- **Editorial Parchment (Light)**: Warm ivory vellum canvas (`#F7F4EB`), crisp cotton paper sheets (`#FFFFFF`), pressed kraft panels (`#F0EADE`), pencil ruling borders (`#DDD5C7`), and walnut fountain pen ink (`#221C16`).
-- **Midnight Kraft (Dark)**: Matte charcoal paper canvas (`#181715`), dark cardstock sheets (`#201F1B`), elevated pressed kraft cards (`#2A2822`), fiber crease borders (`#383630`), and bone-white gel ink (`#ECE7DC`).
-- **Tactile Paper Details**: Micro-fiber paper grain overlay, warm ambient shadows (`shadow-paper`), sealing-wax badges, and custom matching Monaco themes (`paper-parchment` & `paper-midnight-kraft`).
-- **Persistent Theme Toggle**: Seamless header switch toggling between Parchment and Midnight Kraft with instant reactive Monaco re-theming.
+### 🗂️ Nested Explorer, Templates, Checkpoints & Live Web Preview
+- **Collapsible Folder Tree & Drag-and-Drop Uploads**: Supports nested paths (e.g. `utils/helpers.js`), multi-file browser uploads, and drag-and-drop onto the explorer.
+- **Starter Templates**: Create rooms from `Blank`, `Algorithms Interview Starter`, `Web Preview (HTML / CSS / JS)`, or `Multi-File Node.js Project`.
+- **Version History & Live Restore**: Save named file checkpoints (`DocRevision`), inspect snapshots, and restore any revision live into every connected participant's Yjs editor.
+- **Sandboxed Live Web Preview**: Render room HTML, CSS, and JS files safely inside an isolated `<iframe sandbox="allow-scripts">` directly in the console panel.
+- **One-Click ZIP Export**: Client-side ZIP export bundling the entire project.
 
-### 🎙️ In-Room WebRTC Peer-to-Peer Voice Calling
-- **Zero Third-Party Audio Services**: High-fidelity, low-latency audio communication powered by native WebRTC `RTCPeerConnection` and STUN relays (`stun.l.google.com:19302`).
-- **Mesh Voice Topology**: Directly negotiates offers/answers and ICE candidates over Socket.IO without audio routing through the backend server.
-- **In-Room Voice Controls**: Live participant counter, active speaker indicators, microphone mute/unmute, and clean graceful disconnects.
+### 🎨 Collaborative Whiteboard & Inline Code Comments
+- **System-Design Whiteboard**: Toggle between `Code` and `Board` views to sketch diagrams in real time (`whiteboard-stroke` / `whiteboard-clear` persisted on the room) with multi-color pens, stroke widths, eraser, and PNG export.
+- **Line-Anchored Review Comments**: Post comments bound to specific files and line numbers (`CodeComment`), click to jump to lines in Monaco, resolve/reopen threads, and delete comments.
 
-### ⏱️ Technical Interview Mode & Test Suite Runner
-- **Synchronized Interview Stopwatch**: Host-controlled interview timer synchronized across all participants via Socket.IO. Includes presets for 30 min, 45 min, 60 min, and freeform stopwatch counting.
-- **LeetCode-Style Test Case Runner**: Interactive test suite allowing candidates and interviewers to define multiple inputs (stdin), run all test cases simultaneously, and inspect actual vs. expected output diffs.
+### ⏱️ Technical Interview Suite & Private Host Scorecard
+- **Authoritative Interview Timer**: Host-only controls for countdown presets (30m / 45m / 60m) and stopwatch mode, persisted server-side (`timerState`) so late joiners stay synchronized.
+- **Collaborative Test Case Runner**: Synced test cases (`PUT /api/rooms/:roomId/test-cases`) executed in one request via `POST /api/rooms/:roomId/execute-batch`.
+- **Private Host-Only Scorecard**: Interviewers can grade Problem Solving, Code Quality, Communication (1–5), hiring recommendation, and private notes—protected at the database layer (`select: false` on `Room.scorecard`) and restricted strictly to the authenticated room owner with `.md` export.
 
-### 🗂️ Multi-File Workspace & Instant ZIP Export
-- **Multi-File Project Tabs**: Create, rename, delete, and switch between multiple files with active tab indicators and dirty state detection.
-- **Stationery File Explorer**: Collapsible table-of-contents file tree with colored extension stamps (`JS`, `TS`, `PY`, `C++`, `GO`, `RS`, `JV`, `JSON`).
-- **One-Click Project ZIP Export**: Client-side ZIP packaging that bundles all project files into a downloadable archive.
+### ⚙️ Multi-File Execution & 15+ Languages
+- **15+ Languages**: JavaScript, TypeScript, Python, C, C++, Java, Go, Rust, PHP, Ruby, Kotlin, Swift, C#, Dart, and SQL.
+- **Multi-File Execution Bundle**: Passes all room files alongside the active entrypoint to Piston (supporting relative imports across files) with Judge0 CE support and an opt-in local dev `worker_threads` JS fallback (`ALLOW_UNSAFE_LOCAL_EXEC=true`, disabled in production).
 
-### ⚙️ Multi-Language Execution with Dual Sandbox Engines
-- **15+ Programming Languages**: Instant execution for JavaScript, TypeScript, Python, C, C++, Java, Go, Rust, PHP, Ruby, Kotlin, Swift, C#, Dart, and SQL.
-- **Primary Sandbox (Judge0 CE)**: Secure remote execution via Judge0 with CPU, memory, and wall-time limits.
-- **Automated Fallback (Piston Sandbox)**: Transparent, automatic fallback to the Piston execution engine if the primary sandbox is unavailable, ensuring high availability.
-- **Interactive Stdin Console**: Typewriter-style console supporting standard input (interactive scripts, competitive programming prompts), compiler diagnostic errors, stdout, and stderr.
+### 🎙️ WebRTC Voice & Marginalia Chat
+- **Peer-to-Peer Mesh Audio**: Native WebRTC `RTCPeerConnection` with backend-served STUN/TURN ICE configuration (`/api/rooms/ice-servers`), glare tie-breaking, mute/unmute state broadcast, and clean audio element teardown.
+- **Paginated Marginalia Chat**: Cursor-paginated history (`Load older messages`), system join/leave notices, and host chat-mute enforcement.
 
-### 🚀 Instant 1-Click Guest Playground
-- **Zero Registration Barrier**: Jump directly into a collaborative session from the landing page with a single click.
-- **Scoped Guest Tokens**: Automatically generates signed guest JWTs with restricted, time-limited room permissions stored in session storage.
+### 🔐 Security, Auth Lifecycle & Governance
+- **Strict Private Rooms & Invite Secrets**: `PRIVATE` rooms reject non-members across REST, Socket.IO, and Yjs WebSockets unless invited directly by username/email or joining with a timing-safe `inviteCode` (`?invite=...`). Hosts can rotate invite secrets anytime.
+- **Full Auth Lifecycle**: Registration, login, rotating SHA-256 refresh tokens with theft/reuse revocation, active session viewer & per-device revocation (`/api/auth/sessions`), `logout-all`, password reset flow (`/forgot-password`, `/reset-password`), and password-confirmed account self-deletion (`DELETE /api/auth/me`).
+- **Host Room Controls**: Toggle room lock, mute chat, allow guest editing, change default join role, promote/demote/kick/unban participants, and invite users directly.
 
-### 🔐 Enterprise-Grade Security
-- **JWT Authentication with Refresh Token Rotation**: 15-minute access tokens and 30-day rotating refresh tokens. Reusing an old refresh token immediately revokes the entire session chain (theft detection).
-- **Zod Schema Validation**: Strict payload inspection on all REST routes and WebSocket events, including automated protection against directory traversal attacks (`..` or absolute paths).
-- **Role-Based Access Control (RBAC)**: Distinct permissions for `HOST`, `EDITOR`, `VIEWER`, and `GUEST`. Host operations (locking, kicking, role changes) are re-verified against the database on both REST and WebSocket layers.
-- **Rate Limiting & Hardening**: Strict rate limiting on authentication and code execution endpoints, Helmet headers, locked CORS origins, and SHA-256 token hashing.
-
-### 🌐 Horizontal Scalability
-- **Redis Presence & Socket.IO Adapter**: Connect multiple server instances behind a load balancer with `@socket.io/redis-adapter` and Redis Hash presence storage (`presence:<roomId>`).
-- **Graceful Fallback**: Automatically falls back to high-performance in-memory presence and single-node event routing when `REDIS_URL` is omitted.
-
-### 🛡️ Archival Administration Console
-- **System Metrics**: Real-time stats across registered users, active rooms, code executions, and platform health.
-- **User Governance**: Suspend, unsuspend, and remove offending accounts.
-- **Room Moderation**: Remotely lock, unlock, or delete abusive rooms.
-- **Audit Logging**: Structured activity logs tracking critical administrative actions.
+### 🛡️ Multi-Page Archival Administration Console (`/admin/*`)
+Dedicated routed tabs for platform administrators (`role === "ADMIN"`):
+- **Overview (`/admin`)**: Platform KPIs + live runtime telemetry (`/api/metrics` socket count, active Yjs docs/connections, heap usage).
+- **Users (`/admin/users`)**: Search/filter by status (`ACTIVE`, `SUSPENDED`, `BANNED`), suspend/unsuspend, ban/unban (revoking sessions & disconnecting sockets immediately), and delete accounts.
+- **Rooms (`/admin/rooms`)**: Filter by visibility/lock state, jump to rooms, lock/unlock, or delete rooms.
+- **Activity Logs (`/admin/logs`)**: Searchable audit log feed with individual log deletion and bulk clear controls.
 
 ---
 
 ## 🏗️ System Architecture
 
-CodeTogether uses an intentional **dual-channel real-time architecture**: high-volume CRDT document operations are isolated on a dedicated WebSocket relay, while room state, presence, voice signaling, and chat are orchestrated over Socket.IO.
-
 ```mermaid
 flowchart TD
-    subgraph Client["Frontend Client (React 18 + Vite)"]
+    subgraph Client["Frontend Client (React 18 + Vite 5)"]
         UI["UI Layer & Paper Themes"]
         Monaco["Monaco Editor"]
         YjsDoc["Yjs Document + y-monaco"]
@@ -107,19 +95,19 @@ flowchart TD
     end
 
     subgraph Realtime["Real-Time Gateway (Node.js Server)"]
-        YjsRelay["y-websocket Relay (/yjs)"]
+        YjsRelay["y-websocket Relay (/yjs) + Policy Cache"]
         SocketEngine["Socket.IO Server (/socket.io)"]
         ExpressApp["Express REST API (/api)"]
     end
 
     subgraph Data["Persistence & Scalability Layer"]
-        MongoDB[("MongoDB (Mongoose)\nUsers, Rooms, Messages, Logs")]
-        RedisCluster[("Redis (Optional)\nSocket.IO Adapter & Presence Hashes")]
+        MongoDB[("MongoDB (Mongoose)\nUsers, Rooms, YjsDocs, Revisions, Comments, Logs")]
+        RedisCluster[("Redis (Optional)\nSocket.IO Adapter, Yjs Pub/Sub, Presence & Rate Limits")]
     end
 
     subgraph Sandbox["Isolated Execution Sandbox"]
-        Judge0["Judge0 CE API (Primary)"]
-        Piston["Piston API (Fallback)"]
+        Judge0["Judge0 CE API"]
+        Piston["Piston API (Multi-File)"]
     end
 
     Monaco <--> YjsDoc
@@ -129,16 +117,13 @@ flowchart TD
     SocketClient -.->|Voice Signaling| SocketEngine
     UI -->|HTTPS / JSON| ExpressApp
 
-    SocketEngine <-->|Pub/Sub & Adapter| RedisCluster
+    YjsRelay <-->|Yjs Pub/Sub Bridge| RedisCluster
+    SocketEngine <-->|Adapter & Presence| RedisCluster
     ExpressApp <-->|Mongoose ODM| MongoDB
+    YjsRelay <-->|Binary Snapshots| MongoDB
     ExpressApp -->|REST Execution| Judge0
-    ExpressApp -.->|Automatic Fallback| Piston
+    ExpressApp <-->|Multi-File Execution| Piston
 ```
-
-### Why Separate `/yjs` and `/socket.io`?
-1. **CRDT Isolation**: Yjs synchronization uses raw binary message encoding (`lib0`) designed for sub-millisecond document sync. Keeping it on a dedicated WebSocket endpoint prevents heavy text editing deltas from queuing behind JSON chat messages or presence heartbeats.
-2. **Room Boundary Security**: Each document channel is isolated by `roomId:fileName`, preventing data leakage across different rooms or tabs.
-3. **Independent Scalability**: Real-time document sync and state orchestration can be load-balanced and scaled independently.
 
 ---
 
@@ -146,117 +131,82 @@ flowchart TD
 
 ```
 collaborative-code-editor/
-├── client/                          # React + Vite Frontend
-│   ├── public/                      # Static assets & favicon
+├── .github/workflows/ci.yml         # GitHub Actions CI (server tests + client build)
+├── .prettierrc                      # Shared formatting rules
+├── client/                          # React 18 + Vite 5 Frontend
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── chat/                # Marginalia Chat panel
-│   │   │   ├── common/              # Navbar, ThemeToggle, ErrorBoundary, PageLoading
-│   │   │   ├── editor/              # CollabEditor, FileTabs, FileExplorer, OutputConsole
-│   │   │   └── room/                # VoiceRoom, InterviewTimer, Modals (Share, File, Leave)
-│   │   ├── config/                  # Monaco theme definitions (parchment & midnight kraft)
-│   │   ├── constants/               # Language definitions, file badges, extensions
-│   │   ├── hooks/                   # useRoomSocket and connection lifecycle hooks
-│   │   ├── pages/                   # Landing, Login, Register, Dashboard, Room, Profile, Admin
-│   │   ├── services/                # api.js (Axios instance), socket.js (Socket.IO client)
+│   │   │   ├── chat/                # ChatPanel (pagination + mute state)
+│   │   │   ├── common/              # Navbar, ThemeToggle, ErrorBoundary, Guards
+│   │   │   ├── editor/              # CollabEditor, FileTabs, FileExplorer (tree + upload), OutputConsole (preview)
+│   │   │   └── room/                # VoiceRoom, InterviewTimer, WhiteboardPanel, CommentsPanel,
+│   │   │                            # RevisionsModal, ScorecardModal, HostSettingsModal, ParticipantsPanel
+│   │   ├── config/                  # Monaco paper themes
+│   │   ├── constants/               # Language definitions & badges
+│   │   ├── hooks/                   # useRoomSocket
+│   │   ├── pages/
+│   │   │   ├── admin/               # AdminLayout, AdminOverview, AdminUsers, AdminRooms, AdminLogs
+│   │   │   └── ...                  # Landing, Login, Register, ForgotPassword, ResetPassword, Dashboard, Room, Profile
+│   │   ├── services/                # api.js (Axios + token refresh), socket.js
 │   │   ├── store/                   # authStore.js, themeStore.js (Zustand)
-│   │   ├── utils/                   # clipboard.js, color.js (archival palette), zip.js
-│   │   ├── index.css                # Tailwind base + Paper theme tokens & textures
-│   │   └── main.jsx                 # Client entry point
-│   ├── index.html                   # HTML document template
-│   ├── tailwind.config.js           # Tailwind theme extensions (paper shadows, colors, fonts)
-│   └── vite.config.js               # Vite build configuration
+│   │   └── utils/                   # clipboard.js, color.js, zip.js
+│   └── vite.config.js               # Vite build + manualChunks splitting
 │
 ├── server/                          # Express + Node.js Backend
-│   ├── scripts/                     # Database migration & maintenance scripts
+│   ├── scripts/                     # Database migration scripts
 │   ├── src/
-│   │   ├── config/                  # MongoDB database connection
+│   │   ├── config/                  # db.js, env.js (Zod + CORS origins), redis.js
 │   │   ├── constants/               # Supported languages & Judge0/Piston mapping
 │   │   ├── controllers/             # authController, roomController, adminController
-│   │   ├── middleware/              # auth, admin, roomAccess, rateLimiter, validateRequest
-│   │   ├── models/                  # User, Room, Message, Execution, ActivityLog
+│   │   ├── middleware/              # auth, admin, roomAccess, rateLimiter (Redis/Memory), validateRequest
+│   │   ├── models/                  # User, Room, YjsDoc, DocRevision, CodeComment, Message, Execution, RefreshToken, ActivityLog
 │   │   ├── routes/                  # authRoutes, roomRoutes, adminRoutes
-│   │   ├── services/                # authService, roomService, executionService
-│   │   ├── sockets/                 # index.js (Socket.IO events), yjsServer.js (y-websocket)
-│   │   ├── utils/                   # jwt.js, guestToken.js, logger.js, presenceStore.js
-│   │   ├── validators/              # Zod validation schemas
-│   │   └── server.js                # Server entry point & graceful shutdown hooks
-│   └── tests/                       # 79 automated test suites (node --test)
+│   │   ├── services/                # authService, roomService, executionService, refreshTokenService
+│   │   ├── sockets/                 # index.js (Socket.IO), yjsServer.js (y-websocket + Redis bridge)
+│   │   ├── utils/                   # jwt.js, guestToken.js, logger.js (requestId), metrics.js, nanoid.js
+│   │   └── validators/              # Zod validation schemas
+│   └── tests/                       # 98 automated tests across 27 suites (node --test)
 │
-├── scripts/                         # Root helper scripts (concurrent dev runner)
-├── render.yaml                      # Render Infrastructure Blueprint (Server + Client)
-├── package.json                     # Root orchestrator package
-└── README.md                        # Project documentation
+├── scripts/dev.js                   # Concurrent client + server dev runner
+├── render.yaml                      # Render Blueprint (Server + Static Client)
+└── package.json                     # Root scripts (dev, test, build)
 ```
-
----
-
-## 💻 Tech Stack
-
-| Domain | Technology | Description |
-|---|---|---|
-| **Frontend Framework** | React 18 & Vite 5 | Modern component architecture with lightning-fast HMR |
-| **Styling & Design** | Tailwind CSS 3 | Bespoke paper design tokens, warm tactile shadows, custom scrollbars |
-| **Code Editor** | Monaco Editor (`@monaco-editor/react`) | VS Code editor core with dual paper themes |
-| **CRDT Synchronization**| Yjs, `y-monaco`, `y-websocket` | State-of-the-art conflict-free concurrent editing |
-| **Real-Time Messaging** | Socket.IO 4 | WebSocket transport for chat, presence, timer, and permissions |
-| **Audio Communication** | WebRTC (`RTCPeerConnection`) | Peer-to-peer browser mesh voice calling with STUN |
-| **State Management** | Zustand | Lightweight, reactive auth and theme state stores |
-| **Backend Runtime** | Node.js (>=18) & Express 4 | Robust REST API server and WebSocket upgrade handler |
-| **Database** | MongoDB & Mongoose 8 | Document storage with TTL indexes for token auto-expiry |
-| **Cache & Scaling** | Redis 4 & `@socket.io/redis-adapter` | Distributed room presence hashes and cross-node broadcasting |
-| **Code Execution** | Judge0 CE & Piston Sandboxes | Isolated remote compilation & execution with automatic fallback |
-| **Security & Auth** | JWT, bcrypt, Zod, Helmet | Token rotation, input validation, rate limiting, and RBAC |
-| **Testing** | Node.js Test Runner (`node --test`) | Native, zero-dependency unit and integration test suite |
 
 ---
 
 ## ⚡ Quick Start
 
 ### 1. Prerequisites
-- **Node.js**: `v18.0.0` or higher
-- **npm**: `v9.0.0` or higher
-- **MongoDB**: Local MongoDB instance (`mongodb://localhost:27017/collab-editor`) or a free [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster
-- **(Optional) Redis**: Local Redis server or cloud Redis (Upstash) for multi-node testing
+- **Node.js** `>= 18` & **npm** `>= 9`
+- **MongoDB** (`mongodb://localhost:27017/collab-editor` or MongoDB Atlas)
+- **(Optional) Redis** (`REDIS_URL`) for multi-instance Socket.IO, Yjs Pub/Sub, presence, and distributed rate limiting
 
-### 2. Clone the Repository
+### 2. Install & Configure
 ```bash
-git clone https://github.com/your-username/collaborative-code-editor.git
-cd collaborative-code-editor
-```
+npm install --prefix server
+npm install --prefix client
 
-### 3. Install Dependencies
-Install dependencies for both frontend and backend packages:
-```bash
-# Install backend dependencies
-cd server
-npm install
-
-# Install frontend dependencies
-cd ../client
-npm install
-
-# Return to root
-cd ..
-```
-
-### 4. Configure Environment Files
-Create `.env` files from the provided templates:
-
-```bash
 cp server/.env.example server/.env
 cp client/.env.example client/.env
 ```
+Set a strong `JWT_SECRET` (at least 32 characters) and `MONGO_URI` in `server/.env`.
 
-### 5. Start the Development Servers
-From the root directory, start both client and server concurrently:
+### 3. Run Locally
 ```bash
-npm run dev
+node scripts/dev.js
+# or: npm run dev
 ```
-
 - **Frontend**: [http://localhost:5173](http://localhost:5173)
 - **Backend API**: [http://localhost:5000/api](http://localhost:5000/api)
 - **WebSocket Gateway**: `http://localhost:5000` (`/socket.io` and `/yjs`)
+
+*(macOS note: if AirPlay Receiver occupies port `5000`, disable **AirPlay Receiver** in System Settings → General → AirDrop & Handoff, or change `PORT` in `server/.env` and `client/.env` to `5001`.)*
+
+### 4. Promote an Admin Account
+Sign up via `/register`, then promote your user in MongoDB:
+```bash
+mongosh "mongodb://localhost:27017/collab-editor" --eval 'db.users.updateOne({ email: "you@example.com" }, { $set: { role: "ADMIN" } })'
+```
 
 ---
 
@@ -266,267 +216,144 @@ npm run dev
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `PORT` | No | `5000` | HTTP port the Express server listens on |
-| `NODE_ENV` | No | `development` | Runtime environment (`development` or `production`) |
+| `PORT` | No | `5000` | HTTP/WebSocket server port |
+| `NODE_ENV` | No | `development` | `development`, `production`, or `test` |
 | `MONGO_URI` | **Yes** | `mongodb://localhost:27017/collab-editor` | MongoDB connection URI |
-| `JWT_SECRET` | **Yes** | — | Secret string (minimum 32 characters) for signing JWT tokens |
-| `JWT_EXPIRES_IN` | No | `15m` | Access token expiration duration |
-| `REFRESH_TOKEN_DAYS`| No | `30` | Refresh token lifespan in days |
-| `GUEST_TOKEN_TTL_HOURS` | No | `24` | Guest session token duration in hours |
-| `MAX_GUESTS_PER_ROOM` | No | `50` | Maximum concurrent active guests permitted per room |
-| `CLIENT_URL` | **Yes** | `http://localhost:5173` | Allowed frontend origin for CORS and cookies |
-| `JUDGE0_API_URL` | No | `https://ce.judge0.com` | Judge0 execution API endpoint |
-| `JUDGE0_API_KEY` | No | `""` | Judge0 API key (blank for official free CE instance) |
+| `JWT_SECRET` | **Yes** | — | Signing secret (minimum 32 chars, non-placeholder) |
+| `JWT_EXPIRES_IN` | No | `15m` | Access token TTL |
+| `REFRESH_TOKEN_DAYS` | No | `30` | Refresh token TTL in days |
+| `GUEST_TOKEN_TTL_HOURS` | No | `24` | Guest token & instant playground TTL in hours |
+| `MAX_GUESTS_PER_ROOM` | No | `50` | Maximum concurrent guests per room |
+| `CLIENT_URL` | **Yes** | `http://localhost:5173` | Comma-separated allowed CORS origins |
+| `JUDGE0_API_URL` | No | `https://ce.judge0.com` | Judge0 execution endpoint |
+| `JUDGE0_API_KEY` | No | `""` | Optional RapidAPI Judge0 key |
 | `JUDGE0_API_HOST` | No | `ce.judge0.com` | Judge0 host header |
-| `REDIS_URL` | No | `""` | Redis connection URL for multi-instance scaling |
+| `PISTON_API_URL` | No | `https://emkc.org/api/v2/piston` | Piston execution endpoint (multi-file capable) |
+| `ALLOW_UNSAFE_LOCAL_EXEC` | No | `false` | Enables offline JS `worker_threads` fallback in non-production only |
+| `REDIS_URL` | No | `""` | Enables Redis Socket.IO adapter, Yjs Pub/Sub, presence & rate limiting |
+| `TURN_URLS` | No | `""` | Comma-separated WebRTC TURN URLs |
+| `TURN_USERNAME` | No | `""` | TURN username |
+| `TURN_CREDENTIAL` | No | `""` | TURN credential |
+| `METRICS_TOKEN` | No | `""` | Optional bearer token for `/api/metrics` |
 
 ### Frontend (`client/.env`)
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `VITE_API_URL` | **Yes** | `http://localhost:5000/api` | Base URL for backend REST API endpoints |
-| `VITE_SOCKET_URL` | **Yes** | `http://localhost:5000` | Base URL for Socket.IO connection |
-| `VITE_YJS_URL` | **Yes** | `ws://localhost:5000/yjs` | WebSocket URL for Yjs CRDT relay (`wss://` in prod) |
+| `VITE_API_URL` | **Yes** | `http://localhost:5000/api` | Backend REST API base URL |
+| `VITE_SOCKET_URL` | **Yes** | `http://localhost:5000` | Socket.IO server URL |
+| `VITE_YJS_URL` | **Yes** | `ws://localhost:5000/yjs` | Yjs WebSocket URL (`wss://` in prod) |
 
 ---
 
 ## 📖 API Documentation
 
-All REST routes are prefixed with `/api`. Protected routes require an `Authorization: Bearer <token>` header or a valid session cookie.
+All REST routes are prefixed with `/api`.
 
-### 🩺 Health & Diagnostics
+### 🩺 Health & Telemetry
 | Method | Endpoint | Access | Description |
 |---|---|---|---|
-| `GET` | `/health` | Public | Returns database connection status, server uptime, and timestamp |
+| `GET` | `/health` | Public | DB, Redis, shutdown state, and uptime (`503` when degraded) |
+| `GET` | `/metrics` | `METRICS_TOKEN` or Admin | Memory, HTTP counters/latency, active sockets, and Yjs metrics |
 
 ### 🔐 Authentication (`/api/auth`)
 | Method | Endpoint | Access | Description |
 |---|---|---|---|
-| `POST` | `/register` | Public (Rate Limited) | Creates a new user account with hashed credentials |
-| `POST` | `/login` | Public (Rate Limited) | Authenticates user; returns access token and sets refresh cookie |
-| `POST` | `/refresh` | Public | Rotates refresh token and returns a fresh access token |
-| `POST` | `/logout` | Authenticated | Revokes the current refresh token chain and clears cookies |
-| `GET` | `/me` | Authenticated | Retrieves current user profile and permission details |
-| `PATCH` | `/me` | Authenticated | Updates full name and avatar URL |
-| `PATCH` | `/me/password` | Authenticated | Updates user password with validation check |
+| `POST` | `/register` | Public (Rate Limited) | Creates a `USER` account and issues access + refresh cookie |
+| `POST` | `/login` | Public (Rate Limited) | Authenticates active (non-suspended/non-banned) user |
+| `POST` | `/refresh` | Public | Rotates refresh cookie and returns a new access token |
+| `POST` | `/logout` | Public | Revokes current refresh token and clears cookie |
+| `POST` | `/logout-all` | Authenticated | Revokes all refresh token sessions for the user |
+| `POST` | `/forgot-password` | Public (Rate Limited) | Generates a 15-minute single-use password reset token |
+| `POST` | `/reset-password` | Public (Rate Limited) | Resets password and revokes existing refresh tokens |
+| `GET` | `/me` | Authenticated | Returns current user profile |
+| `PATCH` | `/me` | Authenticated | Updates full name and HTTPS avatar URL |
+| `DELETE` | `/me` | Authenticated | Password-confirmed account & owned-room deletion |
+| `PATCH` | `/me/password` | Authenticated | Changes password and revokes existing sessions |
+| `GET` | `/sessions` | Authenticated | Lists active refresh sessions |
+| `DELETE` | `/sessions/:sessionId` | Authenticated | Revokes a specific session |
 
-### 🏠 Rooms & Playground (`/api/rooms`)
+### 🏠 Rooms, Files, Revisions, Comments & Interviews (`/api/rooms`)
 | Method | Endpoint | Access | Description |
 |---|---|---|---|
-| `POST` | `/instant` | Public / Optional Auth | Spawns an immediate 1-click playground and guest token |
-| `POST` | `/` | Authenticated | Creates a permanent collaborative room |
-| `GET` | `/` | Authenticated | Lists all rooms owned, joined, or starred by the user |
-| `GET` | `/:roomId` | Member / Guest | Retrieves room metadata, settings, and file list |
-| `PATCH` | `/:roomId` | Room Host | Updates room name, description, settings, or lock status |
-| `DELETE` | `/:roomId` | Room Host | Permanently archives and deletes the room |
-| `POST` | `/:roomId/join` | Member / Guest | Enrolls user or guest into the room session |
-| `POST` | `/:roomId/leave`| Member / Guest | Exits the active room session |
-| `POST` | `/:roomId/star` | Authenticated | Toggles star / bookmark status for the room |
+| `GET` | `/ice-servers` | Public | Returns STUN + configured TURN ICE servers |
+| `POST` | `/instant` | Public / Optional Auth | Creates an expiring 1-click playground |
+| `POST` | `/` | Authenticated | Creates a room (supports `template`: `blank`, `algorithms`, `web-preview`, `multi-file-node`) |
+| `GET` | `/` | Authenticated | Lists owned, shared, and starred rooms |
+| `GET` | `/:roomId` | Member / Guest | Returns room details (strips `inviteCode` & `scorecard` for non-owners) |
+| `PATCH` | `/:roomId` | Room Host | Updates visibility, lock, chat mute, guest edit, default role |
+| `POST` | `/:roomId/invite/rotate` | Room Host | Rotates the private room invite secret |
+| `DELETE` | `/:roomId` | Room Host | Ends room and deletes Yjs docs, messages, revisions, comments |
+| `POST` | `/:roomId/join` | Member / Guest | Joins room (requires valid `inviteCode` for non-members on `PRIVATE` rooms) |
+| `POST` | `/:roomId/leave` | Member / Guest | Leaves room |
+| `POST` | `/:roomId/star` | Authenticated | Toggles room bookmark star |
 | `GET` | `/:roomId/messages` | Member / Guest | Cursor-paginated chat history (`?limit=50&before=<id>`) |
-
-### 🗂️ File Management (`/api/rooms/:roomId/files`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| `GET` | `/` | Member / Guest | Lists all files and languages in the room |
-| `POST` | `/` | Host / Editor | Creates a new file (validates against path traversal) |
-| `PUT` | `/:fileName` | Host / Editor | Persists file buffer / content changes |
-| `PATCH` | `/:fileName` | Host / Editor | Renames an existing file and updates language binding |
-| `DELETE` | `/:fileName` | Host / Editor | Deletes a file from the room |
-
-### ⚙️ Code Execution (`/api/rooms/:roomId/execute`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| `POST` | `/` | Host / Editor (Rate Limited) | Executes source code in sandbox with stdin support |
-
-### 👥 Member Governance (`/api/rooms/:roomId/members`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| `PATCH` | `/permission` | Room Host | Promotes or demotes member (`EDITOR` or `VIEWER`) |
-| `DELETE` | `/:username` | Room Host | Removes / kicks a member from the room |
+| `POST` | `/:roomId/execute` | Host / Editor | Runs code (with multi-file bundle + stdin) |
+| `POST` | `/:roomId/execute-batch` | Host / Editor | Runs up to 15 test cases in one call |
+| `PUT` | `/:roomId/test-cases` | Host / Editor | Updates and broadcasts shared room test cases |
+| `GET/POST/PUT/PATCH/DELETE` | `/:roomId/files...` | Host / Editor | Lists, creates, saves, renames, and deletes room files |
+| `GET/POST` | `/:roomId/files/:fileName/revisions` | Member / Editor | Lists or creates named version checkpoints |
+| `POST` | `/:roomId/files/:fileName/revisions/:revisionId/restore` | Host / Editor | Restores a checkpoint live into Yjs & MongoDB |
+| `GET/POST` | `/:roomId/comments` | Member / Editor | Lists or posts line-anchored code comments |
+| `PATCH` | `/:roomId/comments/:commentId/resolve` | Host / Editor | Toggles comment resolved state |
+| `DELETE` | `/:roomId/comments/:commentId` | Author / Host | Deletes a comment |
+| `GET/PUT` | `/:roomId/scorecard` | **Room Host Only** | Reads or updates private candidate scorecard |
+| `POST` | `/:roomId/members/invite` | Room Host | Directly invites a registered user by username or email |
+| `PATCH` | `/:roomId/members/permission` | Room Host | Changes a member's role (`EDITOR`, `VIEWER`, `GUEST`) |
+| `DELETE` | `/:roomId/members/:username` | Room Host | Kicks and bans a user from the room |
+| `POST` | `/:roomId/unban/:username` | Room Host | Removes a username from the room ban list |
 
 ### 🛡️ Administration Console (`/api/admin`)
 *Requires authenticated user with `ADMIN` role.*
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/stats` | Platform metrics (total users, rooms, executions, active scribes) |
-| `GET` | `/users` | Paginated user registry with account statuses |
-| `PATCH` | `/users/:userId/suspend` | Suspends an account, terminating active sessions |
-| `PATCH` | `/users/:userId/unsuspend` | Restores account privileges |
-| `DELETE` | `/users/:userId` | Permanently deletes a user record |
-| `GET` | `/rooms` | List of all platform rooms with membership counts |
-| `PATCH` | `/rooms/:roomId/lock` | Globally locks room against guest/member entry |
-| `PATCH` | `/rooms/:roomId/unlock` | Unlocks room for authorized scribes |
-| `DELETE` | `/rooms/:roomId` | Permanently deletes an abusive or orphaned room |
-| `GET` | `/activity-logs` | Auditing log stream for security compliance |
+| `GET` | `/stats` | Platform counts (users, active users/rooms, executions, messages) |
+| `GET` | `/users` | User registry list |
+| `PATCH` | `/users/:userId/suspend` / `unsuspend` | Suspends or restores user (revokes sessions & disconnects sockets) |
+| `PATCH` | `/users/:userId/ban` / `unban` | Bans or unbans user (revokes sessions & disconnects sockets) |
+| `DELETE` | `/users/:userId` | Deletes user and cascades owned rooms/sessions |
+| `GET` | `/rooms` | Lists rooms (excludes file contents, invite codes, and scorecards) |
+| `PATCH` | `/rooms/:roomId/lock` / `unlock` | Locks or unlocks a room globally |
+| `DELETE` | `/rooms/:roomId` | Deletes room and disconnects participants |
+| `GET` | `/activity-logs` | Lists audit activity logs |
+| `DELETE` | `/activity-logs/:logId` | Deletes a single audit log entry |
+| `DELETE` | `/activity-logs` | Clears audit logs (optionally filtered by `?type=`) |
 
 ---
 
 ## 📡 WebSocket & WebRTC Contracts
 
-### 1. Socket.IO Events (Namespace: `/`)
+### 1. Socket.IO Events (`/socket.io`)
+- **Client → Server:** `join-room`, `leave-room`, `heartbeat`, `presence-idle`, `chat-message`, `permission-change`, `file-created`, `file-deleted`, `file-renamed`, `file-language-change`, `execution-started`, `timer-sync` (`mode`, `durationSeconds`, `remainingSeconds`, `isRunning`), `active-file-sync`, `whiteboard-stroke`, `whiteboard-clear`, `voice-join`, `voice-signal`, `voice-mute`, `voice-leave`.
+- **Server → Client:** `presence-update`, `chat-message`, `timer-synced`, `execution-started`, `execution-completed`, `permission-change`, `file-created`, `file-deleted`, `file-renamed`, `file-language-changed`, `room-locked`, `room-settings-updated`, `test-cases-updated`, `comment-added`, `comment-updated`, `comment-deleted`, `revision-restored`, `participant-file-changed`, `whiteboard-stroke`, `whiteboard-cleared`, `room-ended`, `user-joined-voice`, `voice-signal`, `user-voice-mute`, `user-left-voice`, `error-event`.
 
-#### Client to Server
-```typescript
-// Join & Presence
-socket.emit("join-room", { roomId: string, guestToken?: string });
-socket.emit("leave-room", { roomId: string });
-socket.emit("heartbeat", { roomId: string });
-socket.emit("presence-idle", { roomId: string, idle: boolean });
-
-// Marginalia Chat
-socket.emit("chat-message", { roomId: string, text: string });
-
-// Interview Mode & Timer
-socket.emit("timer-sync", { roomId: string, seconds: number, isRunning: boolean });
-
-// File Tree Operations
-socket.emit("file-created", { roomId: string, file: { name: string, language: string } });
-socket.emit("file-renamed", { roomId: string, oldName: string, newName: string });
-socket.emit("file-deleted", { roomId: string, fileName: string });
-socket.emit("file-language-change", { roomId: string, fileName: string, language: string });
-
-// Execution Broadcasts
-socket.emit("execution-started", { roomId: string, language: string });
-
-// WebRTC Voice Signaling
-socket.emit("voice-join", { roomId: string });
-socket.emit("voice-signal", { roomId: string, targetSocketId: string, signal: RTCSessionDescriptionInit | RTCIceCandidateInit });
-socket.emit("voice-mute", { roomId: string, isMuted: boolean });
-socket.emit("voice-leave", { roomId: string });
-```
-
-#### Server to Client Broadcasts
-```typescript
-socket.on("room-joined", (data: { room: RoomObject, role: string, user: UserSummary }) => void);
-socket.on("presence-update", (participants: Array<{ username: string, status: string, connections: number }>) => void);
-socket.on("chat-message", (message: { _id: string, username: string, text: string, createdAt: string }) => void);
-socket.on("timer-synced", (data: { seconds: number, isRunning: boolean }) => void);
-socket.on("file-created", (file: { name: string, language: string }) => void);
-socket.on("file-renamed", (data: { oldName: string, newName: string }) => void);
-socket.on("file-deleted", (data: { fileName: string }) => void);
-socket.on("file-language-changed", (data: { fileName: string, language: string }) => void);
-socket.on("execution-started", (data: { username: string, language: string }) => void);
-socket.on("execution-completed", (result: ExecutionResultObject) => void);
-socket.on("permission-changed", (data: { username: string, role: string }) => void);
-socket.on("room-locked", (data: { locked: boolean }) => void);
-socket.on("user-joined-voice", (data: { socketId: string, username: string }) => void);
-socket.on("user-left-voice", (data: { socketId: string }) => void);
-socket.on("voice-signal", (data: { sourceSocketId: string, signal: any }) => void);
-socket.on("error-event", (error: { message: string }) => void);
-```
-
-### 2. Yjs Document Synchronization Protocol (`/yjs`)
-Connect via `WebsocketProvider` from `y-websocket`:
-```javascript
-import * as Y from "yjs";
-import { WebsocketProvider } from "y-websocket";
-
-const ydoc = new Y.Doc();
-const provider = new WebsocketProvider(
-  process.env.VITE_YJS_URL, // e.g. "ws://localhost:5000/yjs"
-  `${roomId}:${fileName}`,   // Room document namespace
-  ydoc,
-  { params: { token: authToken } }
-);
-
-// Bind to Monaco Editor model
-const ytext = ydoc.getText("monaco");
-new MonacoBinding(ytext, editor.getModel(), new Set([editor]), provider.awareness);
-```
+### 2. Yjs CRDT Relay (`/yjs`)
+Connect via `WebsocketProvider(VITE_YJS_URL, `${roomId}:${fileName}`, ydoc, { params: { token } })` and bind `ydoc.getText("monaco")` via `y-monaco`.
 
 ---
 
-## 🎨 Paper Design System
-
-CodeTogether implements a tactile **Editorial Paper Design System** inspired by classical print, fine stationery, and mechanical desk instruments.
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        EDITORIAL PARCHMENT (LIGHT)                     │
-├─────────────────┬──────────────────────────────────────────────────────┤
-│ Canvas          │ Warm Ivory Vellum (#F7F4EB)                          │
-│ Paper Sheets    │ Crisp Cotton Paper Sheet (#FFFFFF)                   │
-│ Pressed Board   │ Inset Kraft Board (#F0EADE)                          │
-│ Sealing Wax     │ Terracotta Red-Orange (#C2542D)                      │
-│ Postal Stamp    │ Forest Olive Sage (#3C6E47)                          │
-│ Primary Ink     │ Walnut Fountain Pen Ink (#221C16)                    │
-│ Annotations     │ Graphite Pencil (#73685C)                            │
-└─────────────────┴──────────────────────────────────────────────────────┘
-┌────────────────────────────────────────────────────────────────────────┐
-│                         MIDNIGHT KRAFT (DARK)                          │
-├─────────────────┬──────────────────────────────────────────────────────┤
-│ Canvas          │ Matte Charcoal Paper (#181715)                       │
-│ Cardstock       │ Deep Dark Cardstock (#201F1B)                        │
-│ Pressed Board   │ Elevated Pressed Kraft (#2A2822)                     │
-│ Sealing Wax     │ Amber Copper Seal (#E08338)                          │
-│ Patina Stamp    │ Dried Patina Sage (#5B9B74)                          │
-│ Primary Ink     │ Bone-White Gel Ink (#ECE7DC)                         │
-│ Dust Ash        │ Warm Ash Dust (#969082)                              │
-└─────────────────┴──────────────────────────────────────────────────────┘
-```
-
-- **Micro-Texture**: An ultra-subtle fractal noise SVG overlay simulates the fibrous tooth of cotton paper.
-- **Ambient Occlusion**: `shadow-paper` classes cast warm, diffuse light rather than harsh digital drop shadows.
-- **Physical Tabs**: File tabs replicate index notebook dividers with a top wax ruling connecting seamlessly to the active paper editor sheet.
-
----
-
-## 🧪 Testing
-
-The backend includes a comprehensive test suite executed through Node's native test runner (`node --test`), requiring zero external dependencies.
+## 🧪 Testing & CI
 
 ```bash
-cd server
-npm test
+# Run all server unit & route tests (98 tests across 27 suites)
+npm test --prefix server
+
+# Build client production bundle (with manualChunks splitting)
+npm run build --prefix client
 ```
 
-### Test Coverage Highlights (79 Passing Tests across 22 Suites)
-- **Security & Path Traversal (`roomValidators.test.js` & `securityHardening.test.js`)**: Verifies that relative paths (`../`), absolute paths (`/etc/passwd`), null bytes, and traversal segments are rejected.
-- **Token Cryptography (`jwt.test.js` & `guestAuth.test.js`)**: Validates secret strength checks, sign/verify cycles, tamper resistance, and cross-room forgery defense.
-- **Role Model & Truth Tables (`roles.test.js`)**: Exhaustive truth tables confirming permissions for `HOST`, `EDITOR`, `VIEWER`, and `GUEST`.
-- **Chat Pagination & Ordering (`chatHistory.test.js`)**: Validates cursor pagination (`?limit=50&before=<id>`) and message bounds.
-- **Presence De-duplication (`presence.test.js`)**: Merges multi-tab connections and purges stale records (>60s).
-- **Execution Fallback (`executionService.test.js`)**: Tests primary sandbox parsing and verified fallback to Piston upon error response.
-- **Lifecycle & Graceful Shutdown (`lifecycle.test.js`)**: Confirms ordered resource teardown (HTTP servers, socket connections, Redis pools, MongoDB handles).
+GitHub Actions CI ([.github/workflows/ci.yml](file:///Users/charansai/Documents/collaborative-code-editor/.github/workflows/ci.yml)) automatically runs `npm test` in `server/` and `npm run build` in `client/` on pushes and pull requests.
 
 ---
 
-## 🚀 Deployment Guide
+## 🚀 Deployment Guide (`render.yaml`)
 
-### Deploying to Render via Blueprint (`render.yaml`)
-
-This repository includes a `render.yaml` specification that provisions both frontend and backend automatically:
-
-1. Push this repository to your GitHub or GitLab account.
-2. In the [Render Dashboard](https://dashboard.render.com), click **New +** → **Blueprint**.
-3. Select your repository. Render parses `render.yaml` and sets up:
-   - **`collab-editor-server`**: Node.js Web Service running `server/`.
-   - **`collab-editor-client`**: Static Site hosting `client/dist` with SPA redirect rules (`/* → /index.html`).
-4. Fill in the environment variables marked `sync: false`:
-   - `MONGO_URI`: Your MongoDB Atlas connection string.
-   - `CLIENT_URL`: `https://<your-client-subdomain>.onrender.com`
-   - `VITE_API_URL`: `https://<your-server-subdomain>.onrender.com/api`
-   - `VITE_SOCKET_URL`: `https://<your-server-subdomain>.onrender.com`
-   - `VITE_YJS_URL`: `wss://<your-server-subdomain>.onrender.com/yjs` *(Render terminates SSL; use `wss://`)*
-5. Trigger a build. Both services will be live with TLS automatically provisioned.
-
----
-
-## 🔒 Security Best Practices
-
-- **Zero Arbitrary Execution**: User code is never executed directly on the application server. All runs are executed in isolated, sandboxed containers with strict CPU, memory, and timeout limits.
-- **Token Rotation & Replay Revocation**: Refresh tokens are single-use SHA-256 hashes. If an attacker attempts to replay a rotated token, all active tokens for that user session are immediately invalidated.
-- **Defense in Depth**: Access control is enforced at the database, REST middleware, and WebSocket event handler layers. Hiding a button on the client is never the sole protection.
-- **Redacted Logging**: Password fields, JWT secrets, and bearer tokens are automatically stripped before reaching log files.
+1. Push this repository to GitHub/GitLab and import via **New + → Blueprint** in Render (`render.yaml`).
+2. Populate the `sync: false` environment variables (`MONGO_URI`, `CLIENT_URL`, `VITE_API_URL`, `VITE_SOCKET_URL`, `VITE_YJS_URL`, and optional `REDIS_URL` / `TURN_*` / `JUDGE0_API_KEY`).
+3. For optimal cross-origin cookie behavior (`SameSite=Lax`), front both services under one domain/reverse proxy routing `/api`, `/socket.io`, and `/yjs` to the backend.
 
 ---
 
 ## 📄 License
 
-This project is open-source and licensed under the [MIT License](LICENSE).
-
----
-
-<div align="center">
-  <sub>Crafted with precision in Editorial Parchment & Midnight Kraft.</sub>
-</div>
+Licensed under the [MIT License](LICENSE).
