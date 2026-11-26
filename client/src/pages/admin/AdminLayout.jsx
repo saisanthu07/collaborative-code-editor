@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { Shield, LayoutDashboard, Users, FolderKanban, Activity, ArrowLeft } from "lucide-react";
-import Navbar from "../../components/common/Navbar.jsx";
+import AppShell from "../../components/common/AppShell.jsx";
 
 const TABS = [
   { to: "/admin", label: "Overview", icon: LayoutDashboard, end: true },
@@ -11,30 +11,17 @@ const TABS = [
 
 export default function AdminLayout() {
   return (
-    <div className="min-h-dvh bg-bg text-gray-100 flex flex-col overflow-x-clip">
-      <Navbar />
-      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 space-y-6 flex-1 w-full">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/25 flex items-center justify-center text-accent shadow-paper-sm">
-              <Shield size={20} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-xl font-bold font-serif text-gray-100">Archival Administration</h1>
-                <Link
-                  to="/dashboard"
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-gray-100 px-2 py-0.5 rounded-md border border-border bg-surface hover:bg-surface2 transition-colors"
-                >
-                  <ArrowLeft size={11} />
-                  <span>Dashboard</span>
-                </Link>
-              </div>
-              <p className="text-xs text-gray-400">Platform registry, moderation, and audit governance</p>
-            </div>
-          </div>
-
-          <nav aria-label="Admin sections" className="flex items-center gap-1 bg-surface border border-border rounded-xl p-1 overflow-x-auto no-scrollbar">
+    <AppShell
+      eyebrowIcon={Shield}
+      eyebrow="Platform Governance"
+      title="Archival Administration"
+      subtitle="Monitor live runtime telemetry, manage user accounts, moderate collaborative rooms, and inspect audit logs."
+      headerRight={
+        <div className="flex flex-wrap items-center gap-2">
+          <nav
+            aria-label="Admin sections"
+            className="flex items-center gap-1 bg-surface border border-border rounded-xl p-1 overflow-x-auto no-scrollbar shadow-paper-sm"
+          >
             {TABS.map(({ to, label, icon: Icon, end }) => (
               <NavLink
                 key={to}
@@ -53,10 +40,17 @@ export default function AdminLayout() {
               </NavLink>
             ))}
           </nav>
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-300 hover:text-gray-100 px-3 py-2 rounded-xl border border-border bg-surface hover:bg-surface2 transition-colors shadow-paper-sm shrink-0"
+          >
+            <ArrowLeft size={13} />
+            <span>Dashboard</span>
+          </Link>
         </div>
-
-        <Outlet />
-      </main>
-    </div>
+      }
+    >
+      <Outlet />
+    </AppShell>
   );
 }

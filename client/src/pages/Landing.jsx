@@ -175,7 +175,7 @@ export default function Landing() {
       </header>
 
       {/* Hero + Live Interactive Preview (Fits 100% Viewport Above the Fold) */}
-      <section className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-8 sm:py-12 lg:py-0 lg:min-h-[calc(100dvh-65px)] flex items-center">
+      <section className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-10 sm:py-12 lg:py-10 lg:min-h-[calc(100dvh-65px)] flex items-center">
         <div className="w-full grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           {/* Left Hero Copy & CTAs */}
           <div className="lg:col-span-6 space-y-6 text-center lg:text-left">

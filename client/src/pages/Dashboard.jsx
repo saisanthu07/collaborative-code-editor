@@ -16,10 +16,11 @@ import {
   ArrowRight,
   SlidersHorizontal,
   MailWarning,
+  Terminal,
 } from "lucide-react";
 import { api } from "../services/api.js";
 import { useAuthStore } from "../store/authStore.js";
-import Navbar from "../components/common/Navbar.jsx";
+import AppShell from "../components/common/AppShell.jsx";
 import { LANGUAGES } from "../constants/languages.js";
 import CreateRoomModal, { ROOM_TEMPLATES } from "../components/dashboard/CreateRoomModal.jsx";
 import DeleteRoomModal from "../components/dashboard/DeleteRoomModal.jsx";
@@ -242,77 +243,64 @@ export default function Dashboard() {
     { key: "completed", label: "Completed", count: completedRooms.length },
   ];
 
-  return (
-    <div className="min-h-dvh bg-bg text-gray-100 flex flex-col relative overflow-x-clip selection:bg-accent/25">
-      {/* Subtle editorial radial paper glow */}
-      <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-32 -left-24 w-96 h-96 rounded-full bg-accent/10 blur-3xl" />
-        <div className="absolute -bottom-32 -right-24 w-96 h-96 rounded-full bg-accent2/10 blur-3xl" />
+  const verificationBanner =
+    user && user.emailVerified === false && !verifyBannerDismissed ? (
+      <div className="bg-surface border border-amber-500/35 rounded-2xl px-4 py-3 shadow-paper-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-start sm:items-center gap-2.5 text-xs text-gray-300">
+          <MailWarning size={16} className="text-amber-500 shrink-0 mt-0.5 sm:mt-0" />
+          <div>
+            <span>
+              Verify your email (<span className="font-mono text-gray-200">{user.email}</span>) to protect account recovery.
+            </span>
+            {devVerifyToken && (
+              <Link
+                to={`/verify-email?token=${encodeURIComponent(devVerifyToken)}`}
+                className="ml-2 text-accent underline font-semibold font-mono"
+              >
+                Verify now →
+              </Link>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          <button
+            type="button"
+            onClick={handleResendVerify}
+            disabled={resendingVerify}
+            className="text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-3 py-1 rounded-lg transition-colors disabled:opacity-60"
+          >
+            {resendingVerify ? "Sending..." : "Send Verification"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setVerifyBannerDismissed(true)}
+            aria-label="Dismiss verification reminder"
+            className="p-1 text-gray-400 hover:text-gray-100 rounded-lg"
+          >
+            <X size={14} />
+          </button>
+        </div>
       </div>
+    ) : null;
 
-      <Navbar />
-
-      <main className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 flex-1 w-full space-y-7">
-        {user && user.emailVerified === false && !verifyBannerDismissed && (
-          <div className="bg-surface border border-amber-500/35 rounded-2xl px-4 py-3 shadow-paper-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-start sm:items-center gap-2.5 text-xs text-gray-300">
-              <MailWarning size={16} className="text-amber-500 shrink-0 mt-0.5 sm:mt-0" />
-              <div>
-                <span>
-                  Verify your email (<span className="font-mono text-gray-200">{user.email}</span>) to protect account recovery.
-                </span>
-                {devVerifyToken && (
-                  <Link
-                    to={`/verify-email?token=${encodeURIComponent(devVerifyToken)}`}
-                    className="ml-2 text-accent underline font-semibold font-mono"
-                  >
-                    Verify now →
-                  </Link>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-              <button
-                type="button"
-                onClick={handleResendVerify}
-                disabled={resendingVerify}
-                className="text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-3 py-1 rounded-lg transition-colors disabled:opacity-60"
-              >
-                {resendingVerify ? "Sending..." : "Send Verification"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setVerifyBannerDismissed(true)}
-                aria-label="Dismiss verification reminder"
-                className="p-1 text-gray-400 hover:text-gray-100 rounded-lg"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Editorial Workspace Header */}
-        <section className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 border-b border-border pb-7">
-          <div className="space-y-2.5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-surface text-accent text-xs font-medium shadow-paper-sm">
-              <Feather size={12} aria-hidden="true" />
-              <span>Developer Studio</span>
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold font-serif tracking-tight text-gray-100">
-              Welcome back,{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent via-[#B8741A] to-accent2">
-                {displayName}
-              </span>
-              .
-            </h1>
-            <p className="text-sm text-gray-400 max-w-xl leading-relaxed">
-              Launch a permanent coding room from a starter template, spin up an instant playground, or pick up right where your team left off.
-            </p>
-          </div>
-
-          {/* Workspace Summary Counters */}
-          <div className="grid grid-cols-3 divide-x divide-border bg-surface border border-border rounded-2xl shadow-paper shrink-0 w-full lg:w-auto lg:min-w-[320px]">
+  return (
+    <>
+      <AppShell
+        eyebrowIcon={Feather}
+        eyebrow="Developer Studio"
+        title={
+          <>
+            Welcome back,{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent via-[#B8741A] to-accent2">
+              {displayName}
+            </span>
+            .
+          </>
+        }
+        subtitle="Launch a permanent coding room from a starter template, spin up an instant playground, or pick up right where your team left off."
+        topBanner={verificationBanner}
+        headerRight={
+          <div className="grid grid-cols-3 divide-x divide-border bg-surface border border-border rounded-2xl shadow-paper w-full lg:w-auto lg:min-w-[320px]">
             <button
               type="button"
               onClick={() => setFilterTab("owned")}
@@ -338,7 +326,8 @@ export default function Dashboard() {
               <div className="text-[11px] text-gray-400 font-mono mt-0.5">Starred</div>
             </button>
           </div>
-        </section>
+        }
+      >
 
         {/* Action Studio Row */}
         <section className="grid lg:grid-cols-12 gap-4">
@@ -359,7 +348,14 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <Link
+                  to="/compily"
+                  className="inline-flex items-center gap-1.5 text-xs bg-surface2 hover:bg-border text-gray-200 border border-border px-3 py-2 rounded-xl font-semibold transition-colors shadow-paper-sm"
+                >
+                  <Terminal size={13} className="text-accent" />
+                  <span>Compily</span>
+                </Link>
                 <button
                   type="button"
                   onClick={handleInstantPlayground}
@@ -446,8 +442,8 @@ export default function Dashboard() {
         {/* Rooms Library */}
         <section className="space-y-4">
           {/* Filter & Search Toolbar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="flex items-center gap-1 bg-surface border border-border rounded-xl p-1 w-full md:w-fit overflow-x-auto shadow-paper-sm">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+            <div className="flex items-center gap-1 bg-surface border border-border rounded-xl p-1 w-full xl:w-fit overflow-x-auto no-scrollbar shadow-paper-sm">
               {tabs.map((tab) => (
                 <button
                   key={tab.key}
@@ -698,7 +694,7 @@ export default function Dashboard() {
             </div>
           )}
         </section>
-      </main>
+      </AppShell>
 
       <CreateRoomModal
         open={showCreate}
@@ -715,6 +711,6 @@ export default function Dashboard() {
         onClose={() => !deletingRoom && setRoomToDelete(null)}
         onConfirm={handleDeleteRoom}
       />
-    </div>
+    </>
   );
 }

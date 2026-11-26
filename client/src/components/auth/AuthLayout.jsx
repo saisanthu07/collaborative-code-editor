@@ -60,8 +60,8 @@ export default function AuthLayout({
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-10 py-5 sm:py-8">
-        <div className="w-full max-w-[1440px] grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+      <main className="relative z-10 flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
+        <div className="w-full max-w-[1600px] grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           {/* Left Editorial Showcase (Desktop) */}
           <aside className="hidden lg:flex lg:col-span-6 flex-col justify-between space-y-7 pr-2">
             <div className="space-y-4">
@@ -144,7 +144,7 @@ export default function AuthLayout({
           </aside>
 
           {/* Right Form Card */}
-          <section className="lg:col-span-6 w-full max-w-md mx-auto">
+          <section className="lg:col-span-6 w-full max-w-lg mx-auto">
             <div className="bg-surface border border-border rounded-2xl shadow-paper-lg overflow-hidden">
               <div className="p-6 sm:p-8">
                 {children}

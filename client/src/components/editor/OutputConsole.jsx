@@ -106,12 +106,12 @@ function OutputConsole({
       role="region"
       aria-label="Code execution output, input, test cases, and web preview panel"
     >
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface/70 shrink-0 overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between gap-2 px-2.5 sm:px-3 py-1.5 border-b border-border bg-surface/70 shrink-0 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1 min-w-0">
           <button
             type="button"
             onClick={() => setActiveTab("output")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors shrink-0 ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-sans font-medium transition-colors shrink-0 ${
               activeTab === "output"
                 ? "bg-surface2 text-accent border border-border/80 shadow-paper-sm font-semibold"
                 : "text-gray-400 hover:text-gray-100 hover:bg-surface2/50"
@@ -135,14 +135,14 @@ function OutputConsole({
           <button
             type="button"
             onClick={() => setActiveTab("stdin")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors relative shrink-0 ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-sans font-medium transition-colors relative shrink-0 ${
               activeTab === "stdin"
                 ? "bg-surface2 text-accent border border-border/80 shadow-paper-sm font-semibold"
                 : "text-gray-400 hover:text-gray-100 hover:bg-surface2/50"
             }`}
           >
             <CornerDownLeft size={13} aria-hidden="true" />
-            <span>Input (stdin)</span>
+            <span>Stdin</span>
             {stdin.trim().length > 0 && (
               <span className="text-[10px] bg-accent/15 text-accent font-semibold px-1.5 rounded-full">
                 Active
@@ -153,14 +153,14 @@ function OutputConsole({
           <button
             type="button"
             onClick={() => setActiveTab("testcases")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors shrink-0 ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-sans font-medium transition-colors shrink-0 ${
               activeTab === "testcases"
                 ? "bg-surface2 text-accent border border-border/80 shadow-paper-sm font-semibold"
                 : "text-gray-400 hover:text-gray-100 hover:bg-surface2/50"
             }`}
           >
             <CheckSquare size={13} aria-hidden="true" />
-            <span>Test Cases</span>
+            <span>Tests</span>
             {testCases.length > 0 && (
               <span
                 className={`text-[10px] font-semibold px-1.5 rounded-full ${
@@ -182,14 +182,14 @@ function OutputConsole({
               setActiveTab("preview");
               setPreviewNonce((n) => n + 1);
             }}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors shrink-0 ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-sans font-medium transition-colors shrink-0 ${
               activeTab === "preview"
                 ? "bg-surface2 text-accent border border-border/80 shadow-paper-sm font-semibold"
                 : "text-gray-400 hover:text-gray-100 hover:bg-surface2/50"
             }`}
           >
             <Globe size={13} aria-hidden="true" />
-            <span>Web Preview</span>
+            <span>Preview</span>
           </button>
         </div>
 

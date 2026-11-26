@@ -6,6 +6,7 @@ import {
   monacoLangFor,
   getFileBadge,
 } from "../src/constants/languages.js";
+import { getCompilyTemplate } from "../src/constants/compilyTemplates.js";
 
 describe("Client utilities", () => {
   test("colorForUser returns deterministic hex colors", () => {
@@ -27,5 +28,11 @@ describe("Client utilities", () => {
     assert.equal(monacoLangFor("unknown"), "plaintext");
     assert.equal(getFileBadge("index.ts").text, "TS");
     assert.equal(getFileBadge("data.json").text, "{}");
+  });
+
+  test("getCompilyTemplate provides starter templates per language", () => {
+    assert.equal(getCompilyTemplate("python").fileName, "main.py");
+    assert.match(getCompilyTemplate("cpp").code, /iostream/);
+    assert.equal(getCompilyTemplate("unknown").fileName, "index.js");
   });
 });

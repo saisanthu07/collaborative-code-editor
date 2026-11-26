@@ -14,6 +14,7 @@ const ForgotPassword = lazy(() => import("./pages/ForgotPassword.jsx"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword.jsx"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail.jsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.jsx"));
+const Compily = lazy(() => import("./pages/Compily.jsx"));
 const Room = lazy(() => import("./pages/Room.jsx"));
 const Profile = lazy(() => import("./pages/Profile.jsx"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout.jsx"));
@@ -68,6 +69,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/compily"
+            element={
+              <ProtectedRoute>
+                <Compily />
               </ProtectedRoute>
             }
           />

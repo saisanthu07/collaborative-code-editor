@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { LogOut, User, Shield, LayoutDashboard } from "lucide-react";
+import { LogOut, User, Shield, LayoutDashboard, Terminal } from "lucide-react";
 import { useAuthStore } from "../../store/authStore.js";
 import { api } from "../../services/api.js";
 import { disconnectSocket } from "../../services/socket.js";
@@ -50,6 +50,20 @@ export default function Navbar() {
               >
                 <LayoutDashboard size={15} aria-hidden="true" />
                 <span className="hidden sm:inline">Dashboard</span>
+              </NavLink>
+              <NavLink
+                to="/compily"
+                aria-label="Compily Personal Compiler"
+                className={({ isActive }) =>
+                  `flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all focus:outline-none focus:ring-2 focus:ring-accent text-xs font-medium ${
+                    isActive
+                      ? "bg-accent/10 text-accent border-accent/25 font-semibold shadow-paper-sm"
+                      : "border-transparent text-gray-300 hover:text-gray-100 hover:border-border hover:bg-surface2"
+                  }`
+                }
+              >
+                <Terminal size={15} aria-hidden="true" />
+                <span className="hidden sm:inline">Compily</span>
               </NavLink>
               <NavLink
                 to="/profile"

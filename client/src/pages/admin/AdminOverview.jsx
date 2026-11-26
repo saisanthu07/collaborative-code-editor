@@ -47,7 +47,7 @@ export default function AdminOverview() {
       </div>
 
       {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3.5">
           {Object.entries(stats).map(([key, value]) => (
             <div key={key} className="bg-surface border border-border rounded-2xl p-4 shadow-paper">
               <div className="text-xs font-semibold text-gray-400 capitalize font-mono">

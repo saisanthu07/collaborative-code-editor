@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { api } from "../services/api.js";
 import { useAuthStore } from "../store/authStore.js";
-import Navbar from "../components/common/Navbar.jsx";
+import AppShell from "../components/common/AppShell.jsx";
 import { copyToClipboard } from "../utils/clipboard.js";
 import { colorForUser } from "../utils/color.js";
 
@@ -222,39 +222,21 @@ export default function Profile() {
     : null;
 
   return (
-    <div className="min-h-dvh bg-bg text-gray-100 flex flex-col relative overflow-x-clip selection:bg-accent/25">
-      {/* Subtle editorial radial paper glow */}
-      <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-32 -left-24 w-96 h-96 rounded-full bg-accent/10 blur-3xl" />
-        <div className="absolute -bottom-32 -right-24 w-96 h-96 rounded-full bg-accent2/10 blur-3xl" />
-      </div>
-
-      <Navbar />
-
-      <main className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 flex-1 w-full space-y-7">
-        {/* Top Breadcrumb & Title */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-surface text-accent text-xs font-medium shadow-paper-sm">
-              <Feather size={12} aria-hidden="true" />
-              <span>Account &amp; Security</span>
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold font-serif tracking-tight text-gray-100">
-              Developer Profile
-            </h1>
-            <p className="text-sm text-gray-400">
-              Manage your public collaborative identity, password credentials, and active device sessions.
-            </p>
-          </div>
-
-          <Link
-            to="/dashboard"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-300 hover:text-gray-100 px-3.5 py-2 rounded-xl border border-border bg-surface hover:bg-surface2 transition-colors shadow-paper-sm w-fit shrink-0"
-          >
-            <ArrowLeft size={14} />
-            <span>Back to Dashboard</span>
-          </Link>
-        </div>
+    <AppShell
+      eyebrowIcon={Feather}
+      eyebrow="Account & Security"
+      title="Developer Profile"
+      subtitle="Manage your public collaborative identity, password credentials, and active device sessions."
+      headerRight={
+        <Link
+          to="/dashboard"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-300 hover:text-gray-100 px-3.5 py-2 rounded-xl border border-border bg-surface hover:bg-surface2 transition-colors shadow-paper-sm w-fit shrink-0"
+        >
+          <ArrowLeft size={14} />
+          <span>Back to Dashboard</span>
+        </Link>
+      }
+    >
 
         {/* Identity Summary Banner */}
         <section className="bg-surface border border-border rounded-2xl p-5 sm:p-6 shadow-paper flex flex-col md:flex-row md:items-center justify-between gap-5">
@@ -789,7 +771,6 @@ export default function Profile() {
             </section>
           </div>
         </div>
-      </main>
-    </div>
+    </AppShell>
   );
 }

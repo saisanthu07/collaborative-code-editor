@@ -141,7 +141,7 @@ export default function AdminUsers() {
           </div>
         ) : (
           filtered.map((u) => (
-            <div key={u._id} className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 text-sm gap-2">
+            <div key={u._id} className="flex flex-col md:flex-row md:items-center justify-between px-4 sm:px-5 py-3.5 text-sm gap-2.5 hover:bg-surface2/35 transition-colors">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-semibold text-gray-200">{u.username}</span>

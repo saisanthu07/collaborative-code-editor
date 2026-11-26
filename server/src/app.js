@@ -16,6 +16,7 @@ import { adminMiddleware } from "./middleware/adminMiddleware.js";
 import authRoutes from "./routes/authRoutes.js";
 import roomRoutes from "./routes/roomRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import compilyRoutes from "./routes/compilyRoutes.js";
 
 export function createApp() {
   const app = express();
@@ -103,6 +104,7 @@ export function createApp() {
 
   app.use("/api/auth", authRoutes);
   app.use("/api/rooms", roomRoutes);
+  app.use("/api/compily", compilyRoutes);
   app.use("/api/admin", adminRoutes);
 
   app.use(notFoundHandler);
