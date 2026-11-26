@@ -153,6 +153,40 @@ export async function deleteRoomYjsDocs(roomId) {
   await YjsDoc.deleteMany({ roomId });
 }
 
+export async function restoreYjsDocContent(roomId, fileName, newContent) {
+  const docName = `${roomId}:${fileName}`;
+  const existingDoc = docs.get(docName);
+
+  if (existingDoc) {
+    const yText = existingDoc.getText("monaco");
+    existingDoc.transact(() => {
+      if (yText.length > 0) yText.delete(0, yText.length);
+      if (newContent) yText.insert(0, newContent);
+    });
+    await persistYjsDoc(docName, roomId, fileName, existingDoc);
+    return;
+  }
+
+  const tempDoc = new Y.Doc();
+  if (newContent) {
+    tempDoc.getText("monaco").insert(0, newContent);
+  }
+  const state = Buffer.from(Y.encodeStateAsUpdate(tempDoc));
+  tempDoc.destroy();
+
+  await Promise.all([
+    YjsDoc.findOneAndUpdate(
+      { docName },
+      { docName, roomId, fileName, state },
+      { upsert: true }
+    ),
+    Room.updateOne(
+      { roomId, "files.name": fileName },
+      { $set: { "files.$.content": newContent, lastActiveAt: new Date() } }
+    ),
+  ]);
+}
+
 export function getYjsMetrics() {
   return {
     activeDocs: docs.size,

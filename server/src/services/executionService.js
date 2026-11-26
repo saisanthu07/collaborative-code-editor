@@ -21,21 +21,31 @@ function judge0Headers() {
 }
 
 /**
- * Executes code using the Piston engine (emkc.org or self-hosted)
+ * Executes code using the Piston engine (emkc.org or self-hosted) with optional multi-file bundle.
  */
-export async function runCodeViaPiston({ language, sourceCode, stdin = "" }) {
+export async function runCodeViaPiston({
+  language,
+  sourceCode,
+  stdin = "",
+  activeFileName = null,
+  files = [],
+}) {
   const pistonLang = getPistonLang(language);
   const baseUrl = PISTON_URL();
+
+  const defaultEntry = `main.${pistonLang === "python" ? "py" : pistonLang === "c++" ? "cpp" : "js"}`;
+  const entryName = activeFileName || defaultEntry;
+
+  const extraFiles = Array.isArray(files)
+    ? files
+        .filter((f) => f?.name && f.name !== entryName)
+        .map((f) => ({ name: f.name, content: f.content || "" }))
+    : [];
 
   const payload = {
     language: pistonLang,
     version: "*",
-    files: [
-      {
-        name: `main.${pistonLang === "python" ? "py" : pistonLang === "c++" ? "cpp" : "js"}`,
-        content: sourceCode,
-      },
-    ],
+    files: [{ name: entryName, content: sourceCode }, ...extraFiles],
     stdin: stdin || "",
     run_timeout: 10000,
     compile_timeout: 10000,
@@ -105,14 +115,15 @@ export async function runCodeViaJudge0({ language, sourceCode, stdin = "" }) {
 
 /**
  * Isolated Worker-thread JavaScript execution strictly opt-in for offline local dev only.
- * Never enabled in production or by default because Node.js is not a multi-tenant OS sandbox.
+ * Supports relative require("./...") across submitted room files.
  */
-function runJavaScriptInWorker({ sourceCode, stdin = "" }) {
+function runJavaScriptInWorker({ sourceCode, stdin = "", activeFileName = "index.js", files = [] }) {
   return new Promise((resolve) => {
     const startTime = Date.now();
     const workerScript = `
       const { parentPort, workerData } = require("node:worker_threads");
       const vm = require("node:vm");
+      const path = require("node:path");
       let stdout = "";
       let stderr = "";
       const customConsole = {
@@ -121,14 +132,46 @@ function runJavaScriptInWorker({ sourceCode, stdin = "" }) {
         warn: (...args) => { stderr += args.map((a) => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ") + "\\n"; },
         info: (...args) => { stdout += args.map((a) => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ") + "\\n"; },
       };
-      try {
+
+      const fileMap = new Map();
+      for (const f of workerData.files || []) {
+        if (f && f.name) fileMap.set(path.posix.normalize(f.name), f.content || "");
+      }
+      fileMap.set(path.posix.normalize(workerData.activeFileName || "index.js"), workerData.sourceCode);
+      const moduleCache = new Map();
+
+      function runModule(fileName) {
+        const normalized = path.posix.normalize(fileName);
+        if (moduleCache.has(normalized)) return moduleCache.get(normalized).exports;
+        const code = fileMap.get(normalized) ?? fileMap.get(normalized + ".js");
+        if (code === undefined) {
+          throw new Error("Cannot find module '" + fileName + "'");
+        }
+        const mod = { exports: {} };
+        moduleCache.set(normalized, mod);
+        const dir = path.posix.dirname(normalized);
+        const localRequire = (specifier) => {
+          if (!specifier.startsWith(".")) {
+            throw new Error("External module '" + specifier + "' is not available in local dev sandbox");
+          }
+          const resolved = path.posix.normalize(path.posix.join(dir === "." ? "" : dir, specifier));
+          return runModule(resolved);
+        };
         const ctx = vm.createContext({
           console: customConsole,
           stdin: workerData.stdin,
           input: workerData.stdin,
+          require: localRequire,
+          module: mod,
+          exports: mod.exports,
           Math, Date, JSON, Array, Object, Number, String, Boolean, RegExp, Map, Set, Promise,
         }, { codeGeneration: { strings: false, wasm: false } });
-        vm.runInContext(workerData.sourceCode, ctx, { timeout: 3500 });
+        vm.runInContext(code, ctx, { timeout: 3500 });
+        return mod.exports;
+      }
+
+      try {
+        runModule(workerData.activeFileName || "index.js");
         parentPort.postMessage({ status: "Accepted", stdout, stderr });
       } catch (err) {
         parentPort.postMessage({ status: "Runtime Error", stdout, stderr: err?.message || String(err) });
@@ -137,7 +180,7 @@ function runJavaScriptInWorker({ sourceCode, stdin = "" }) {
 
     const worker = new Worker(workerScript, {
       eval: true,
-      workerData: { sourceCode, stdin },
+      workerData: { sourceCode, stdin, activeFileName, files },
       resourceLimits: { maxOldGenerationSizeMb: 64, maxYoungGenerationSizeMb: 16 },
     });
 
@@ -193,19 +236,23 @@ function runJavaScriptInWorker({ sourceCode, stdin = "" }) {
 }
 
 /**
- * Unified robust runCode:
- * 1. Tries Judge0 if API key, local host, or public CE URL (ce.judge0.com) is configured.
- * 2. Tries Piston (external or configured PISTON_API_URL).
- * 3. Only runs local Worker fallback if NODE_ENV !== "production" AND ALLOW_UNSAFE_LOCAL_EXEC === "true".
- * 4. Never throws raw 502 to client; returns structured status for the console UI.
+ * Unified robust runCode supporting multi-file bundles.
  */
-export async function runCode({ language, sourceCode, stdin = "" }) {
+export async function runCode({
+  language,
+  sourceCode,
+  stdin = "",
+  activeFileName = null,
+  files = [],
+}) {
   const judge0Url = JUDGE0_URL();
   const hasJudge0Key = Boolean(JUDGE0_KEY() && JUDGE0_KEY().trim().length > 0);
   const isLocalJudge0 = Boolean(judge0Url && judge0Url.includes("localhost"));
   const isPublicCeJudge0 = Boolean(judge0Url && judge0Url.includes("ce.judge0.com"));
+  const hasMultiFile = Array.isArray(files) && files.length > 1;
 
-  if (hasJudge0Key || isLocalJudge0 || isPublicCeJudge0) {
+  // Prefer Piston first when executing a multi-file project bundle (Judge0 /submissions only takes 1 source_code)
+  if (!hasMultiFile && (hasJudge0Key || isLocalJudge0 || isPublicCeJudge0)) {
     try {
       return await runCodeViaJudge0({ language, sourceCode, stdin });
     } catch (err) {
@@ -214,9 +261,17 @@ export async function runCode({ language, sourceCode, stdin = "" }) {
   }
 
   try {
-    return await runCodeViaPiston({ language, sourceCode, stdin });
+    return await runCodeViaPiston({ language, sourceCode, stdin, activeFileName, files });
   } catch (pistonErr) {
     logError("Piston execution failed", pistonErr);
+  }
+
+  if (hasMultiFile && (hasJudge0Key || isLocalJudge0 || isPublicCeJudge0)) {
+    try {
+      return await runCodeViaJudge0({ language, sourceCode, stdin });
+    } catch (err) {
+      logError("Judge0 fallback failed", err);
+    }
   }
 
   const allowUnsafeLocal =
@@ -224,7 +279,7 @@ export async function runCode({ language, sourceCode, stdin = "" }) {
 
   if (allowUnsafeLocal && language === "javascript") {
     try {
-      return await runJavaScriptInWorker({ sourceCode, stdin });
+      return await runJavaScriptInWorker({ sourceCode, stdin, activeFileName, files });
     } catch (localErr) {
       logError("Local dev JS worker failed", localErr);
     }
@@ -245,10 +300,22 @@ export async function runCode({ language, sourceCode, stdin = "" }) {
 /**
  * Runs a batch of test cases for interview mode without hitting per-request HTTP rate limits.
  */
-export async function runCodeBatch({ language, sourceCode, cases = [] }) {
+export async function runCodeBatch({
+  language,
+  sourceCode,
+  activeFileName = null,
+  files = [],
+  cases = [],
+}) {
   const results = [];
   for (const tc of cases) {
-    const res = await runCode({ language, sourceCode, stdin: tc.input || "" });
+    const res = await runCode({
+      language,
+      sourceCode,
+      stdin: tc.input || "",
+      activeFileName,
+      files,
+    });
     const actual = (res.stdout || "").trim();
     const expected = (tc.expected || "").trim();
     const passed = res.status === "Accepted" && actual === expected;

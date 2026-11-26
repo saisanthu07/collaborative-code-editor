@@ -20,6 +20,11 @@ export function useRoomSocket({
   onRoomLocked,
   onRoomSettingsUpdated,
   onTestCasesUpdated,
+  onCommentAdded,
+  onCommentUpdated,
+  onCommentDeleted,
+  onRevisionRestored,
+  onParticipantFileChanged,
   onRoomEnded,
   onErrorEvent,
   onTimerSynced,
@@ -44,6 +49,11 @@ export function useRoomSocket({
     onRoomLocked,
     onRoomSettingsUpdated,
     onTestCasesUpdated,
+    onCommentAdded,
+    onCommentUpdated,
+    onCommentDeleted,
+    onRevisionRestored,
+    onParticipantFileChanged,
     onRoomEnded,
     onErrorEvent,
     onTimerSynced,
@@ -70,19 +80,12 @@ export function useRoomSocket({
     }
     s.on("connect", emitJoin);
 
-    const handlePresence = ({ participants }) => {
-      callbacksRef.current.onParticipantsUpdate?.(participants);
-    };
-
-    const handleChatMessage = (msg) => {
-      callbacksRef.current.onChatMessage?.(msg);
-    };
-
+    const handlePresence = ({ participants }) => callbacksRef.current.onParticipantsUpdate?.(participants);
+    const handleChatMessage = (msg) => callbacksRef.current.onChatMessage?.(msg);
     const handleExecutionStarted = () => {
       callbacksRef.current.onExecutionStarted?.();
       toast("Code execution started...", { icon: "⚙️" });
     };
-
     const handleExecutionCompleted = ({ result }) => {
       callbacksRef.current.onExecutionCompleted?.(result);
       if (result?.status === "Accepted") {
@@ -91,7 +94,6 @@ export function useRoomSocket({
         toast.error(`Execution: ${result?.status || "Finished with error"}`);
       }
     };
-
     const handlePermissionChange = ({ targetUsername, role }) => {
       callbacksRef.current.onPermissionChange?.({ targetUsername, role });
       if (targetUsername === resolvedUsername) {
@@ -100,42 +102,29 @@ export function useRoomSocket({
         toast(`${targetUsername}'s role changed to ${role}`, { icon: "🛡️" });
       }
     };
-
-    const handleFileCreated = ({ file }) => {
-      callbacksRef.current.onFileCreated?.(file);
-    };
-
-    const handleFileDeleted = ({ fileName }) => {
-      callbacksRef.current.onFileDeleted?.(fileName);
-    };
-
-    const handleFileRenamed = ({ oldName, newName }) => {
-      callbacksRef.current.onFileRenamed?.({ oldName, newName });
-    };
-
-    const handleFileLanguageChanged = ({ fileName, language }) => {
-      callbacksRef.current.onFileLanguageChanged?.({ fileName, language });
-    };
-
+    const handleFileCreated = ({ file }) => callbacksRef.current.onFileCreated?.(file);
+    const handleFileDeleted = ({ fileName }) => callbacksRef.current.onFileDeleted?.(fileName);
+    const handleFileRenamed = ({ oldName, newName }) => callbacksRef.current.onFileRenamed?.({ oldName, newName });
+    const handleFileLanguageChanged = ({ fileName, language }) => callbacksRef.current.onFileLanguageChanged?.({ fileName, language });
     const handleRoomLocked = ({ locked }) => {
       callbacksRef.current.onRoomLocked?.(locked);
       toast(locked ? "Room has been locked" : "Room has been unlocked", { icon: "🔒" });
     };
-
-    const handleRoomSettingsUpdated = (data) => {
-      callbacksRef.current.onRoomSettingsUpdated?.(data);
+    const handleRoomSettingsUpdated = (data) => callbacksRef.current.onRoomSettingsUpdated?.(data);
+    const handleTestCasesUpdated = ({ testCases }) => callbacksRef.current.onTestCasesUpdated?.(testCases);
+    const handleCommentAdded = ({ comment }) => callbacksRef.current.onCommentAdded?.(comment);
+    const handleCommentUpdated = ({ comment }) => callbacksRef.current.onCommentUpdated?.(comment);
+    const handleCommentDeleted = ({ commentId }) => callbacksRef.current.onCommentDeleted?.(commentId);
+    const handleRevisionRestored = (data) => {
+      callbacksRef.current.onRevisionRestored?.(data);
+      toast(`${data.restoredBy || "Editor"} restored "${data.fileName}" to "${data.label}"`, { icon: "🕒" });
     };
-
-    const handleTestCasesUpdated = ({ testCases }) => {
-      callbacksRef.current.onTestCasesUpdated?.(testCases);
-    };
-
+    const handleParticipantFileChanged = (data) => callbacksRef.current.onParticipantFileChanged?.(data);
     const handleRoomEnded = (data) => {
       const msg = data?.message || "The room has been ended by the host";
       callbacksRef.current.onRoomEnded?.(msg);
       toast(msg, { icon: "🛑" });
     };
-
     const handleErrorEvent = (err) => {
       callbacksRef.current.onErrorEvent?.(err);
       toast.error(err?.error || "Socket error");
@@ -153,7 +142,6 @@ export function useRoomSocket({
     s.on("voice-signal", handleVoiceSignal);
     s.on("user-voice-mute", handleUserVoiceMute);
     s.on("user-left-voice", handleUserLeftVoice);
-
     s.on("chat-message", handleChatMessage);
     s.on("execution-started", handleExecutionStarted);
     s.on("execution-completed", handleExecutionCompleted);
@@ -165,6 +153,11 @@ export function useRoomSocket({
     s.on("room-locked", handleRoomLocked);
     s.on("room-settings-updated", handleRoomSettingsUpdated);
     s.on("test-cases-updated", handleTestCasesUpdated);
+    s.on("comment-added", handleCommentAdded);
+    s.on("comment-updated", handleCommentUpdated);
+    s.on("comment-deleted", handleCommentDeleted);
+    s.on("revision-restored", handleRevisionRestored);
+    s.on("participant-file-changed", handleParticipantFileChanged);
     s.on("room-ended", handleRoomEnded);
     s.on("error-event", handleErrorEvent);
 
@@ -218,6 +211,11 @@ export function useRoomSocket({
       s.off("room-locked", handleRoomLocked);
       s.off("room-settings-updated", handleRoomSettingsUpdated);
       s.off("test-cases-updated", handleTestCasesUpdated);
+      s.off("comment-added", handleCommentAdded);
+      s.off("comment-updated", handleCommentUpdated);
+      s.off("comment-deleted", handleCommentDeleted);
+      s.off("revision-restored", handleRevisionRestored);
+      s.off("participant-file-changed", handleParticipantFileChanged);
       s.off("room-ended", handleRoomEnded);
       s.off("error-event", handleErrorEvent);
       s.off("timer-synced", handleTimerSynced);

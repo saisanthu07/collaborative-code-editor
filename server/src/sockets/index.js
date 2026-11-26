@@ -22,6 +22,9 @@ import {
   voiceSignalSchema,
   voiceMuteSchema,
   voiceLeaveSchema,
+  activeFileSyncSchema,
+  whiteboardStrokeSchema,
+  whiteboardClearSchema,
 } from "../validators/socketValidators.js";
 
 const localPresence = new Map(); // roomId -> Map(socketId -> record)
@@ -146,12 +149,14 @@ export function deduplicateParticipants(records) {
         userId: r.userId || null,
         guestId: r.guestId || null,
         role: r.role || null,
+        activeFile: r.activeFile || null,
         status: r.status,
         connections: 1,
       });
     } else {
       existing.connections += 1;
       if (r.role) existing.role = r.role;
+      if (r.activeFile) existing.activeFile = r.activeFile;
       // Best status: ONLINE beats AWAY
       if (r.status === "ONLINE") {
         existing.status = "ONLINE";
@@ -704,6 +709,77 @@ export function registerSocketHandlers(io, redisClient = null) {
         async ({ roomId }) => {
           socket.to(roomId).emit("user-left-voice", {
             socketId: socket.id,
+          });
+        },
+        { requireInRoom: true }
+      )
+    );
+
+    // Follow-mode active file tracking
+    socket.on(
+      "active-file-sync",
+      safeHandler(
+        socket,
+        activeFileSyncSchema,
+        async ({ roomId, fileName }) => {
+          await presence.update(roomId, socket.id, { activeFile: fileName });
+          const participants = await presence.list(roomId);
+          io.to(roomId).emit("presence-update", { participants });
+          socket.to(roomId).emit("participant-file-changed", {
+            username: socket.data.identity?.username,
+            fileName,
+          });
+        },
+        { requireInRoom: true }
+      )
+    );
+
+    // Collaborative Whiteboard strokes & clear
+    socket.on(
+      "whiteboard-stroke",
+      safeHandler(
+        socket,
+        whiteboardStrokeSchema,
+        async ({ roomId, stroke }) => {
+          const room = await Room.findOne({ roomId });
+          if (!room || !canEdit(socket.data.role, room)) {
+            socket.emit("error-event", { error: "Permission denied for this action" });
+            return;
+          }
+          const fullStroke = {
+            ...stroke,
+            username: socket.data.identity?.username || "User",
+          };
+          await Room.updateOne(
+            { roomId },
+            {
+              $push: { whiteboardStrokes: { $each: [fullStroke], $slice: -1500 } },
+              $set: { lastActiveAt: new Date() },
+            }
+          );
+          socket.to(roomId).emit("whiteboard-stroke", { stroke: fullStroke });
+        },
+        { requireInRoom: true }
+      )
+    );
+
+    socket.on(
+      "whiteboard-clear",
+      safeHandler(
+        socket,
+        whiteboardClearSchema,
+        async ({ roomId }) => {
+          const room = await Room.findOne({ roomId });
+          if (!room || !canEdit(socket.data.role, room)) {
+            socket.emit("error-event", { error: "Permission denied for this action" });
+            return;
+          }
+          await Room.updateOne(
+            { roomId },
+            { $set: { whiteboardStrokes: [], lastActiveAt: new Date() } }
+          );
+          socket.to(roomId).emit("whiteboard-cleared", {
+            clearedBy: socket.data.identity?.username || "User",
           });
         },
         { requireInRoom: true }

@@ -17,6 +17,7 @@ export default function Dashboard() {
     description: "",
     language: "javascript",
     visibility: "PRIVATE",
+    template: "blank",
   });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -273,6 +274,23 @@ export default function Dashboard() {
                     <option value="PUBLIC" className="bg-surface text-gray-100">Public</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label htmlFor="room-template-select" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono">
+                  Starter Template
+                </label>
+                <select
+                  id="room-template-select"
+                  value={form.template}
+                  onChange={(e) => setForm({ ...form, template: e.target.value })}
+                  className="w-full bg-surface2 border border-border rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-paper-sm"
+                >
+                  <option value="blank" className="bg-surface text-gray-100">Blank Single File</option>
+                  <option value="algorithms" className="bg-surface text-gray-100">Algorithms Interview Starter</option>
+                  <option value="web-preview" className="bg-surface text-gray-100">Web Preview (HTML / CSS / JS)</option>
+                  <option value="multi-file-node" className="bg-surface text-gray-100">Multi-File Node.js Project</option>
+                </select>
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-border/60">

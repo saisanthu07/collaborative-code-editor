@@ -34,20 +34,16 @@ export function resolveRole(room, identity) {
     : null;
   const guestId = identity?.guestId;
 
-  // Owner is always HOST
   if (userId && room.ownerId && room.ownerId.toString() === userId) {
     return "HOST";
   }
 
-  // Existing authenticated member
   if (userId) {
     const member = room.members?.find((m) => m.userId && m.userId.toString() === userId);
     if (member) return member.role;
-    // Authenticated non-member joining
     return room.settings?.defaultRole || "EDITOR";
   }
 
-  // Guest member
   if (guestId) {
     const member = room.members?.find((m) => m.guestId === guestId);
     if (member) return member.role || "GUEST";
@@ -69,8 +65,73 @@ export function canChat(role, room) {
   return true;
 }
 
-export async function createRoom(owner, { name, description, language, visibility }) {
+function buildTemplateFiles(language, template = "blank") {
+  if (template === "web-preview") {
+    return [
+      {
+        name: "index.html",
+        language: "javascript",
+        content: `<div class="card">\n  <h1>Hello CodeTogether</h1>\n  <p>Edit HTML, CSS, or JS and open the Preview tab.</p>\n  <button id="btn">Click me</button>\n  <span id="count">0</span>\n</div>\n`,
+      },
+      {
+        name: "styles.css",
+        language: "javascript",
+        content: `body {\n  font-family: system-ui, sans-serif;\n  background: #141311;\n  color: #f4f1ea;\n  display: grid;\n  place-items: center;\n  min-height: 100vh;\n  margin: 0;\n}\n.card {\n  padding: 2rem;\n  border: 1px solid #33302b;\n  border-radius: 16px;\n  background: #1c1a17;\n  text-align: center;\n}\nbutton {\n  background: #d97706;\n  color: white;\n  border: none;\n  padding: 8px 16px;\n  border-radius: 8px;\n  cursor: pointer;\n  margin-right: 8px;\n}\n`,
+      },
+      {
+        name: "app.js",
+        language: "javascript",
+        content: `let count = 0;\ndocument.getElementById("btn")?.addEventListener("click", () => {\n  count += 1;\n  const el = document.getElementById("count");\n  if (el) el.textContent = String(count);\n});\n`,
+      },
+    ];
+  }
+
+  if (template === "multi-file-node") {
+    return [
+      {
+        name: "index.js",
+        language: "javascript",
+        content: `const { formatGreeting, sum } = require("./utils/helpers.js");\n\nconsole.log(formatGreeting("CodeTogether"));\nconsole.log("Sum:", sum([10, 20, 30]));\n`,
+      },
+      {
+        name: "utils/helpers.js",
+        language: "javascript",
+        content: `function formatGreeting(name) {\n  return \`Welcome to \${name}!\`;\n}\n\nfunction sum(nums) {\n  return nums.reduce((acc, n) => acc + n, 0);\n}\n\nmodule.exports = { formatGreeting, sum };\n`,
+      },
+    ];
+  }
+
+  if (template === "algorithms") {
+    return [
+      {
+        name: defaultFileName(language),
+        language,
+        content:
+          language === "python"
+            ? `import sys\n\ndef solve():\n    data = list(map(int, sys.stdin.read().split()))\n    if not data:\n        return\n    n, nums = data[0], data[1:1 + data[0]]\n    print(sum(nums))\n\nif __name__ == "__main__":\n    solve()\n`
+            : `// Read input from stdin or run the Test Cases tab\nfunction solve(nums) {\n  return nums.reduce((a, b) => a + b, 0);\n}\n\nconsole.log(solve([1, 2, 3, 4, 5]));\n`,
+      },
+      {
+        name: "notes.md",
+        language: "javascript",
+        content: `# Interview Problem Notes\n\nGiven N integers, compute their sum.\n\n- Time Complexity target: O(N)\n- Space Complexity target: O(1)\n`,
+      },
+    ];
+  }
+
+  return [
+    {
+      name: defaultFileName(language),
+      content: "",
+      language,
+    },
+  ];
+}
+
+export async function createRoom(owner, { name, description, language, visibility, template = "blank" }) {
   const inviteCode = visibility === "PRIVATE" ? generateInviteCode() : null;
+  const files = buildTemplateFiles(language, template);
+
   const room = await Room.create({
     name,
     description,
@@ -78,13 +139,7 @@ export async function createRoom(owner, { name, description, language, visibilit
     visibility,
     inviteCode,
     ownerId: owner._id,
-    files: [
-      {
-        name: defaultFileName(language),
-        content: "",
-        language,
-      },
-    ],
+    files,
     members: [
       {
         userId: owner._id,

@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Users, ShieldBan } from "lucide-react";
+import { Users, ShieldBan, Eye } from "lucide-react";
 import { colorForUser } from "../../utils/color.js";
 
 function ParticipantsPanel({
@@ -7,6 +7,8 @@ function ParticipantsPanel({
   members = [],
   isHost = false,
   currentUsername = "",
+  followingUsername = null,
+  onToggleFollow,
   onChangeRole,
   onKickMember,
 }) {
@@ -32,7 +34,9 @@ function ParticipantsPanel({
         )}
         {participants.map((p, i) => {
           const role = p.role || memberRoleMap.get(p.username) || (p.guestId ? "GUEST" : "EDITOR");
-          const canManageThisUser = isHost && p.username !== currentUsername && role !== "HOST";
+          const isSelf = p.username === currentUsername;
+          const canManageThisUser = isHost && !isSelf && role !== "HOST";
+          const isFollowing = followingUsername === p.username;
 
           return (
             <div
@@ -46,7 +50,10 @@ function ParticipantsPanel({
                   style={{ backgroundColor: colorForUser(p.username) }}
                   aria-hidden="true"
                 />
-                <span className="text-gray-200 font-medium truncate font-sans">{p.username}</span>
+                <span className="text-gray-200 font-medium truncate font-sans">
+                  {p.username}
+                  {isSelf && <span className="text-[10px] text-gray-500 ml-1">(you)</span>}
+                </span>
                 {p.connections > 1 && (
                   <span
                     className="text-[10px] text-gray-400 bg-surface2 border border-border/80 px-1.5 rounded font-mono"
@@ -66,34 +73,59 @@ function ParticipantsPanel({
                 </span>
               </div>
 
-              <div className="flex items-center justify-between pl-4">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
-                  {role}
-                </span>
+              <div className="flex items-center justify-between pl-4 gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                    {role}
+                  </span>
+                  {p.activeFile && (
+                    <span className="text-[10px] font-mono text-gray-500 truncate max-w-[90px]" title={p.activeFile}>
+                      • {p.activeFile}
+                    </span>
+                  )}
+                </div>
 
-                {canManageThisUser && (
-                  <div className="flex items-center gap-1.5">
-                    <select
-                      aria-label={`Change role for ${p.username}`}
-                      value={role}
-                      onChange={(e) => onChangeRole?.(p.username, e.target.value)}
-                      className="bg-surface border border-border rounded px-1.5 py-0.5 text-[10px] font-mono text-gray-200 focus:outline-none focus:ring-1 focus:ring-accent"
-                    >
-                      <option value="EDITOR">EDITOR</option>
-                      <option value="VIEWER">VIEWER</option>
-                      {p.guestId && <option value="GUEST">GUEST</option>}
-                    </select>
+                <div className="flex items-center gap-1 shrink-0">
+                  {!isSelf && onToggleFollow && (
                     <button
                       type="button"
-                      onClick={() => onKickMember?.(p.username)}
-                      title={`Kick & ban ${p.username}`}
-                      aria-label={`Kick ${p.username}`}
-                      className="p-1 text-gray-400 hover:text-rose-500 rounded hover:bg-rose-500/10 transition-colors"
+                      onClick={() => onToggleFollow(p.username)}
+                      title={isFollowing ? `Stop following ${p.username}` : `Follow ${p.username}`}
+                      className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono border transition-colors ${
+                        isFollowing
+                          ? "bg-accent text-white border-accent"
+                          : "bg-surface text-gray-400 border-border hover:text-gray-100"
+                      }`}
                     >
-                      <ShieldBan size={12} />
+                      <Eye size={10} />
+                      <span>{isFollowing ? "Following" : "Follow"}</span>
                     </button>
-                  </div>
-                )}
+                  )}
+
+                  {canManageThisUser && (
+                    <>
+                      <select
+                        aria-label={`Change role for ${p.username}`}
+                        value={role}
+                        onChange={(e) => onChangeRole?.(p.username, e.target.value)}
+                        className="bg-surface border border-border rounded px-1.5 py-0.5 text-[10px] font-mono text-gray-200 focus:outline-none focus:ring-1 focus:ring-accent"
+                      >
+                        <option value="EDITOR">EDITOR</option>
+                        <option value="VIEWER">VIEWER</option>
+                        {p.guestId && <option value="GUEST">GUEST</option>}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => onKickMember?.(p.username)}
+                        title={`Kick & ban ${p.username}`}
+                        aria-label={`Kick ${p.username}`}
+                        className="p-1 text-gray-400 hover:text-rose-500 rounded hover:bg-rose-500/10 transition-colors"
+                      >
+                        <ShieldBan size={12} />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           );

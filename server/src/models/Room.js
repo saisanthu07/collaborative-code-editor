@@ -49,6 +49,33 @@ const timerStateSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const strokeSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true },
+    color: { type: String, default: "#d97706" },
+    width: { type: Number, default: 3 },
+    points: [{ x: Number, y: Number }],
+    username: { type: String, default: "User" },
+  },
+  { _id: false }
+);
+
+const scorecardSchema = new mongoose.Schema(
+  {
+    problemSolving: { type: Number, min: 1, max: 5, default: 3 },
+    codeQuality: { type: Number, min: 1, max: 5, default: 3 },
+    communication: { type: Number, min: 1, max: 5, default: 3 },
+    recommendation: {
+      type: String,
+      enum: ["STRONG_HIRE", "HIRE", "NO_HIRE", "UNDECIDED"],
+      default: "UNDECIDED",
+    },
+    notes: { type: String, default: "" },
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const roomSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -76,6 +103,8 @@ const roomSchema = new mongoose.Schema(
         updatedAt: new Date(),
       }),
     },
+    whiteboardStrokes: { type: [strokeSchema], default: [] },
+    scorecard: { type: scorecardSchema, default: undefined, select: false },
     members: { type: [memberSchema], default: [] },
     settings: {
       allowGuestEdit: { type: Boolean, default: false },
@@ -96,7 +125,6 @@ const roomSchema = new mongoose.Schema(
 roomSchema.index({ ownerId: 1, createdAt: -1 });
 roomSchema.index({ "members.userId": 1, lastActiveAt: -1 });
 roomSchema.index({ starredBy: 1, lastActiveAt: -1 });
-// Auto-expire temporary anonymous instant rooms when expiresAt is set
 roomSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model("Room", roomSchema);

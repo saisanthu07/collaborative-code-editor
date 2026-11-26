@@ -1,4 +1,4 @@
-import { useState, memo } from "react";
+import { useState, useMemo, memo } from "react";
 import {
   Terminal,
   CheckCircle2,
@@ -12,7 +12,38 @@ import {
   Plus,
   Play,
   XCircle,
+  Globe,
+  RefreshCw,
 } from "lucide-react";
+
+function buildPreviewDoc(files = [], activeFileName = "", activeCode = "") {
+  const merged = files.map((f) =>
+    f.name === activeFileName && activeCode !== undefined ? { ...f, content: activeCode } : f
+  );
+  const htmlFile = merged.find((f) => f.name.endsWith(".html"));
+  const cssFiles = merged.filter((f) => f.name.endsWith(".css"));
+  const jsFiles = merged.filter((f) => f.name.endsWith(".js") && !f.name.startsWith("utils/"));
+
+  const cssBlock = cssFiles.map((f) => f.content || "").join("\n");
+  const jsBlock = jsFiles.map((f) => f.content || "").join("\n");
+  const bodyHtml =
+    htmlFile?.content ||
+    `<div style="font-family:system-ui;padding:16px;color:#9ca3af;">No <code>index.html</code> file found in this room. Create an <code>index.html</code> file to use Live Preview.</div>`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <style>${cssBlock}</style>
+</head>
+<body>
+  ${bodyHtml}
+  <script>
+    try { ${jsBlock} } catch (e) { document.body.insertAdjacentHTML('beforeend', '<pre style="color:#f43f5e;padding:8px;">' + String(e) + '</pre>'); }
+  </script>
+</body>
+</html>`;
+}
 
 function OutputConsole({
   running,
@@ -24,12 +55,23 @@ function OutputConsole({
   setTestCases,
   onRunTestCases,
   runningTestCases = false,
+  files = [],
+  activeFileName = "",
+  getActiveCode,
 }) {
-  const [activeTab, setActiveTab] = useState("output"); // "output" | "stdin" | "testcases"
+  const [activeTab, setActiveTab] = useState("output"); // "output" | "stdin" | "testcases" | "preview"
   const [selectedCaseIdx, setSelectedCaseIdx] = useState(0);
+  const [previewNonce, setPreviewNonce] = useState(0);
 
   const passedCount = testCases.filter((tc) => tc.status === "passed").length;
   const failedCount = testCases.filter((tc) => tc.status === "failed").length;
+
+  const previewSrcDoc = useMemo(() => {
+    if (activeTab !== "preview") return "";
+    const activeCode = getActiveCode?.();
+    return buildPreviewDoc(files, activeFileName, activeCode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, previewNonce, files, activeFileName]);
 
   function handleAddCase() {
     const nextId = testCases.length + 1;
@@ -62,15 +104,14 @@ function OutputConsole({
     <div
       className="h-full flex flex-col font-mono text-xs bg-paper-console text-gray-200 select-text overflow-hidden shadow-paper-sm"
       role="region"
-      aria-label="Code execution output, input, and test cases panel"
+      aria-label="Code execution output, input, test cases, and web preview panel"
     >
-      {/* Tab Navigation Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface/70 shrink-0">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface/70 shrink-0 overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setActiveTab("output")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors shrink-0 ${
               activeTab === "output"
                 ? "bg-surface2 text-accent border border-border/80 shadow-paper-sm font-semibold"
                 : "text-gray-400 hover:text-gray-100 hover:bg-surface2/50"
@@ -94,7 +135,7 @@ function OutputConsole({
           <button
             type="button"
             onClick={() => setActiveTab("stdin")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors relative ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors relative shrink-0 ${
               activeTab === "stdin"
                 ? "bg-surface2 text-accent border border-border/80 shadow-paper-sm font-semibold"
                 : "text-gray-400 hover:text-gray-100 hover:bg-surface2/50"
@@ -112,7 +153,7 @@ function OutputConsole({
           <button
             type="button"
             onClick={() => setActiveTab("testcases")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors shrink-0 ${
               activeTab === "testcases"
                 ? "bg-surface2 text-accent border border-border/80 shadow-paper-sm font-semibold"
                 : "text-gray-400 hover:text-gray-100 hover:bg-surface2/50"
@@ -134,10 +175,25 @@ function OutputConsole({
               </span>
             )}
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("preview");
+              setPreviewNonce((n) => n + 1);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors shrink-0 ${
+              activeTab === "preview"
+                ? "bg-surface2 text-accent border border-border/80 shadow-paper-sm font-semibold"
+                : "text-gray-400 hover:text-gray-100 hover:bg-surface2/50"
+            }`}
+          >
+            <Globe size={13} aria-hidden="true" />
+            <span>Web Preview</span>
+          </button>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {activeTab === "output" && result && (
             <button
               type="button"
@@ -182,10 +238,20 @@ function OutputConsole({
               )}
             </button>
           )}
+
+          {activeTab === "preview" && (
+            <button
+              type="button"
+              onClick={() => setPreviewNonce((n) => n + 1)}
+              className="flex items-center gap-1 text-[11px] font-sans text-gray-300 hover:text-gray-100 bg-surface2 px-2.5 py-1 rounded-lg border border-border"
+            >
+              <RefreshCw size={11} />
+              <span>Reload Preview</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Tab 1: Execution Output */}
       {activeTab === "output" && (
         <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
           {running && (
@@ -248,7 +314,6 @@ function OutputConsole({
                 </div>
               )}
 
-              {/* Execution Metadata Pill Bar */}
               <div className="flex flex-wrap items-center gap-4 text-[11px] font-sans text-gray-400 pt-2.5 border-t border-border">
                 <span className="flex items-center gap-1.5">
                   <span className="text-gray-400">Status:</span>
@@ -291,7 +356,6 @@ function OutputConsole({
         </div>
       )}
 
-      {/* Tab 2: Standard Input (stdin) */}
       {activeTab === "stdin" && (
         <div className="flex-1 flex flex-col p-3.5 overflow-hidden">
           <div className="flex items-center justify-between pb-2 text-gray-400 font-sans text-[11px]">
@@ -313,10 +377,8 @@ function OutputConsole({
         </div>
       )}
 
-      {/* Tab 3: Test Cases (Interview Mode) */}
       {activeTab === "testcases" && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Test Case Selector Tabs */}
           <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border bg-surface/40 overflow-x-auto no-scrollbar shrink-0">
             {testCases.map((tc, idx) => {
               const isSelected = idx === selectedCaseIdx;
@@ -353,7 +415,6 @@ function OutputConsole({
             </button>
           </div>
 
-          {/* Active Case Editor & Results */}
           {currentCase && (
             <div className="flex-1 overflow-y-auto p-3.5 space-y-3 font-sans">
               <div className="flex items-center justify-between">
@@ -419,7 +480,6 @@ function OutputConsole({
                 </div>
               </div>
 
-              {/* Actual Output vs Expected diff when run */}
               {currentCase.status !== "idle" && (
                 <div className="pt-2.5 border-t border-border space-y-1.5 font-mono">
                   <div className="text-[11px] font-sans font-semibold text-gray-400 uppercase tracking-wider">
@@ -438,6 +498,18 @@ function OutputConsole({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === "preview" && (
+        <div className="flex-1 min-h-0 bg-white">
+          <iframe
+            key={previewNonce}
+            title="Sandboxed Web Preview"
+            sandbox="allow-scripts"
+            srcDoc={previewSrcDoc}
+            className="w-full h-full border-0"
+          />
         </div>
       )}
     </div>

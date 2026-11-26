@@ -17,6 +17,7 @@ function CollabEditor({
   canEdit = true,
   onConnectionChange,
   onEditorReady,
+  onCursorLineChange,
 }) {
   const [status, setStatus] = useState("connecting");
   const theme = useThemeStore((s) => s.theme);
@@ -35,6 +36,8 @@ function CollabEditor({
   onConnectionChangeRef.current = onConnectionChange;
   const onEditorReadyRef = useRef(onEditorReady);
   onEditorReadyRef.current = onEditorReady;
+  const onCursorLineChangeRef = useRef(onCursorLineChange);
+  onCursorLineChangeRef.current = onCursorLineChange;
 
   useEffect(() => {
     function handleResize() {
@@ -44,7 +47,6 @@ function CollabEditor({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Dynamically reflect permission changes in Monaco readOnly state
   useEffect(() => {
     if (editorRef.current) {
       editorRef.current.updateOptions({ readOnly: !canEdit });
@@ -97,71 +99,106 @@ function CollabEditor({
   };
 
   useEffect(() => {
-    const ydoc = new Y.Doc();
-    ydocRef.current = ydoc;
+    let cancelled = false;
+    let localProvider = null;
+    let localYdoc = null;
+    let localBinding = null;
+    let unsubAuth = null;
+    let handleAwarenessChange = null;
 
-    const wsUrl = import.meta.env.VITE_YJS_URL || "ws://localhost:5000/yjs";
-    const authUser = useAuthStore.getState().user;
-    const authToken = useAuthStore.getState().token;
-    const currentToken = authUser && authToken ? authToken : (guestToken || authToken);
-    const provider = new WebsocketProvider(wsUrl, `${roomId}:${fileName}`, ydoc, {
-      params: currentToken ? { token: currentToken } : {},
-    });
-    providerRef.current = provider;
+    // Defer WebSocket creation by 1 tick so React StrictMode double-mount cleanup
+    // cancels cleanly before opening a socket (prevents aborted-handshake warnings).
+    const connectTimer = setTimeout(() => {
+      if (cancelled) return;
 
-    const unsubAuth = useAuthStore.subscribe((state) => {
-      if (providerRef.current) {
-        const effective = state.user && state.token ? state.token : (guestToken || state.token);
-        providerRef.current.params = effective ? { token: effective } : {};
+      const ydoc = new Y.Doc();
+      localYdoc = ydoc;
+      ydocRef.current = ydoc;
+
+      const wsUrl = import.meta.env.VITE_YJS_URL || "ws://localhost:5000/yjs";
+      const authUser = useAuthStore.getState().user;
+      const authToken = useAuthStore.getState().token;
+      const currentToken = authUser && authToken ? authToken : (guestToken || authToken);
+
+      const provider = new WebsocketProvider(wsUrl, `${roomId}:${fileName}`, ydoc, {
+        params: currentToken ? { token: currentToken } : {},
+      });
+      localProvider = provider;
+      providerRef.current = provider;
+
+      unsubAuth = useAuthStore.subscribe((state) => {
+        if (localProvider) {
+          const effective = state.user && state.token ? state.token : (guestToken || state.token);
+          localProvider.params = effective ? { token: effective } : {};
+        }
+      });
+
+      const userColor = colorForUser(username);
+      provider.awareness.setLocalStateField("user", {
+        name: username,
+        color: userColor,
+      });
+
+      handleAwarenessChange = () => {
+        updateAwarenessStyles(provider.awareness);
+      };
+      provider.awareness.on("change", handleAwarenessChange);
+      handleAwarenessChange();
+
+      provider.on("status", ({ status: s }) => {
+        if (cancelled) return;
+        const mapped = s === "connected" ? "connected" : "reconnecting";
+        setStatus(mapped);
+        onConnectionChangeRef.current?.(mapped);
+      });
+
+      provider.on("connection-close", (event) => {
+        if (cancelled) return;
+        // Stop reconnecting on terminal room/auth close codes
+        if (event && [4000, 4001, 4004].includes(event.code)) {
+          provider.disconnect();
+        }
+        setStatus("disconnected");
+        onConnectionChangeRef.current?.("disconnected");
+      });
+
+      provider.on("connection-error", () => {
+        if (cancelled) return;
+        setStatus("disconnected");
+        onConnectionChangeRef.current?.("disconnected");
+      });
+
+      if (editorRef.current && !bindingRef.current) {
+        const yText = ydoc.getText("monaco");
+        localBinding = new MonacoBinding(
+          yText,
+          editorRef.current.getModel(),
+          new Set([editorRef.current]),
+          provider.awareness
+        );
+        bindingRef.current = localBinding;
       }
-    });
-
-    const userColor = colorForUser(username);
-    provider.awareness.setLocalStateField("user", {
-      name: username,
-      color: userColor,
-    });
-
-    const handleAwarenessChange = () => {
-      updateAwarenessStyles(provider.awareness);
-    };
-    provider.awareness.on("change", handleAwarenessChange);
-    handleAwarenessChange();
-
-    provider.on("status", ({ status: s }) => {
-      const mapped = s === "connected" ? "connected" : "reconnecting";
-      setStatus(mapped);
-      onConnectionChangeRef.current?.(mapped);
-    });
-
-    provider.on("connection-close", () => {
-      setStatus("disconnected");
-      onConnectionChangeRef.current?.("disconnected");
-    });
-    provider.on("connection-error", () => {
-      setStatus("disconnected");
-      onConnectionChangeRef.current?.("disconnected");
-    });
-
-    if (editorRef.current && !bindingRef.current) {
-      const yText = ydoc.getText("monaco");
-      bindingRef.current = new MonacoBinding(
-        yText,
-        editorRef.current.getModel(),
-        new Set([editorRef.current]),
-        provider.awareness
-      );
-    }
+    }, 0);
 
     return () => {
-      unsubAuth();
-      provider.awareness.off("change", handleAwarenessChange);
-      if (bindingRef.current) {
-        bindingRef.current.destroy();
+      cancelled = true;
+      clearTimeout(connectTimer);
+      unsubAuth?.();
+      if (localProvider && handleAwarenessChange) {
+        localProvider.awareness.off("change", handleAwarenessChange);
+      }
+      if (localBinding || bindingRef.current) {
+        (localBinding || bindingRef.current).destroy();
         bindingRef.current = null;
       }
-      provider.destroy();
-      ydoc.destroy();
+      if (localProvider) {
+        localProvider.destroy();
+        if (providerRef.current === localProvider) providerRef.current = null;
+      }
+      if (localYdoc) {
+        localYdoc.destroy();
+        if (ydocRef.current === localYdoc) ydocRef.current = null;
+      }
 
       if (styleElRef.current) {
         styleElRef.current.remove();
@@ -174,6 +211,9 @@ function CollabEditor({
     editorRef.current = editor;
     editor.updateOptions({ readOnly: !canEdit });
     onEditorReadyRef.current?.(editor);
+    editor.onDidChangeCursorPosition((e) => {
+      onCursorLineChangeRef.current?.(e.position.lineNumber);
+    });
 
     if (!bindingRef.current && ydocRef.current && providerRef.current) {
       const yText = ydocRef.current.getText("monaco");

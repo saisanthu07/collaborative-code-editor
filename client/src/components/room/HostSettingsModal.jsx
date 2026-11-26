@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Settings, Lock, MessageSquareOff, Users, RefreshCw, Copy, Check } from "lucide-react";
+import { X, Settings, Lock, MessageSquareOff, Users, RefreshCw, Copy, Check, UserPlus } from "lucide-react";
 import toast from "react-hot-toast";
 import { copyToClipboard } from "../../utils/clipboard.js";
 
@@ -7,6 +7,7 @@ export default function HostSettingsModal({
   room,
   onSaveSettings,
   onRotateInvite,
+  onInviteUser,
   onClose,
   saving = false,
 }) {
@@ -17,6 +18,9 @@ export default function HostSettingsModal({
   const [defaultRole, setDefaultRole] = useState(room?.settings?.defaultRole || "EDITOR");
   const [rotating, setRotating] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
+  const [inviteIdentifier, setInviteIdentifier] = useState("");
+  const [inviteRole, setInviteRole] = useState("EDITOR");
+  const [inviting, setInviting] = useState(false);
 
   const closeBtnRef = useRef(null);
 
@@ -70,6 +74,17 @@ export default function HostSettingsModal({
     }
   }
 
+  async function handleDirectInvite() {
+    if (!inviteIdentifier.trim() || !onInviteUser) return;
+    setInviting(true);
+    try {
+      const ok = await onInviteUser(inviteIdentifier.trim(), inviteRole);
+      if (ok) setInviteIdentifier("");
+    } finally {
+      setInviting(false);
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 bg-stone-900/40 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -82,7 +97,7 @@ export default function HostSettingsModal({
         aria-labelledby="host-settings-title"
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md space-y-4 shadow-paper-lg"
+        className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md space-y-4 shadow-paper-lg max-h-[90vh] overflow-y-auto"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -174,6 +189,39 @@ export default function HostSettingsModal({
             />
           </label>
         </div>
+
+        {onInviteUser && (
+          <div className="bg-surface2 border border-border rounded-xl p-3 space-y-2">
+            <div className="text-[11px] font-mono text-gray-400 flex items-center gap-1.5">
+              <UserPlus size={12} className="text-accent" />
+              <span>INVITE REGISTERED USER</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input
+                value={inviteIdentifier}
+                onChange={(e) => setInviteIdentifier(e.target.value)}
+                placeholder="Username or email"
+                className="flex-1 bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+                className="bg-surface border border-border rounded-lg px-2 py-1.5 text-xs font-mono text-gray-200"
+              >
+                <option value="EDITOR">EDITOR</option>
+                <option value="VIEWER">VIEWER</option>
+              </select>
+              <button
+                type="button"
+                onClick={handleDirectInvite}
+                disabled={inviting || !inviteIdentifier.trim()}
+                className="px-2.5 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold disabled:opacity-50"
+              >
+                {inviting ? "..." : "Invite"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {visibility === "PRIVATE" && (
           <div className="bg-surface2 border border-border rounded-xl p-3 space-y-2">

@@ -1,8 +1,11 @@
 import crypto from "crypto";
 import mongoose from "mongoose";
 import Room from "../models/Room.js";
+import User from "../models/User.js";
 import Message from "../models/Message.js";
 import Execution from "../models/Execution.js";
+import DocRevision from "../models/DocRevision.js";
+import CodeComment from "../models/CodeComment.js";
 import {
   createRoom,
   generateGuestName,
@@ -18,6 +21,7 @@ import {
   migrateYjsDoc,
   deleteYjsDoc,
   deleteRoomYjsDocs,
+  restoreYjsDocContent,
 } from "../sockets/yjsServer.js";
 import { signGuestToken, verifyGuestToken } from "../utils/guestToken.js";
 
@@ -26,6 +30,7 @@ function sanitizeRoomForGuest(roomDoc) {
   delete roomObj.starredBy;
   delete roomObj.ownerId;
   delete roomObj.inviteCode;
+  delete roomObj.scorecard;
   if (Array.isArray(roomObj.members)) {
     roomObj.members = roomObj.members.map((m) => ({
       username: m.username,
@@ -181,6 +186,7 @@ export async function getOne(req, res) {
   const roomObj = req.room.toObject ? req.room.toObject() : { ...req.room };
   if (!req.isRoomOwner) {
     delete roomObj.inviteCode;
+    delete roomObj.scorecard;
   }
   res.json({ room: roomObj });
 }
@@ -264,7 +270,11 @@ export async function remove(req, res, next) {
 
     disconnectAllRoomYjs(roomId);
     await deleteRoomYjsDocs(roomId);
-    await Message.deleteMany({ roomId });
+    await Promise.all([
+      Message.deleteMany({ roomId }),
+      DocRevision.deleteMany({ roomId }),
+      CodeComment.deleteMany({ roomId }),
+    ]);
     await req.room.deleteOne();
     logEvent("ROOM_DELETE", { userId: req.user._id.toString(), roomId });
     res.json({ success: true });
@@ -347,13 +357,15 @@ export async function join(req, res, next) {
       invalidateRoomPolicyCache(roomId);
       const freshRoom = await Room.findOne({ roomId });
       const roomObj = freshRoom.toObject();
-      if (!isOwner) delete roomObj.inviteCode;
+      if (!isOwner) {
+        delete roomObj.inviteCode;
+        delete roomObj.scorecard;
+      }
 
       logEvent("ROOM_JOIN", { roomId, username, userId: req.user._id.toString() });
       return res.json({ room: roomObj, username, guestId: null, guestToken: null });
     }
 
-    // Unauthenticated guest join (PUBLIC rooms only, enforced by roomAccessMiddleware)
     const guestTokenHeader = req.headers["x-guest-token"];
     let guestId = null;
     let username = null;
@@ -497,10 +509,21 @@ export async function getMessages(req, res, next) {
 
 export async function execute(req, res, next) {
   try {
-    const { language, sourceCode, stdin } = req.body;
+    const { language, sourceCode, stdin, activeFileName, files } = req.body;
     logEvent("EXEC_REQUEST", { roomId: req.room.roomId, userId: req.user?._id?.toString(), language });
 
-    const result = await runCode({ language, sourceCode, stdin });
+    const bundleFiles =
+      Array.isArray(files) && files.length > 0
+        ? files
+        : req.room.files?.map((f) => ({ name: f.name, content: f.content || "" })) || [];
+
+    const result = await runCode({
+      language,
+      sourceCode,
+      stdin,
+      activeFileName,
+      files: bundleFiles,
+    });
 
     await Execution.create({
       roomId: req.room.roomId,
@@ -525,7 +548,7 @@ export async function execute(req, res, next) {
 
 export async function executeBatch(req, res, next) {
   try {
-    const { language, sourceCode, cases } = req.body;
+    const { language, sourceCode, cases, activeFileName, files } = req.body;
     logEvent("EXEC_BATCH_REQUEST", {
       roomId: req.room.roomId,
       userId: req.user?._id?.toString(),
@@ -533,7 +556,18 @@ export async function executeBatch(req, res, next) {
       count: cases.length,
     });
 
-    const results = await runCodeBatch({ language, sourceCode, cases });
+    const bundleFiles =
+      Array.isArray(files) && files.length > 0
+        ? files
+        : req.room.files?.map((f) => ({ name: f.name, content: f.content || "" })) || [];
+
+    const results = await runCodeBatch({
+      language,
+      sourceCode,
+      activeFileName,
+      files: bundleFiles,
+      cases,
+    });
     res.json({ results });
   } catch (err) {
     logEvent("EXEC_BATCH_FAILURE", { roomId: req.room?.roomId, error: err.message });
@@ -642,6 +676,10 @@ export async function renameFile(req, res, next) {
     file.name = req.body.newName;
     await req.room.save();
     await migrateYjsDoc(req.room.roomId, oldName, req.body.newName);
+    await Promise.all([
+      DocRevision.updateMany({ roomId: req.room.roomId, fileName: oldName }, { $set: { fileName: req.body.newName } }),
+      CodeComment.updateMany({ roomId: req.room.roomId, fileName: oldName }, { $set: { fileName: req.body.newName } }),
+    ]);
 
     const io = req.app.get("io");
     if (io) {
@@ -663,6 +701,10 @@ export async function deleteFile(req, res, next) {
     req.room.files = req.room.files.filter((f) => f.name !== req.params.fileName);
     await req.room.save();
     await deleteYjsDoc(req.room.roomId, req.params.fileName);
+    await Promise.all([
+      DocRevision.deleteMany({ roomId: req.room.roomId, fileName: req.params.fileName }),
+      CodeComment.deleteMany({ roomId: req.room.roomId, fileName: req.params.fileName }),
+    ]);
 
     const io = req.app.get("io");
     if (io) {
@@ -676,7 +718,254 @@ export async function deleteFile(req, res, next) {
   }
 }
 
-// --- Host permission management ---
+// --- Version History / Checkpoints ---
+
+export async function listRevisions(req, res, next) {
+  try {
+    const revisions = await DocRevision.find({
+      roomId: req.room.roomId,
+      fileName: req.params.fileName,
+    })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+    res.json({ revisions });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createRevision(req, res, next) {
+  try {
+    const file = req.room.files.find((f) => f.name === req.params.fileName);
+    if (!file) return res.status(404).json({ error: "File not found" });
+
+    const content = req.body.content !== undefined ? req.body.content : file.content || "";
+    const createdBy = req.user?.username || req.guest?.username || "Editor";
+    const revision = await DocRevision.create({
+      roomId: req.room.roomId,
+      fileName: file.name,
+      content,
+      label: req.body.label || "Manual Checkpoint",
+      createdBy,
+    });
+
+    logEvent("ROOM_REVISION_CREATE", { roomId: req.room.roomId, fileName: file.name });
+    res.status(201).json({ revision });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function restoreRevision(req, res, next) {
+  try {
+    const file = req.room.files.find((f) => f.name === req.params.fileName);
+    if (!file) return res.status(404).json({ error: "File not found" });
+
+    const revision = await DocRevision.findOne({
+      _id: req.params.revisionId,
+      roomId: req.room.roomId,
+      fileName: file.name,
+    });
+    if (!revision) return res.status(404).json({ error: "Revision not found" });
+
+    await restoreYjsDocContent(req.room.roomId, file.name, revision.content);
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(req.room.roomId).emit("revision-restored", {
+        fileName: file.name,
+        label: revision.label,
+        restoredBy: req.user?.username || req.guest?.username || "Editor",
+      });
+    }
+
+    logEvent("ROOM_REVISION_RESTORE", {
+      roomId: req.room.roomId,
+      fileName: file.name,
+      revisionId: revision._id.toString(),
+    });
+    res.json({ success: true, content: revision.content });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// --- Inline Code Comments ---
+
+export async function listComments(req, res, next) {
+  try {
+    const query = { roomId: req.room.roomId };
+    if (typeof req.query.fileName === "string" && req.query.fileName) {
+      query.fileName = req.query.fileName;
+    }
+    const comments = await CodeComment.find(query).sort({ line: 1, createdAt: 1 }).limit(200).lean();
+    res.json({ comments });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createComment(req, res, next) {
+  try {
+    const { fileName, line, text } = req.body;
+    if (!req.room.files.some((f) => f.name === fileName)) {
+      return res.status(404).json({ error: "File not found" });
+    }
+    const username = req.user?.username || req.guest?.username || "User";
+    const comment = await CodeComment.create({
+      roomId: req.room.roomId,
+      fileName,
+      line,
+      text,
+      username,
+      userId: req.user?._id,
+    });
+
+    req.app.get("io")?.to(req.room.roomId).emit("comment-added", { comment });
+    res.status(201).json({ comment });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function toggleResolveComment(req, res, next) {
+  try {
+    const comment = await CodeComment.findOne({
+      _id: req.params.commentId,
+      roomId: req.room.roomId,
+    });
+    if (!comment) return res.status(404).json({ error: "Comment not found" });
+
+    comment.resolved = !comment.resolved;
+    comment.resolvedBy = comment.resolved
+      ? req.user?.username || req.guest?.username || "Editor"
+      : null;
+    await comment.save();
+
+    req.app.get("io")?.to(req.room.roomId).emit("comment-updated", { comment });
+    res.json({ comment });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteComment(req, res, next) {
+  try {
+    const comment = await CodeComment.findOne({
+      _id: req.params.commentId,
+      roomId: req.room.roomId,
+    });
+    if (!comment) return res.status(404).json({ error: "Comment not found" });
+
+    const callerName = req.user?.username || req.guest?.username;
+    if (!req.isRoomOwner && comment.username !== callerName) {
+      return res.status(403).json({ error: "Only the author or host can delete this comment" });
+    }
+
+    await comment.deleteOne();
+    req.app.get("io")?.to(req.room.roomId).emit("comment-deleted", { commentId: req.params.commentId });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// --- Host Interview Scorecard (Host-only) ---
+
+export async function getScorecard(req, res, next) {
+  try {
+    const doc = await Room.findOne({ roomId: req.room.roomId }).select("+scorecard").lean();
+    res.json({
+      scorecard: doc?.scorecard || {
+        problemSolving: 3,
+        codeQuality: 3,
+        communication: 3,
+        recommendation: "UNDECIDED",
+        notes: "",
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateScorecard(req, res, next) {
+  try {
+    const scorecard = {
+      ...req.body,
+      updatedAt: new Date(),
+    };
+    const room = await Room.findOneAndUpdate(
+      { roomId: req.room.roomId },
+      { $set: { scorecard } },
+      { new: true }
+    ).select("+scorecard");
+    res.json({ scorecard: room.scorecard });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// --- Host permission & direct invite management ---
+
+export async function inviteMember(req, res, next) {
+  try {
+    const identifier = req.body.identifier.toLowerCase();
+    const role = req.body.role || "EDITOR";
+    const targetUser = await User.findOne({
+      $or: [{ username: identifier }, { email: identifier }],
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ error: "No user found with that username or email" });
+    }
+    if (targetUser._id.toString() === req.room.ownerId.toString()) {
+      return res.status(400).json({ error: "Owner is already the room host" });
+    }
+
+    // Unban if previously banned
+    req.room.bannedUserIds = (req.room.bannedUserIds || []).filter(
+      (id) => id.toString() !== targetUser._id.toString()
+    );
+    req.room.bannedUsernames = (req.room.bannedUsernames || []).filter(
+      (u) => u !== targetUser.username
+    );
+
+    const existing = req.room.members.find(
+      (m) => m.userId && m.userId.toString() === targetUser._id.toString()
+    );
+    if (existing) {
+      existing.role = role;
+    } else {
+      req.room.members.push({
+        userId: targetUser._id,
+        username: targetUser.username,
+        role,
+        isGuest: false,
+      });
+    }
+
+    await req.room.save();
+    invalidateRoomPolicyCache(req.room.roomId);
+
+    req.app.get("io")?.to(req.room.roomId).emit("permission-change", {
+      targetUsername: targetUser.username,
+      role,
+    });
+
+    logEvent("ROOM_MEMBER_INVITE", {
+      roomId: req.room.roomId,
+      targetUsername: targetUser.username,
+      role,
+      invitedBy: req.user.username,
+    });
+
+    res.json({ room: req.room, invitedUser: targetUser.username });
+  } catch (err) {
+    next(err);
+  }
+}
 
 export async function changeMemberPermission(req, res, next) {
   try {

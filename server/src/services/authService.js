@@ -3,6 +3,8 @@ import bcrypt from "bcrypt";
 import User from "../models/User.js";
 import Room from "../models/Room.js";
 import Message from "../models/Message.js";
+import DocRevision from "../models/DocRevision.js";
+import CodeComment from "../models/CodeComment.js";
 import RefreshToken from "../models/RefreshToken.js";
 import { signToken } from "../utils/jwt.js";
 import { revokeAllForUser } from "./refreshTokenService.js";
@@ -121,7 +123,11 @@ export async function deleteOwnAccount(user, password) {
   for (const r of ownedRooms) {
     disconnectAllRoomYjs(r.roomId);
     await deleteRoomYjsDocs(r.roomId);
-    await Message.deleteMany({ roomId: r.roomId });
+    await Promise.all([
+      Message.deleteMany({ roomId: r.roomId }),
+      DocRevision.deleteMany({ roomId: r.roomId }),
+      CodeComment.deleteMany({ roomId: r.roomId }),
+    ]);
   }
 
   await Promise.all([

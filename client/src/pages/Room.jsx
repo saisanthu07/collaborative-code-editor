@@ -18,6 +18,9 @@ import {
   Download,
   Settings,
   Star,
+  PenTool,
+  Code2,
+  ClipboardCheck,
 } from "lucide-react";
 import { downloadFilesAsZip } from "../utils/zip.js";
 import { api } from "../services/api.js";
@@ -27,6 +30,10 @@ import { useRoomSocket } from "../hooks/useRoomSocket.js";
 import CollabEditor from "../components/editor/CollabEditor.jsx";
 import OutputConsole from "../components/editor/OutputConsole.jsx";
 import ChatPanel from "../components/chat/ChatPanel.jsx";
+import CommentsPanel from "../components/room/CommentsPanel.jsx";
+import WhiteboardPanel from "../components/room/WhiteboardPanel.jsx";
+import RevisionsModal from "../components/room/RevisionsModal.jsx";
+import ScorecardModal from "../components/room/ScorecardModal.jsx";
 import ParticipantsPanel from "../components/room/ParticipantsPanel.jsx";
 import ShareModal from "../components/room/ShareModal.jsx";
 import HostSettingsModal from "../components/room/HostSettingsModal.jsx";
@@ -60,11 +67,16 @@ export default function Room() {
   const [room, setRoom] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [comments, setComments] = useState([]);
   const [chatHasMore, setChatHasMore] = useState(false);
   const [chatNextCursor, setChatNextCursor] = useState(null);
   const [loadingMoreChat, setLoadingMoreChat] = useState(false);
 
   const [activeFileName, setActiveFileName] = useState("");
+  const [currentLine, setCurrentLine] = useState(1);
+  const [followingUsername, setFollowingUsername] = useState(null);
+  const [workspaceView, setWorkspaceView] = useState("code"); // "code" | "whiteboard"
+
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
   const [stdin, setStdin] = useState("");
@@ -81,12 +93,14 @@ export default function Room() {
   const [renamingFile, setRenamingFile] = useState(false);
   const [deletingFile, setDeletingFile] = useState(false);
 
-  const [rightTab, setRightTab] = useState("participants");
-  const [mobileTab, setMobileTab] = useState("editor");
+  const [rightTab, setRightTab] = useState("participants"); // "participants" | "chat" | "comments"
+  const [mobileTab, setMobileTab] = useState("editor"); // "editor" | "output" | "participants" | "chat" | "comments"
   const [mobileTopBarExpanded, setMobileTopBarExpanded] = useState(false);
 
   const [showShare, setShowShare] = useState(false);
   const [showHostSettings, setShowHostSettings] = useState(false);
+  const [showRevisions, setShowRevisions] = useState(false);
+  const [showScorecard, setShowScorecard] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
@@ -131,7 +145,7 @@ export default function Room() {
             })
           );
         } catch {
-          // ignore storage quota errors
+          // ignore
         }
       }
 
@@ -142,9 +156,7 @@ export default function Room() {
       }
 
       if (Array.isArray(data.room?.testCases) && data.room.testCases.length > 0) {
-        setTestCases(
-          data.room.testCases.map((tc) => ({ ...tc, actual: "", status: "idle" }))
-        );
+        setTestCases(data.room.testCases.map((tc) => ({ ...tc, actual: "", status: "idle" })));
       }
 
       const files = data.room.files || [];
@@ -153,10 +165,14 @@ export default function Room() {
       }
 
       try {
-        const { data: msgData } = await api.get(`/rooms/${roomId}/messages?limit=50`);
-        setMessages(msgData.messages || []);
-        setChatHasMore(Boolean(msgData.hasMore));
-        setChatNextCursor(msgData.nextCursor || null);
+        const [msgRes, commentsRes] = await Promise.all([
+          api.get(`/rooms/${roomId}/messages?limit=50`),
+          api.get(`/rooms/${roomId}/comments`),
+        ]);
+        setMessages(msgRes.data.messages || []);
+        setChatHasMore(Boolean(msgRes.data.hasMore));
+        setChatNextCursor(msgRes.data.nextCursor || null);
+        setComments(commentsRes.data.comments || []);
       } catch {
         // non-fatal
       }
@@ -199,12 +215,12 @@ export default function Room() {
       (user?._id && m.userId?.toString() === user._id.toString()) ||
       m.username === resolvedUsername
   );
-  const isHost = Boolean(
-    (user &&
-      room &&
-      (room.ownerId?.toString() === user._id?.toString() || room.ownerId === user._id)) ||
-      memberRecord?.role === "HOST"
+  const isRoomOwner = Boolean(
+    user?._id &&
+      room?.ownerId &&
+      (room.ownerId?.toString() === user._id?.toString() || room.ownerId === user._id)
   );
+  const isHost = Boolean(isRoomOwner || memberRecord?.role === "HOST");
   const userRole = isHost
     ? "HOST"
     : memberRecord?.role || (user ? room?.settings?.defaultRole : "GUEST");
@@ -334,6 +350,28 @@ export default function Room() {
     });
   }, []);
 
+  const handleCommentAdded = useCallback((comment) => {
+    setComments((prev) => (prev.some((c) => c._id === comment._id) ? prev : [...prev, comment]));
+  }, []);
+
+  const handleCommentUpdated = useCallback((comment) => {
+    setComments((prev) => prev.map((c) => (c._id === comment._id ? comment : c)));
+  }, []);
+
+  const handleCommentDeleted = useCallback((commentId) => {
+    setComments((prev) => prev.filter((c) => c._id !== commentId));
+  }, []);
+
+  const handleParticipantFileChanged = useCallback(
+    ({ username, fileName }) => {
+      if (followingUsername && username === followingUsername && fileName) {
+        setActiveFileName(fileName);
+        setWorkspaceView("code");
+      }
+    },
+    [followingUsername]
+  );
+
   const handleRoomEnded = useCallback((msg) => {
     setLoadState("ended");
     setErrorMessage(msg || "The host has ended this collaborative session.");
@@ -368,9 +406,39 @@ export default function Room() {
     onRoomLocked: handleRoomLocked,
     onRoomSettingsUpdated: handleRoomSettingsUpdated,
     onTestCasesUpdated: handleTestCasesUpdated,
+    onCommentAdded: handleCommentAdded,
+    onCommentUpdated: handleCommentUpdated,
+    onCommentDeleted: handleCommentDeleted,
+    onParticipantFileChanged: handleParticipantFileChanged,
     onRoomEnded: handleRoomEnded,
     onErrorEvent: handleErrorEvent,
   });
+
+  // Broadcast active file for Follow Mode
+  useEffect(() => {
+    if (socket?.connected && activeFileName && roomId) {
+      socket.emit("active-file-sync", { roomId, fileName: activeFileName });
+    }
+  }, [socket, roomId, activeFileName]);
+
+  const handleToggleFollow = useCallback(
+    (targetUsername) => {
+      setFollowingUsername((curr) => {
+        if (curr === targetUsername) {
+          toast("Stopped following", { icon: "👁️" });
+          return null;
+        }
+        const target = participants.find((p) => p.username === targetUsername);
+        if (target?.activeFile) {
+          setActiveFileName(target.activeFile);
+          setWorkspaceView("code");
+        }
+        toast(`Following ${targetUsername}`, { icon: "👁️" });
+        return targetUsername;
+      });
+    },
+    [participants]
+  );
 
   const handleToggleStar = useCallback(async () => {
     if (!user) return;
@@ -409,6 +477,21 @@ export default function Room() {
       toast.error(err.response?.data?.error || "Could not rotate invite");
     }
   }, [roomId]);
+
+  const handleInviteUser = useCallback(
+    async (identifier, role) => {
+      try {
+        const { data } = await api.post(`/rooms/${roomId}/members/invite`, { identifier, role });
+        setRoom(data.room);
+        toast.success(`Invited ${data.invitedUser} as ${role}`);
+        return true;
+      } catch (err) {
+        toast.error(err.response?.data?.error || "Could not invite user");
+        return false;
+      }
+    },
+    [roomId]
+  );
 
   const handleChangeMemberRole = useCallback(
     async (targetUsername, role) => {
@@ -459,6 +542,53 @@ export default function Room() {
     },
     [roomId, canManageFiles]
   );
+
+  const handleAddComment = useCallback(
+    async ({ fileName, line, text }) => {
+      try {
+        const { data } = await api.post(`/rooms/${roomId}/comments`, { fileName, line, text });
+        setComments((prev) =>
+          prev.some((c) => c._id === data.comment._id) ? prev : [...prev, data.comment]
+        );
+      } catch (err) {
+        toast.error(err.response?.data?.error || "Could not add comment");
+      }
+    },
+    [roomId]
+  );
+
+  const handleToggleResolveComment = useCallback(
+    async (commentId) => {
+      try {
+        const { data } = await api.patch(`/rooms/${roomId}/comments/${commentId}/resolve`);
+        setComments((prev) => prev.map((c) => (c._id === commentId ? data.comment : c)));
+      } catch {
+        toast.error("Could not update comment");
+      }
+    },
+    [roomId]
+  );
+
+  const handleDeleteComment = useCallback(
+    async (commentId) => {
+      try {
+        await api.delete(`/rooms/${roomId}/comments/${commentId}`);
+        setComments((prev) => prev.filter((c) => c._id !== commentId));
+      } catch {
+        toast.error("Could not delete comment");
+      }
+    },
+    [roomId]
+  );
+
+  const handleJumpToLine = useCallback((line) => {
+    setWorkspaceView("code");
+    if (editorRef.current) {
+      editorRef.current.revealLineInCenter(line);
+      editorRef.current.setPosition({ lineNumber: line, column: 1 });
+      editorRef.current.focus();
+    }
+  }, []);
 
   const handleEndRoom = useCallback(async () => {
     setEndingRoom(true);
@@ -514,6 +644,7 @@ export default function Room() {
 
   const handleSelectFile = useCallback((fileName) => {
     setActiveFileName(fileName);
+    setWorkspaceView("code");
   }, []);
 
   const handleCreateFile = useCallback(
@@ -543,6 +674,33 @@ export default function Room() {
       }
     },
     [roomId]
+  );
+
+  const handleUploadFiles = useCallback(
+    async (uploadedList) => {
+      let createdCount = 0;
+      for (const item of uploadedList) {
+        try {
+          const { data } = await api.post(`/rooms/${roomId}/files`, {
+            name: item.name,
+            content: item.content,
+            language: activeLanguage,
+          });
+          const created = data.file || { name: item.name, content: item.content, language: activeLanguage };
+          setRoom((prev) => {
+            if (!prev || prev.files?.some((f) => f.name === item.name)) return prev;
+            return { ...prev, files: [...(prev.files || []), created] };
+          });
+          createdCount += 1;
+        } catch {
+          // skip duplicates/invalid names
+        }
+      }
+      if (createdCount > 0) {
+        toast.success(`Uploaded ${createdCount} file(s)`);
+      }
+    },
+    [roomId, activeLanguage]
   );
 
   const handleRenameFile = useCallback(
@@ -593,6 +751,15 @@ export default function Room() {
     }
   }, [roomId, deleteTargetFile]);
 
+  const buildExecutionBundle = useCallback(
+    (currentCode) =>
+      (room?.files || []).map((f) => ({
+        name: f.name,
+        content: f.name === activeFileName ? currentCode : f.content || "",
+      })),
+    [room?.files, activeFileName]
+  );
+
   const handleRun = useCallback(async () => {
     const currentCode = editorRef.current?.getValue() || "";
     if (!currentCode.trim()) {
@@ -609,6 +776,8 @@ export default function Room() {
         language: activeLanguage,
         sourceCode: currentCode,
         stdin: stdin || "",
+        activeFileName,
+        files: buildExecutionBundle(currentCode),
       });
       setResult(data.result);
       if (window.innerWidth < 768) {
@@ -621,7 +790,7 @@ export default function Room() {
     } finally {
       setRunning(false);
     }
-  }, [roomId, activeLanguage, stdin, socket]);
+  }, [roomId, activeLanguage, stdin, socket, activeFileName, buildExecutionBundle]);
 
   const handleRunTestCases = useCallback(async () => {
     const currentCode = editorRef.current?.getValue() || "";
@@ -637,6 +806,8 @@ export default function Room() {
       const { data } = await api.post(`/rooms/${roomId}/execute-batch`, {
         language: activeLanguage,
         sourceCode: currentCode,
+        activeFileName,
+        files: buildExecutionBundle(currentCode),
         cases: testCases.map((tc, idx) => ({
           id: tc.id || idx + 1,
           input: tc.input || "",
@@ -656,7 +827,7 @@ export default function Room() {
     } finally {
       setRunningTestCases(false);
     }
-  }, [roomId, activeLanguage, testCases]);
+  }, [roomId, activeLanguage, testCases, activeFileName, buildExecutionBundle]);
 
   const handleDownloadZip = useCallback(() => {
     if (!room?.files || room.files.length === 0) return;
@@ -845,7 +1016,7 @@ export default function Room() {
     <div className="h-dvh flex flex-col bg-bg text-gray-100 overflow-hidden">
       <header className="px-3 sm:px-4 py-2 border-b border-border bg-surface/90 backdrop-blur-md shrink-0 shadow-paper-sm z-30">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <Link
               to="/dashboard"
               aria-label="Return to Dashboard"
@@ -878,16 +1049,33 @@ export default function Room() {
             )}
           </div>
 
-          <div className="hidden sm:flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-surface2 border border-border rounded-lg px-2.5 py-1 text-xs shadow-paper-sm">
-              <FileCode size={14} className="text-accent" />
-              <span className="font-semibold text-gray-200 font-mono text-[11px]">{activeFileName || "main"}</span>
-              <span className="text-gray-400">•</span>
-              <label htmlFor="language-select" className="sr-only">
-                Programming Language
-              </label>
+          <div className="hidden sm:flex items-center gap-1.5 lg:gap-2">
+            <div className="flex items-center border border-border rounded-lg bg-surface2 p-0.5 shadow-paper-sm">
+              <button
+                type="button"
+                onClick={() => setWorkspaceView("code")}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono transition-colors ${
+                  workspaceView === "code" ? "bg-accent text-white font-semibold" : "text-gray-400 hover:text-gray-100"
+                }`}
+              >
+                <Code2 size={12} /> Code
+              </button>
+              <button
+                type="button"
+                onClick={() => setWorkspaceView("whiteboard")}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono transition-colors ${
+                  workspaceView === "whiteboard" ? "bg-accent text-white font-semibold" : "text-gray-400 hover:text-gray-100"
+                }`}
+              >
+                <PenTool size={12} /> Board
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5 bg-surface2 border border-border rounded-lg px-2 py-1 text-xs shadow-paper-sm">
+              <FileCode size={13} className="text-accent" />
               <select
                 id="language-select"
+                aria-label="Programming Language"
                 value={activeLanguage}
                 disabled={!canManageFiles}
                 onChange={(e) => handleLanguageChange(e.target.value)}
@@ -919,36 +1107,47 @@ export default function Room() {
             />
             <VoiceRoom socket={socket} roomId={roomId} />
 
+            {isRoomOwner && (
+              <button
+                type="button"
+                onClick={() => setShowScorecard(true)}
+                aria-label="Host Interview Scorecard"
+                title="Private Host Scorecard"
+                className="flex items-center gap-1 text-xs text-gray-300 hover:text-gray-100 bg-surface2 border border-border rounded-lg px-2 py-1.5 transition-colors shadow-paper-sm"
+              >
+                <ClipboardCheck size={13} className="text-emerald-500" />
+                <span className="hidden xl:inline">Scorecard</span>
+              </button>
+            )}
             {isHost && (
               <button
                 type="button"
                 onClick={() => setShowHostSettings(true)}
                 aria-label="Room Host Controls"
                 title="Room Host Controls"
-                className="flex items-center gap-1 text-xs text-gray-300 hover:text-gray-100 bg-surface2 border border-border rounded-lg px-2.5 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent shadow-paper-sm"
+                className="flex items-center gap-1 text-xs text-gray-300 hover:text-gray-100 bg-surface2 border border-border rounded-lg px-2 py-1.5 transition-colors shadow-paper-sm"
               >
                 <Settings size={13} />
-                <span className="hidden lg:inline">Controls</span>
+                <span className="hidden xl:inline">Controls</span>
               </button>
             )}
 
             <button
               onClick={() => setShowShare(true)}
               aria-label="Share Room"
-              className="flex items-center gap-1 text-xs text-gray-300 hover:text-gray-100 bg-surface2 border border-border rounded-lg px-2.5 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent shadow-paper-sm"
+              className="flex items-center gap-1 text-xs text-gray-300 hover:text-gray-100 bg-surface2 border border-border rounded-lg px-2 py-1.5 transition-colors shadow-paper-sm"
             >
               <Share2 size={13} />
-              <span>Share</span>
+              <span className="hidden lg:inline">Share</span>
             </button>
 
             <button
               onClick={handleDownloadZip}
               title="Download project as ZIP"
               aria-label="Download project as ZIP"
-              className="flex items-center gap-1 text-xs text-gray-300 hover:text-gray-100 bg-surface2 border border-border rounded-lg px-2.5 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent shadow-paper-sm"
+              className="flex items-center gap-1 text-xs text-gray-300 hover:text-gray-100 bg-surface2 border border-border rounded-lg px-2 py-1.5 transition-colors shadow-paper-sm"
             >
               <Download size={13} />
-              <span className="hidden lg:inline">Export ZIP</span>
             </button>
 
             <ThemeToggle compact />
@@ -957,19 +1156,19 @@ export default function Room() {
               <button
                 onClick={() => setShowEndModal(true)}
                 aria-label="End Room Session"
-                className="flex items-center gap-1.5 text-xs text-rose-700 dark:text-rose-400 hover:opacity-90 bg-rose-500/15 border border-rose-500/30 rounded-lg px-2.5 py-1.5 font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-paper-sm"
+                className="flex items-center gap-1 text-xs text-rose-700 dark:text-rose-400 hover:opacity-90 bg-rose-500/15 border border-rose-500/30 rounded-lg px-2.5 py-1.5 font-semibold transition-all shadow-paper-sm"
               >
                 <XCircle size={13} />
-                <span>End Room</span>
+                <span className="hidden lg:inline">End</span>
               </button>
             ) : (
               <button
                 onClick={() => setShowLeaveModal(true)}
                 aria-label="Leave Room"
-                className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-rose-600 dark:hover:text-rose-400 bg-surface2 hover:bg-surface2/80 border border-border rounded-lg px-2.5 py-1.5 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-paper-sm"
+                className="flex items-center gap-1 text-xs text-gray-300 hover:text-rose-600 dark:hover:text-rose-400 bg-surface2 border border-border rounded-lg px-2.5 py-1.5 font-medium transition-colors shadow-paper-sm"
               >
                 <LogOut size={13} />
-                <span>Leave</span>
+                <span className="hidden lg:inline">Leave</span>
               </button>
             )}
 
@@ -977,7 +1176,7 @@ export default function Room() {
               <button
                 onClick={() => setRightTab("participants")}
                 aria-label={`View Participants (${participants.length})`}
-                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md font-medium transition-all ${
+                className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md font-medium transition-all ${
                   rightTab === "participants"
                     ? "bg-accent text-white shadow-paper-sm font-semibold"
                     : "text-gray-400 hover:text-gray-100"
@@ -989,14 +1188,25 @@ export default function Room() {
               <button
                 onClick={() => setRightTab("chat")}
                 aria-label={`View Chat (${messages.length} messages)`}
-                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md font-medium transition-all ${
+                className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md font-medium transition-all ${
                   rightTab === "chat"
                     ? "bg-accent text-white shadow-paper-sm font-semibold"
                     : "text-gray-400 hover:text-gray-100"
                 }`}
               >
                 <MessageSquare size={13} />
-                <span>Chat</span>
+              </button>
+              <button
+                onClick={() => setRightTab("comments")}
+                aria-label={`View Line Comments (${comments.length})`}
+                title="Line Comments"
+                className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md font-medium transition-all ${
+                  rightTab === "comments"
+                    ? "bg-accent text-white shadow-paper-sm font-semibold"
+                    : "text-gray-400 hover:text-gray-100"
+                }`}
+              >
+                <Code2 size={13} />
               </button>
             </div>
           </div>
@@ -1061,7 +1271,6 @@ export default function Room() {
         {mobileTopBarExpanded && (
           <div className="sm:hidden pt-2.5 pb-1 border-t border-border mt-2 flex items-center justify-between text-xs animate-in fade-in slide-in-from-top-1 duration-150">
             <div className="flex items-center gap-2">
-              <span className="text-gray-400">Language:</span>
               <select
                 value={activeLanguage}
                 disabled={!canManageFiles}
@@ -1074,6 +1283,13 @@ export default function Room() {
                   </option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={() => setWorkspaceView((v) => (v === "code" ? "whiteboard" : "code"))}
+                className="px-2 py-1 bg-surface2 border border-border rounded-lg text-gray-200 font-mono"
+              >
+                {workspaceView === "code" ? "Board" : "Code"}
+              </button>
             </div>
             <div className="flex items-center gap-2">
               <ThemeToggle compact />
@@ -1095,6 +1311,7 @@ export default function Room() {
               onNewFile={() => setShowNewFileModal(true)}
               onRenameFile={(name) => setRenameTargetFile(name)}
               onDeleteFile={(name) => setDeleteTargetFile(name)}
+              onUploadFiles={handleUploadFiles}
               canManageFiles={canManageFiles}
             />
           </div>
@@ -1113,6 +1330,7 @@ export default function Room() {
             onCloseFile={(name) => setDeleteTargetFile(name)}
             canManageFiles={canManageFiles}
             onFormatDocument={handleFormatDocument}
+            onOpenHistory={() => setShowRevisions(true)}
             fileExplorerOpen={fileExplorerOpen}
             onToggleFileExplorer={() => setFileExplorerOpen((prev) => !prev)}
           />
@@ -1122,17 +1340,27 @@ export default function Room() {
               mobileTab === "output" ? "hidden md:block" : "block"
             }`}
           >
-            {activeFileName && (
-              <CollabEditor
-                key={`${roomId}:${activeFileName}`}
+            {workspaceView === "whiteboard" ? (
+              <WhiteboardPanel
+                socket={socket}
                 roomId={roomId}
-                fileName={activeFileName}
-                language={monacoLangFor(activeLanguage)}
-                username={resolvedUsername || "Guest"}
-                guestToken={guestToken}
+                initialStrokes={room?.whiteboardStrokes || []}
                 canEdit={canManageFiles}
-                onEditorReady={handleEditorReady}
               />
+            ) : (
+              activeFileName && (
+                <CollabEditor
+                  key={`${roomId}:${activeFileName}`}
+                  roomId={roomId}
+                  fileName={activeFileName}
+                  language={monacoLangFor(activeLanguage)}
+                  username={resolvedUsername || "Guest"}
+                  guestToken={guestToken}
+                  canEdit={canManageFiles}
+                  onEditorReady={handleEditorReady}
+                  onCursorLineChange={setCurrentLine}
+                />
+              )
             )}
           </div>
 
@@ -1153,6 +1381,9 @@ export default function Room() {
               setTestCases={handleTestCasesChange}
               onRunTestCases={handleRunTestCases}
               runningTestCases={runningTestCases}
+              files={room?.files || []}
+              activeFileName={activeFileName}
+              getActiveCode={() => editorRef.current?.getValue()}
             />
           </div>
         </div>
@@ -1164,8 +1395,23 @@ export default function Room() {
               members={room?.members || []}
               isHost={isHost}
               currentUsername={resolvedUsername}
+              followingUsername={followingUsername}
+              onToggleFollow={handleToggleFollow}
               onChangeRole={handleChangeMemberRole}
               onKickMember={handleKickMember}
+            />
+          ) : rightTab === "comments" ? (
+            <CommentsPanel
+              comments={comments}
+              activeFileName={activeFileName}
+              currentLine={currentLine}
+              canEdit={canManageFiles}
+              isHost={isHost}
+              currentUsername={resolvedUsername}
+              onAddComment={handleAddComment}
+              onToggleResolve={handleToggleResolveComment}
+              onDeleteComment={handleDeleteComment}
+              onJumpToLine={handleJumpToLine}
             />
           ) : (
             <ChatPanel
@@ -1188,6 +1434,8 @@ export default function Room() {
               members={room?.members || []}
               isHost={isHost}
               currentUsername={resolvedUsername}
+              followingUsername={followingUsername}
+              onToggleFollow={handleToggleFollow}
               onChangeRole={handleChangeMemberRole}
               onKickMember={handleKickMember}
             />
@@ -1270,8 +1518,27 @@ export default function Room() {
           room={room}
           onSaveSettings={handleSaveHostSettings}
           onRotateInvite={handleRotateInvite}
+          onInviteUser={handleInviteUser}
           onClose={() => setShowHostSettings(false)}
           saving={savingSettings}
+        />
+      )}
+
+      {showRevisions && activeFileName && (
+        <RevisionsModal
+          roomId={roomId}
+          fileName={activeFileName}
+          currentContent={editorRef.current?.getValue() || activeFile?.content || ""}
+          canEdit={canManageFiles}
+          onClose={() => setShowRevisions(false)}
+        />
+      )}
+
+      {showScorecard && isRoomOwner && (
+        <ScorecardModal
+          roomId={roomId}
+          roomName={room?.name}
+          onClose={() => setShowScorecard(false)}
         />
       )}
 

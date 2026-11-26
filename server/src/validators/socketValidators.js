@@ -62,7 +62,6 @@ export const executionCompletedSchema = z.object({
   result: z.any().optional(),
 });
 
-// Interview Timer & WebRTC Voice Signaling Schemas
 export const timerSyncSchema = z
   .object({
     roomId: roomIdSchema,
@@ -92,5 +91,27 @@ export const voiceMuteSchema = z.object({
 });
 
 export const voiceLeaveSchema = z.object({
+  roomId: roomIdSchema,
+});
+
+export const activeFileSyncSchema = z.object({
+  roomId: roomIdSchema,
+  fileName: safeFileName,
+});
+
+export const whiteboardStrokeSchema = z.object({
+  roomId: roomIdSchema,
+  stroke: z.object({
+    id: z.string().min(1).max(64),
+    color: z.string().min(3).max(20),
+    width: z.number().min(1).max(30),
+    points: z
+      .array(z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }))
+      .min(1)
+      .max(2000),
+  }),
+});
+
+export const whiteboardClearSchema = z.object({
   roomId: roomIdSchema,
 });

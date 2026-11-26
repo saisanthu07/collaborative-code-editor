@@ -14,6 +14,10 @@ import {
   renameFileSchema,
   saveFileSchema,
   permissionChangeSchema,
+  inviteMemberSchema,
+  createRevisionSchema,
+  createCommentSchema,
+  scorecardSchema,
   getMessagesQuerySchema,
 } from "../validators/roomValidators.js";
 
@@ -21,7 +25,6 @@ const router = Router();
 
 router.get("/ice-servers", roomController.getIceServers);
 
-// Instant 1-click Playground (unauthenticated visitors or users)
 router.post("/instant", optionalAuthMiddleware, roomController.createInstant);
 
 router.post("/", authMiddleware, validateRequest(createRoomSchema), roomController.create);
@@ -120,7 +123,84 @@ router.delete(
   roomController.deleteFile
 );
 
-// Host-only member/permission management
+// Version History / Checkpoints
+router.get(
+  "/:roomId/files/:fileName/revisions",
+  optionalAuthMiddleware,
+  roomAccessMiddleware,
+  roomController.listRevisions
+);
+router.post(
+  "/:roomId/files/:fileName/revisions",
+  optionalAuthMiddleware,
+  roomAccessMiddleware,
+  requireRole("HOST", "EDITOR"),
+  validateRequest(createRevisionSchema),
+  roomController.createRevision
+);
+router.post(
+  "/:roomId/files/:fileName/revisions/:revisionId/restore",
+  optionalAuthMiddleware,
+  roomAccessMiddleware,
+  requireRole("HOST", "EDITOR"),
+  roomController.restoreRevision
+);
+
+// Inline Code Comments
+router.get(
+  "/:roomId/comments",
+  optionalAuthMiddleware,
+  roomAccessMiddleware,
+  roomController.listComments
+);
+router.post(
+  "/:roomId/comments",
+  optionalAuthMiddleware,
+  roomAccessMiddleware,
+  requireRole("HOST", "EDITOR"),
+  validateRequest(createCommentSchema),
+  roomController.createComment
+);
+router.patch(
+  "/:roomId/comments/:commentId/resolve",
+  optionalAuthMiddleware,
+  roomAccessMiddleware,
+  requireRole("HOST", "EDITOR"),
+  roomController.toggleResolveComment
+);
+router.delete(
+  "/:roomId/comments/:commentId",
+  optionalAuthMiddleware,
+  roomAccessMiddleware,
+  roomController.deleteComment
+);
+
+// Host-only Interview Scorecard
+router.get(
+  "/:roomId/scorecard",
+  authMiddleware,
+  roomAccessMiddleware,
+  requireRoomHost,
+  roomController.getScorecard
+);
+router.put(
+  "/:roomId/scorecard",
+  authMiddleware,
+  roomAccessMiddleware,
+  requireRoomHost,
+  validateRequest(scorecardSchema),
+  roomController.updateScorecard
+);
+
+// Host-only member/permission & invite management
+router.post(
+  "/:roomId/members/invite",
+  authMiddleware,
+  roomAccessMiddleware,
+  requireRoomHost,
+  validateRequest(inviteMemberSchema),
+  roomController.inviteMember
+);
 router.patch(
   "/:roomId/members/permission",
   authMiddleware,

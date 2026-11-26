@@ -3,11 +3,14 @@ import { LANGUAGES } from "../constants/languages.js";
 
 const languageKeys = Object.keys(LANGUAGES);
 
+export const ROOM_TEMPLATES = ["blank", "algorithms", "web-preview", "multi-file-node"];
+
 export const createRoomSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional().default(""),
   language: z.enum(languageKeys).default("javascript"),
   visibility: z.enum(["PUBLIC", "PRIVATE"]).default("PRIVATE"),
+  template: z.enum(ROOM_TEMPLATES).optional().default("blank"),
 });
 
 export const updateRoomSchema = z.object({
@@ -24,10 +27,31 @@ export const updateRoomSchema = z.object({
     .optional(),
 });
 
+const fileNamePattern = /^[a-zA-Z0-9_.\-\/]{1,120}$/;
+
+function isSafeFileName(name) {
+  if (!fileNamePattern.test(name)) return false;
+  if (name.startsWith("/") || name.startsWith(".")) return false;
+  if (name.split("/").some((segment) => segment === "." || segment === "..")) return false;
+  return true;
+}
+
+export const safeFileName = z.string().refine(isSafeFileName, { message: "Invalid file name" });
+
 export const executeSchema = z.object({
   language: z.enum(languageKeys),
   sourceCode: z.string().min(1).max(100_000),
   stdin: z.string().max(10_000).optional().default(""),
+  activeFileName: safeFileName.optional(),
+  files: z
+    .array(
+      z.object({
+        name: safeFileName,
+        content: z.string().max(200_000).default(""),
+      })
+    )
+    .max(30)
+    .optional(),
 });
 
 export const testCaseItemSchema = z.object({
@@ -43,6 +67,16 @@ export const updateTestCasesSchema = z.object({
 export const executeBatchSchema = z.object({
   language: z.enum(languageKeys),
   sourceCode: z.string().min(1).max(100_000),
+  activeFileName: safeFileName.optional(),
+  files: z
+    .array(
+      z.object({
+        name: safeFileName,
+        content: z.string().max(200_000).default(""),
+      })
+    )
+    .max(30)
+    .optional(),
   cases: z
     .array(
       z.object({
@@ -64,17 +98,6 @@ export const getMessagesQuerySchema = z.object({
   before: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid before message ID").optional(),
 });
 
-const fileNamePattern = /^[a-zA-Z0-9_.\-\/]{1,120}$/;
-
-function isSafeFileName(name) {
-  if (!fileNamePattern.test(name)) return false;
-  if (name.startsWith("/") || name.startsWith(".")) return false;
-  if (name.split("/").some((segment) => segment === "." || segment === "..")) return false;
-  return true;
-}
-
-export const safeFileName = z.string().refine(isSafeFileName, { message: "Invalid file name" });
-
 export const createFileSchema = z.object({
   name: safeFileName,
   content: z.string().max(500_000).optional().default(""),
@@ -93,4 +116,28 @@ export const saveFileSchema = z.object({
 export const permissionChangeSchema = z.object({
   targetUsername: z.string().min(1),
   role: z.enum(["EDITOR", "VIEWER", "GUEST"]),
+});
+
+export const inviteMemberSchema = z.object({
+  identifier: z.string().trim().min(1).max(120),
+  role: z.enum(["EDITOR", "VIEWER"]).optional().default("EDITOR"),
+});
+
+export const createRevisionSchema = z.object({
+  label: z.string().trim().min(1).max(100).optional().default("Manual Checkpoint"),
+  content: z.string().max(500_000).optional(),
+});
+
+export const createCommentSchema = z.object({
+  fileName: safeFileName,
+  line: z.number().int().min(1).max(100_000),
+  text: z.string().trim().min(1).max(1000),
+});
+
+export const scorecardSchema = z.object({
+  problemSolving: z.number().int().min(1).max(5),
+  codeQuality: z.number().int().min(1).max(5),
+  communication: z.number().int().min(1).max(5),
+  recommendation: z.enum(["STRONG_HIRE", "HIRE", "NO_HIRE", "UNDECIDED"]),
+  notes: z.string().max(5000).optional().default(""),
 });

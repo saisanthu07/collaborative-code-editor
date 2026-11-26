@@ -2,6 +2,8 @@ import User from "../models/User.js";
 import Room from "../models/Room.js";
 import Execution from "../models/Execution.js";
 import Message from "../models/Message.js";
+import DocRevision from "../models/DocRevision.js";
+import CodeComment from "../models/CodeComment.js";
 import RefreshToken from "../models/RefreshToken.js";
 import ActivityLog from "../models/ActivityLog.js";
 import { logEvent } from "../utils/logger.js";
@@ -211,7 +213,7 @@ export async function deleteUser(req, res, next) {
 export async function listRooms(req, res, next) {
   try {
     const rooms = await Room.find()
-      .select("-files.content -starredBy -inviteCode")
+      .select("-files.content -starredBy -inviteCode -scorecard")
       .sort({ lastActiveAt: -1 })
       .limit(200)
       .lean();
@@ -280,7 +282,11 @@ export async function deleteRoom(req, res, next) {
     }
     disconnectAllRoomYjs(req.params.roomId);
     await deleteRoomYjsDocs(req.params.roomId);
-    await Message.deleteMany({ roomId: req.params.roomId });
+    await Promise.all([
+      Message.deleteMany({ roomId: req.params.roomId }),
+      DocRevision.deleteMany({ roomId: req.params.roomId }),
+      CodeComment.deleteMany({ roomId: req.params.roomId }),
+    ]);
 
     logEvent("ADMIN_ROOM_DELETE", {
       adminId: req.user._id.toString(),
