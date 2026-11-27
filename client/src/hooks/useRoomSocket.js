@@ -129,6 +129,13 @@ export function useRoomSocket({
       callbacksRef.current.onErrorEvent?.(err);
       toast.error(err?.error || "Socket error");
     };
+    const handleAccountModerated = (moderation) => {
+      if (moderation) {
+        useAuthStore.getState().setModerationNotice(moderation);
+        useAuthStore.getState().logout();
+      }
+      s.disconnect();
+    };
 
     const handleTimerSynced = (data) => callbacksRef.current.onTimerSynced?.(data);
     const handleUserJoinedVoice = (data) => callbacksRef.current.onUserJoinedVoice?.(data);
@@ -160,6 +167,7 @@ export function useRoomSocket({
     s.on("participant-file-changed", handleParticipantFileChanged);
     s.on("room-ended", handleRoomEnded);
     s.on("error-event", handleErrorEvent);
+    s.on("account-moderated", handleAccountModerated);
 
     const heartbeatInterval = setInterval(() => {
       if (s.connected) {
@@ -218,6 +226,7 @@ export function useRoomSocket({
       s.off("participant-file-changed", handleParticipantFileChanged);
       s.off("room-ended", handleRoomEnded);
       s.off("error-event", handleErrorEvent);
+      s.off("account-moderated", handleAccountModerated);
       s.off("timer-synced", handleTimerSynced);
       s.off("user-joined-voice", handleUserJoinedVoice);
       s.off("voice-signal", handleVoiceSignal);

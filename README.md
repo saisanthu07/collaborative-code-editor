@@ -267,7 +267,7 @@ All REST routes are prefixed with `/api`.
 | `POST` | `/forgot-password` | Public (Rate Limited) | Generates a 15-minute single-use password reset token |
 | `POST` | `/reset-password` | Public (Rate Limited) | Resets password and revokes existing refresh tokens |
 | `GET` | `/me` | Authenticated | Returns current user profile |
-| `PATCH` | `/me` | Authenticated | Updates full name and HTTPS avatar URL |
+| `PATCH` | `/me` | Authenticated | Updates full name and custom Developer Stamp avatar |
 | `DELETE` | `/me` | Authenticated | Password-confirmed account & owned-room deletion |
 | `PATCH` | `/me/password` | Authenticated | Changes password and revokes existing sessions |
 | `GET` | `/sessions` | Authenticated | Lists active refresh sessions |

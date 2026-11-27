@@ -148,6 +148,7 @@ export function deduplicateParticipants(records) {
         username: r.username,
         userId: r.userId || null,
         guestId: r.guestId || null,
+        avatar: r.avatar || "",
         role: r.role || null,
         activeFile: r.activeFile || null,
         status: r.status,
@@ -155,6 +156,7 @@ export function deduplicateParticipants(records) {
       });
     } else {
       existing.connections += 1;
+      if (r.avatar) existing.avatar = r.avatar;
       if (r.role) existing.role = r.role;
       if (r.activeFile) existing.activeFile = r.activeFile;
       // Best status: ONLINE beats AWAY
@@ -274,7 +276,12 @@ export function registerSocketHandlers(io, redisClient = null) {
         if (!user || user.status === "SUSPENDED" || user.status === "BANNED") {
           return next(new Error("TOKEN_EXPIRED"));
         }
-        socket.data.identity = { username: user.username, userId: user._id.toString(), guestId: null };
+        socket.data.identity = {
+          username: user.username,
+          userId: user._id.toString(),
+          guestId: null,
+          avatar: user.avatar || "",
+        };
         return next();
       }
 
@@ -361,6 +368,7 @@ export function registerSocketHandlers(io, redisClient = null) {
           username: identity.username,
           userId: identity.userId,
           guestId: identity.guestId,
+          avatar: identity.avatar || "",
           role,
           status: "ONLINE",
           lastSeen: Date.now(),
@@ -432,12 +440,14 @@ export function registerSocketHandlers(io, redisClient = null) {
             roomId,
             userId: identity.userId || undefined,
             username: identity.username,
+            avatar: identity.avatar || "",
             text: trimmed.slice(0, 2000),
           });
 
           io.to(roomId).emit("chat-message", {
             _id: message._id,
             username: message.username,
+            avatar: message.avatar,
             text: message.text,
             createdAt: message.createdAt,
           });

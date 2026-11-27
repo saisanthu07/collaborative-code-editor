@@ -9,24 +9,31 @@ export default function ConfirmModal({
   cancelLabel = "Cancel",
   tone = "danger", // "danger" | "warning" | "accent"
   loading = false,
+  children,
   onClose,
   onConfirm,
 }) {
   const cancelRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
     cancelRef.current?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
 
     function handleKeyDown(e) {
       if (e.key === "Escape" && !loading) {
         e.preventDefault();
-        onClose();
+        onCloseRef.current?.();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, loading, onClose]);
+  }, [open, loading]);
 
   if (!open) return null;
 
@@ -84,6 +91,8 @@ export default function ConfirmModal({
               <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{message}</p>
             )}
           </div>
+
+          {children}
 
           <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border">
             <button

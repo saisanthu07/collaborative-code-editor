@@ -23,6 +23,8 @@ const userSchema = new mongoose.Schema(
     avatar: { type: String, default: "" },
     role: { type: String, enum: ["USER", "ADMIN"], default: "USER" },
     status: { type: String, enum: ["ACTIVE", "SUSPENDED", "BANNED"], default: "ACTIVE" },
+    moderationReason: { type: String, default: "" },
+    moderatedAt: { type: Date, default: null },
     emailVerified: { type: Boolean, default: false },
     emailVerificationTokenHash: { type: String, default: null },
     emailVerificationExpiresAt: { type: Date, default: null },

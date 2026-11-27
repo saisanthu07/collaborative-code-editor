@@ -22,8 +22,10 @@ import {
   listActiveSessions,
   revokeSessionById,
 } from "../services/refreshTokenService.js";
-import { signToken } from "../utils/jwt.js";
+import { signToken, verifyToken } from "../utils/jwt.js";
 import { logEvent } from "../utils/logger.js";
+import User from "../models/User.js";
+import ModerationAppeal from "../models/ModerationAppeal.js";
 
 const isProd = () => process.env.NODE_ENV === "production";
 
@@ -259,6 +261,64 @@ export async function deleteMe(req, res, next) {
     clearRefreshTokenCookie(res);
     logEvent("AUTH_ACCOUNT_DELETE", { userId: req.user._id.toString() });
     res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function submitAppeal(req, res, next) {
+  try {
+    const { appealToken, message } = req.body;
+    let decoded;
+    try {
+      decoded = verifyToken(appealToken);
+    } catch {
+      return res.status(401).json({ error: "Appeal session expired. Please log in again to submit an appeal." });
+    }
+
+    if (decoded?.typ !== "appeal" || !decoded?.sub) {
+      return res.status(401).json({ error: "Invalid appeal token" });
+    }
+
+    const user = await User.findById(decoded.sub);
+    if (!user) {
+      return res.status(404).json({ error: "Account not found" });
+    }
+
+    if (user.status === "ACTIVE") {
+      return res.status(400).json({ error: "Your account is already active. Please sign in." });
+    }
+
+    const existingPending = await ModerationAppeal.findOne({
+      userId: user._id,
+      status: "PENDING",
+    }).lean();
+
+    if (existingPending) {
+      return res.status(409).json({
+        error: "You already have a pending appeal under review",
+        appeal: existingPending,
+      });
+    }
+
+    const appeal = await ModerationAppeal.create({
+      userId: user._id,
+      username: user.username,
+      email: user.email,
+      accountStatus: user.status,
+      moderationReason: user.moderationReason || "",
+      message,
+      status: "PENDING",
+    });
+
+    logEvent("MODERATION_APPEAL_SUBMITTED", {
+      userId: user._id.toString(),
+      username: user.username,
+      accountStatus: user.status,
+      appealId: appeal._id.toString(),
+    });
+
+    res.status(201).json({ appeal });
   } catch (err) {
     next(err);
   }

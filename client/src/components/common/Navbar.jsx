@@ -1,10 +1,11 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { LogOut, User, Shield, LayoutDashboard, Terminal } from "lucide-react";
+import { LogOut, Shield, LayoutDashboard, Terminal } from "lucide-react";
 import { useAuthStore } from "../../store/authStore.js";
 import { api } from "../../services/api.js";
 import { disconnectSocket } from "../../services/socket.js";
 import ThemeToggle from "./ThemeToggle.jsx";
 import BrandMark from "./BrandMark.jsx";
+import UserAvatar from "./UserAvatar.jsx";
 
 export default function Navbar() {
   const { user, logout } = useAuthStore();
@@ -76,7 +77,7 @@ export default function Navbar() {
                   }`
                 }
               >
-                <User size={15} aria-hidden="true" />
+                <UserAvatar username={user.username} avatar={user.avatar} size="xs" />
                 <span className="hidden sm:inline">{user.username}</span>
               </NavLink>
               {user.role === "ADMIN" && (

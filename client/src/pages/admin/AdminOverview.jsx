@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Users, FolderKanban, Activity, RefreshCw, ArrowRight } from "lucide-react";
+import { Users, FolderKanban, Activity, RefreshCw, ArrowRight, Scale } from "lucide-react";
 import { api } from "../../services/api.js";
 
 export default function AdminOverview() {
@@ -47,7 +47,7 @@ export default function AdminOverview() {
       </div>
 
       {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3.5">
           {Object.entries(stats).map(([key, value]) => (
             <div key={key} className="bg-surface border border-border rounded-2xl p-4 shadow-paper">
               <div className="text-xs font-semibold text-gray-400 capitalize font-mono">
@@ -93,7 +93,7 @@ export default function AdminOverview() {
         </div>
       )}
 
-      <div className="grid sm:grid-cols-3 gap-3.5">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <Link
           to="/admin/users"
           className="bg-surface border border-border hover:border-accent rounded-2xl p-5 shadow-paper transition-colors group flex items-center justify-between"
@@ -104,6 +104,20 @@ export default function AdminOverview() {
               <span>Manage Users</span>
             </div>
             <p className="text-xs text-gray-400 mt-1">Suspend, ban, or delete user accounts</p>
+          </div>
+          <ArrowRight size={16} className="text-gray-400 group-hover:text-accent" />
+        </Link>
+
+        <Link
+          to="/admin/appeals"
+          className="bg-surface border border-border hover:border-accent rounded-2xl p-5 shadow-paper transition-colors group flex items-center justify-between"
+        >
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold font-serif text-gray-100 group-hover:text-accent">
+              <Scale size={16} />
+              <span>Unban Appeals</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Review and approve user reactivation appeals</p>
           </div>
           <ArrowRight size={16} className="text-gray-400 group-hover:text-accent" />
         </Link>

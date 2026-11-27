@@ -55,14 +55,34 @@ export async function refreshAccessToken() {
   return refreshPromise;
 }
 
-// Silent refresh interceptor for expired in-memory access tokens.
+// Silent refresh interceptor & moderation popup interceptor.
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
+    const status = err.response?.status;
+    const code = err.response?.data?.code;
+    const moderation = err.response?.data?.moderation;
+
+    if (
+      status === 403 &&
+      (code === "ACCOUNT_BANNED" || code === "ACCOUNT_SUSPENDED") &&
+      moderation
+    ) {
+      const store = useAuthStore.getState();
+      store.setModerationNotice(moderation);
+      const requestUrl = err.config?.url || "";
+      if (!/\/auth\/login(?:$|\?)/.test(requestUrl) && store.token) {
+        store.logout();
+      }
+      return Promise.reject(err);
+    }
+
     const original = err.config;
     const requestUrl = original?.url || "";
-    const isAuthEndpoint = /\/auth\/(login|register|refresh|logout)(?:$|\?)/.test(requestUrl);
-    if (err.response?.status !== 401 || original?._retried || isAuthEndpoint) {
+    const isAuthEndpoint = /\/auth\/(login|register|refresh|logout|appeal)(?:$|\?)/.test(
+      requestUrl
+    );
+    if (status !== 401 || original?._retried || isAuthEndpoint) {
       return Promise.reject(err);
     }
     original._retried = true;

@@ -4,9 +4,10 @@ export const useAuthStore = create((set) => ({
   user: null,
   token: null,
   isInitialized: false,
+  moderationNotice: null,
 
   setAuth: (user, token) => {
-    set({ user, token, isInitialized: true });
+    set({ user, token, isInitialized: true, moderationNotice: null });
   },
 
   setToken: (token) => {
@@ -19,6 +20,14 @@ export const useAuthStore = create((set) => ({
 
   setInitialized: (isInitialized = true) => {
     set({ isInitialized });
+  },
+
+  setModerationNotice: (moderationNotice) => {
+    set({ moderationNotice });
+  },
+
+  clearModerationNotice: () => {
+    set({ moderationNotice: null });
   },
 
   logout: () => {

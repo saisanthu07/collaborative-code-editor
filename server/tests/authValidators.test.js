@@ -111,17 +111,32 @@ describe("changePasswordSchema", () => {
 });
 
 describe("updateProfileSchema", () => {
-  test("accepts https avatar URLs", () => {
-    const result = updateProfileSchema.safeParse({
-      avatar: "https://example.com/avatar.png",
+  test("accepts valid developer stamp tokens and empty resets", () => {
+    const stampResult = updateProfileSchema.safeParse({
+      avatar: "stamp:lambda:terracotta:wax",
     });
-    assert.equal(result.success, true);
+    assert.equal(stampResult.success, true);
+
+    const resetResult = updateProfileSchema.safeParse({
+      avatar: "",
+    });
+    assert.equal(resetResult.success, true);
   });
 
-  test("rejects non-https avatar URLs", () => {
-    const result = updateProfileSchema.safeParse({
+  test("rejects external avatar URLs and malformed stamp tokens", () => {
+    const httpsResult = updateProfileSchema.safeParse({
+      avatar: "https://example.com/avatar.png",
+    });
+    assert.equal(httpsResult.success, false);
+
+    const httpResult = updateProfileSchema.safeParse({
       avatar: "http://example.com/avatar.png",
     });
-    assert.equal(result.success, false);
+    assert.equal(httpResult.success, false);
+
+    const malformedResult = updateProfileSchema.safeParse({
+      avatar: "stamp:unknown:terracotta:wax",
+    });
+    assert.equal(malformedResult.success, false);
   });
 });

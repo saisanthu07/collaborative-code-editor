@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, memo } from "react";
 import { Send, MessageSquare, History, MessageSquareOff } from "lucide-react";
+import UserAvatar from "../common/UserAvatar.jsx";
 
 function ChatPanel({
   socket,
@@ -81,7 +82,10 @@ function ChatPanel({
             className={`text-xs break-words ${m.system ? "text-[11px] text-gray-400 italic py-1 border-b border-border/40 font-mono" : "py-1"}`}
           >
             {!m.system && (
-              <span className="font-semibold text-accent mr-1.5 font-sans">{m.username}:</span>
+              <span className="inline-flex items-center gap-1.5 mr-1.5 align-middle">
+                <UserAvatar username={m.username} avatar={m.avatar} size="xxs" />
+                <span className="font-semibold text-accent font-sans">{m.username}:</span>
+              </span>
             )}
             <span className={m.system ? "text-gray-400" : "text-gray-200"}>{m.text}</span>
           </div>

@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react";
+import { Link, useOutletContext } from "react-router-dom";
 import toast from "react-hot-toast";
-import { UserX, UserCheck, Ban, ShieldCheck, Trash2, Search, RefreshCw } from "lucide-react";
+import { UserX, UserCheck, Ban, ShieldCheck, Trash2, Search, RefreshCw, Scale } from "lucide-react";
 import { api } from "../../services/api.js";
 import ConfirmModal from "../../components/common/ConfirmModal.jsx";
+import UserAvatar from "../../components/common/UserAvatar.jsx";
 
 export default function AdminUsers() {
+  const outletContext = useOutletContext();
+  const refreshPendingAppeals = outletContext?.refreshPendingAppeals;
+
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [loading, setLoading] = useState(true);
-  const [confirmState, setConfirmState] = useState(null); // { type: "ban" | "delete", user }
+  const [confirmState, setConfirmState] = useState(null); // { type: "suspend" | "ban" | "delete", user }
+  const [moderationReason, setModerationReason] = useState("");
   const [confirmBusy, setConfirmBusy] = useState(false);
 
   async function loadUsers() {
@@ -17,6 +23,7 @@ export default function AdminUsers() {
     try {
       const { data } = await api.get("/admin/users");
       setUsers(data.users || []);
+      refreshPendingAppeals?.();
     } catch (err) {
       toast.error(err.response?.data?.error || "Could not load users");
     } finally {
@@ -29,18 +36,18 @@ export default function AdminUsers() {
   }, []);
 
   async function handleSuspendToggle(user) {
-    try {
-      if (user.status === "SUSPENDED") {
+    if (user.status === "SUSPENDED") {
+      try {
         await api.patch(`/admin/users/${user._id}/unsuspend`);
         toast.success(`User ${user.username} unsuspended`);
-      } else {
-        await api.patch(`/admin/users/${user._id}/suspend`);
-        toast.success(`User ${user.username} suspended`);
+        loadUsers();
+      } catch (err) {
+        toast.error(err.response?.data?.error || "Operation failed");
       }
-      loadUsers();
-    } catch (err) {
-      toast.error(err.response?.data?.error || "Operation failed");
+      return;
     }
+    setModerationReason("");
+    setConfirmState({ type: "suspend", user });
   }
 
   async function handleBanToggle(user) {
@@ -54,10 +61,12 @@ export default function AdminUsers() {
       }
       return;
     }
+    setModerationReason("");
     setConfirmState({ type: "ban", user });
   }
 
   function handleDeleteUser(user) {
+    setModerationReason("");
     setConfirmState({ type: "delete", user });
   }
 
@@ -65,14 +74,23 @@ export default function AdminUsers() {
     if (!confirmState) return;
     setConfirmBusy(true);
     try {
-      if (confirmState.type === "ban") {
-        await api.patch(`/admin/users/${confirmState.user._id}/ban`);
+      const reason = moderationReason.trim();
+      if (confirmState.type === "suspend") {
+        await api.patch(`/admin/users/${confirmState.user._id}/suspend`, {
+          ...(reason ? { reason } : {}),
+        });
+        toast.success(`User ${confirmState.user.username} suspended`);
+      } else if (confirmState.type === "ban") {
+        await api.patch(`/admin/users/${confirmState.user._id}/ban`, {
+          ...(reason ? { reason } : {}),
+        });
         toast.success(`User ${confirmState.user.username} banned`);
       } else {
         await api.delete(`/admin/users/${confirmState.user._id}`);
         toast.success(`Deleted user ${confirmState.user.username}`);
       }
       setConfirmState(null);
+      setModerationReason("");
       loadUsers();
     } catch (err) {
       toast.error(err.response?.data?.error || "Operation failed");
@@ -142,26 +160,43 @@ export default function AdminUsers() {
         ) : (
           filtered.map((u) => (
             <div key={u._id} className="flex flex-col md:flex-row md:items-center justify-between px-4 sm:px-5 py-3.5 text-sm gap-2.5 hover:bg-surface2/35 transition-colors">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-gray-200">{u.username}</span>
-                  <span className="text-gray-500 text-xs font-mono">({u.email})</span>
-                  {u.role === "ADMIN" && (
-                    <span className="text-[10px] bg-accent/15 text-accent border border-accent/25 px-2 py-0.5 rounded-full font-bold">
-                      ADMIN
+              <div className="min-w-0 flex items-center gap-3">
+                <UserAvatar username={u.username} avatar={u.avatar} size="sm" />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-gray-200">{u.username}</span>
+                    <span className="text-gray-500 text-xs font-mono">({u.email})</span>
+                    {u.role === "ADMIN" && (
+                      <span className="text-[10px] bg-accent/15 text-accent border border-accent/25 px-2 py-0.5 rounded-full font-bold">
+                        ADMIN
+                      </span>
+                    )}
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                        u.status === "BANNED"
+                          ? "bg-rose-600/20 text-rose-400 border border-rose-500/40"
+                          : u.status === "SUSPENDED"
+                          ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                          : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
+                      }`}
+                    >
+                      {u.status}
                     </span>
+                    {u.hasPendingAppeal && (
+                      <Link
+                        to="/admin/appeals"
+                        className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/30 hover:bg-accent/25 transition-colors"
+                      >
+                        <Scale size={10} />
+                        <span>Appeal Pending</span>
+                      </Link>
+                    )}
+                  </div>
+                  {u.moderationReason && (
+                    <div className="text-[11px] text-gray-400 mt-0.5 truncate">
+                      Reason: {u.moderationReason}
+                    </div>
                   )}
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                      u.status === "BANNED"
-                        ? "bg-rose-600/20 text-rose-400 border border-rose-500/40"
-                        : u.status === "SUSPENDED"
-                        ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
-                        : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
-                    }`}
-                  >
-                    {u.status}
-                  </span>
                 </div>
               </div>
 
@@ -226,21 +261,51 @@ export default function AdminUsers() {
       <ConfirmModal
         open={Boolean(confirmState)}
         title={
-          confirmState?.type === "ban"
+          confirmState?.type === "suspend"
+            ? `Suspend "${confirmState?.user?.username}"?`
+            : confirmState?.type === "ban"
             ? `Ban "${confirmState?.user?.username}"?`
             : `Delete "${confirmState?.user?.username}"?`
         }
         message={
-          confirmState?.type === "ban"
-            ? "They will be signed out of all active sessions and blocked from signing back in."
+          confirmState?.type === "suspend"
+            ? "They will be disconnected immediately and shown a suspension popup where they can submit an appeal."
+            : confirmState?.type === "ban"
+            ? "They will be signed out of all active sessions, disconnected immediately, and shown a ban popup with appeal access."
             : "This permanently deletes the user account and all of their owned collaborative rooms."
         }
-        confirmLabel={confirmState?.type === "ban" ? "Ban User" : "Delete User"}
-        tone={confirmState?.type === "ban" ? "warning" : "danger"}
+        confirmLabel={
+          confirmState?.type === "suspend"
+            ? "Suspend User"
+            : confirmState?.type === "ban"
+            ? "Ban User"
+            : "Delete User"
+        }
+        tone={confirmState?.type === "delete" ? "danger" : "warning"}
         loading={confirmBusy}
         onClose={() => !confirmBusy && setConfirmState(null)}
         onConfirm={executeConfirmAction}
-      />
+      >
+        {(confirmState?.type === "suspend" || confirmState?.type === "ban") && (
+          <div>
+            <label
+              htmlFor="moderation-reason-input"
+              className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1.5"
+            >
+              Reason shown to user (optional)
+            </label>
+            <textarea
+              id="moderation-reason-input"
+              rows={2}
+              maxLength={300}
+              value={moderationReason}
+              onChange={(e) => setModerationReason(e.target.value)}
+              placeholder="e.g., Repeated violation of room conduct guidelines"
+              className="w-full bg-surface2 border border-border rounded-xl px-3 py-2 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+        )}
+      </ConfirmModal>
     </div>
   );
 }

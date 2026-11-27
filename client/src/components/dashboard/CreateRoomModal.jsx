@@ -53,15 +53,21 @@ export default function CreateRoomModal({
 }) {
   const modalRef = useRef(null);
   const firstInputRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
     firstInputRef.current?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
 
     function handleKeyDown(e) {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        onCloseRef.current?.();
         return;
       }
       if (e.key === "Tab") {
@@ -84,7 +90,7 @@ export default function CreateRoomModal({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

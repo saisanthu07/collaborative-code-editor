@@ -13,15 +13,19 @@ export default function RenameFileModal({
 
   const modalRef = useRef(null);
   const inputRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
+  }, []);
 
+  useEffect(() => {
     function handleKeyDown(e) {
       if (e.key === "Escape" && !loading) {
         e.preventDefault();
-        onClose();
+        onCloseRef.current?.();
         return;
       }
       if (e.key === "Tab") {
@@ -44,7 +48,7 @@ export default function RenameFileModal({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [loading, onClose]);
+  }, [loading]);
 
   function handleSubmit(e) {
     e.preventDefault();

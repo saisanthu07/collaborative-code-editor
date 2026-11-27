@@ -7,6 +7,12 @@ import {
   getFileBadge,
 } from "../src/constants/languages.js";
 import { getCompilyTemplate } from "../src/constants/compilyTemplates.js";
+import {
+  parseAvatarStamp,
+  encodeAvatarStamp,
+  computeIdenticonCells,
+  resolveStampColor,
+} from "../src/utils/avatar.js";
 
 describe("Client utilities", () => {
   test("colorForUser returns deterministic hex colors", () => {
@@ -34,5 +40,33 @@ describe("Client utilities", () => {
     assert.equal(getCompilyTemplate("python").fileName, "main.py");
     assert.match(getCompilyTemplate("cpp").code, /iostream/);
     assert.equal(getCompilyTemplate("unknown").fileName, "index.js");
+  });
+
+  test("Developer Stamp avatar helpers encode, parse, and generate symmetric identicons", () => {
+    const encoded = encodeAvatarStamp({ glyph: "lambda", palette: "terracotta", frame: "wax" });
+    assert.equal(encoded, "stamp:lambda:terracotta:wax");
+
+    assert.deepEqual(parseAvatarStamp(encoded, "alice"), {
+      glyph: "lambda",
+      palette: "terracotta",
+      frame: "wax",
+    });
+
+    // Legacy URLs or empty values safely fall back to deterministic identicon
+    assert.deepEqual(parseAvatarStamp("https://example.com/old.png", "alice"), {
+      glyph: "identicon",
+      palette: "auto",
+      frame: "folio",
+    });
+
+    const cells = computeIdenticonCells("alice");
+    assert.equal(cells.length, 5);
+    for (const row of cells) {
+      assert.equal(row.length, 5);
+      assert.equal(row[0], row[4]);
+      assert.equal(row[1], row[3]);
+    }
+    assert.equal(cells.flat().filter(Boolean).length >= 7, true);
+    assert.equal(resolveStampColor("terracotta", "alice"), "#C2542D");
   });
 });

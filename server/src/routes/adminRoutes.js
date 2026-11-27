@@ -3,7 +3,14 @@ import * as adminController from "../controllers/adminController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 import { adminMiddleware } from "../middleware/adminMiddleware.js";
 import { validateRequest } from "../middleware/validateRequest.js";
-import { userIdParamSchema, roomIdParamSchema, logIdParamSchema } from "../validators/adminValidators.js";
+import {
+  userIdParamSchema,
+  roomIdParamSchema,
+  logIdParamSchema,
+  appealIdParamSchema,
+  moderationActionSchema,
+  reviewAppealSchema,
+} from "../validators/adminValidators.js";
 
 const router = Router();
 
@@ -14,6 +21,7 @@ router.get("/users", adminController.listUsers);
 router.patch(
   "/users/:userId/suspend",
   validateRequest(userIdParamSchema, "params"),
+  validateRequest(moderationActionSchema),
   adminController.suspendUser
 );
 router.patch(
@@ -24,6 +32,7 @@ router.patch(
 router.patch(
   "/users/:userId/ban",
   validateRequest(userIdParamSchema, "params"),
+  validateRequest(moderationActionSchema),
   adminController.banUser
 );
 router.patch(
@@ -61,5 +70,13 @@ router.delete(
   adminController.deleteActivityLog
 );
 router.delete("/activity-logs", adminController.clearActivityLogs);
+
+router.get("/appeals", adminController.listAppeals);
+router.patch(
+  "/appeals/:appealId/review",
+  validateRequest(appealIdParamSchema, "params"),
+  validateRequest(reviewAppealSchema),
+  adminController.reviewAppeal
+);
 
 export default router;

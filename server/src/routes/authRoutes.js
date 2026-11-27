@@ -13,12 +13,14 @@ import {
   resetPasswordSchema,
   verifyEmailSchema,
   deleteAccountSchema,
+  submitAppealSchema,
 } from "../validators/authValidators.js";
 
 const router = Router();
 
 router.post("/register", authLimiter, validateRequest(registerSchema), authController.register);
 router.post("/login", authLimiter, validateRequest(loginSchema), authController.login);
+router.post("/appeal", authLimiter, validateRequest(submitAppealSchema), authController.submitAppeal);
 router.post("/refresh", refreshLimiter, requireTrustedOrigin, authController.refresh);
 router.post("/logout", requireTrustedOrigin, authController.logout);
 router.post("/logout-all", authMiddleware, authController.logoutAll);

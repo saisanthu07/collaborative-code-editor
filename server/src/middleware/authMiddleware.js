@@ -1,5 +1,6 @@
 import { verifyToken } from "../utils/jwt.js";
 import User from "../models/User.js";
+import { buildModerationPayload } from "../services/moderationService.js";
 
 function extractToken(req) {
   const header = req.headers.authorization;
@@ -22,10 +23,16 @@ export async function authMiddleware(req, res, next) {
       return res.status(401).json({ error: "User not found" });
     }
     if (user.status === "BANNED") {
-      return res.status(403).json({ error: "Account banned" });
+      return res.status(403).json({
+        error: "Account banned",
+        ...(await buildModerationPayload(user)),
+      });
     }
     if (user.status === "SUSPENDED") {
-      return res.status(403).json({ error: "Account suspended" });
+      return res.status(403).json({
+        error: "Account suspended",
+        ...(await buildModerationPayload(user)),
+      });
     }
     req.user = user;
     next();
@@ -61,10 +68,16 @@ export async function optionalAuthMiddleware(req, res, next) {
       return res.status(401).json({ error: "User not found" });
     }
     if (user.status === "BANNED") {
-      return res.status(403).json({ error: "Account banned" });
+      return res.status(403).json({
+        error: "Account banned",
+        ...(await buildModerationPayload(user)),
+      });
     }
     if (user.status === "SUSPENDED") {
-      return res.status(403).json({ error: "Account suspended" });
+      return res.status(403).json({
+        error: "Account suspended",
+        ...(await buildModerationPayload(user)),
+      });
     }
     req.user = user;
     next();

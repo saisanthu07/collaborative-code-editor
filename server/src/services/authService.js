@@ -8,6 +8,7 @@ import CodeComment from "../models/CodeComment.js";
 import RefreshToken from "../models/RefreshToken.js";
 import { signToken } from "../utils/jwt.js";
 import { revokeAllForUser } from "./refreshTokenService.js";
+import { buildModerationPayload } from "./moderationService.js";
 import { deleteRoomYjsDocs, disconnectAllRoomYjs } from "../sockets/yjsServer.js";
 
 const SALT_ROUNDS = 12;
@@ -53,12 +54,14 @@ export async function loginUser({ identifier, email, username, password }) {
   if (user.status === "BANNED") {
     const err = new Error("This account has been banned");
     err.status = 403;
+    err.payload = await buildModerationPayload(user);
     throw err;
   }
 
   if (user.status === "SUSPENDED") {
     const err = new Error("This account has been suspended");
     err.status = 403;
+    err.payload = await buildModerationPayload(user);
     throw err;
   }
 

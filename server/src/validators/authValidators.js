@@ -36,14 +36,19 @@ export const loginSchema = z
     password: data.password,
   }));
 
+const STAMP_AVATAR_REGEX =
+  /^stamp:(identicon|initial|brackets|lambda|terminal|braces|quill|spark):(auto|terracotta|sage|indigo|ochre|mulberry|teal|violet):(folio|wax|badge|ruled)$/;
+
 export const updateProfileSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   avatar: z
     .string()
-    .url()
-    .refine((val) => val.startsWith("https://"), { message: "Avatar URL must use HTTPS" })
-    .optional()
-    .or(z.literal("")),
+    .trim()
+    .max(64)
+    .refine((val) => val === "" || STAMP_AVATAR_REGEX.test(val), {
+      message: "Invalid developer stamp format",
+    })
+    .optional(),
 });
 
 export const changePasswordSchema = z.object({
@@ -66,4 +71,13 @@ export const verifyEmailSchema = z.object({
 
 export const deleteAccountSchema = z.object({
   password: z.string().min(1).max(72),
+});
+
+export const submitAppealSchema = z.object({
+  appealToken: z.string().min(10).max(2048),
+  message: z
+    .string()
+    .trim()
+    .min(10, "Please explain your appeal (at least 10 characters)")
+    .max(1000, "Appeal message must not exceed 1000 characters"),
 });

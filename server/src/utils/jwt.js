@@ -15,12 +15,12 @@ export function validateJwtSecret() {
   }
 }
 
-export function signToken(payload) {
+export function signToken(payload, options = {}) {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error("JWT_SECRET is not set");
   return jwt.sign(payload, secret, {
     algorithm: "HS256",
-    expiresIn: process.env.JWT_EXPIRES_IN || "15m",
+    expiresIn: options.expiresIn || process.env.JWT_EXPIRES_IN || "15m",
   });
 }
 

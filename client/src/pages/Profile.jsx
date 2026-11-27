@@ -16,7 +16,9 @@ import {
   Shield,
   Eye,
   EyeOff,
-  Link2,
+  Shuffle,
+  RotateCcw,
+  Stamp,
   AlertTriangle,
   Clock,
   Monitor,
@@ -27,8 +29,18 @@ import {
 import { api } from "../services/api.js";
 import { useAuthStore } from "../store/authStore.js";
 import AppShell from "../components/common/AppShell.jsx";
+import UserAvatar from "../components/common/UserAvatar.jsx";
 import { copyToClipboard } from "../utils/clipboard.js";
 import { colorForUser } from "../utils/color.js";
+import {
+  AVATAR_GLYPHS,
+  AVATAR_PALETTES,
+  AVATAR_FRAMES,
+  DEFAULT_AVATAR_STAMP,
+  parseAvatarStamp,
+  encodeAvatarStamp,
+  randomizeAvatarStamp,
+} from "../utils/avatar.js";
 
 function parseSessionLabel(ua = "") {
   if (!ua) return { label: "Web Browser Session", isMobile: false };
@@ -61,8 +73,7 @@ export default function Profile() {
   const navigate = useNavigate();
 
   const [name, setName] = useState(user?.name || "");
-  const [avatar, setAvatar] = useState(user?.avatar || "");
-  const [avatarError, setAvatarError] = useState(false);
+  const [stamp, setStamp] = useState(() => parseAvatarStamp(user?.avatar, user?.username));
   const [copiedUsername, setCopiedUsername] = useState(false);
 
   const [passwords, setPasswords] = useState({ currentPassword: "", newPassword: "" });
@@ -82,10 +93,6 @@ export default function Profile() {
   const [resendingVerify, setResendingVerify] = useState(false);
   const [devVerifyToken, setDevVerifyToken] = useState("");
 
-  useEffect(() => {
-    setAvatarError(false);
-  }, [avatar]);
-
   async function loadSessions() {
     setSessionsLoading(true);
     try {
@@ -102,8 +109,10 @@ export default function Profile() {
     loadSessions();
   }, []);
 
+  const savedEncodedStamp = encodeAvatarStamp(parseAvatarStamp(user?.avatar, user?.username));
+  const currentEncodedStamp = encodeAvatarStamp(stamp);
   const profileDirty =
-    name.trim() !== (user?.name || "") || avatar.trim() !== (user?.avatar || "");
+    name.trim() !== (user?.name || "") || currentEncodedStamp !== savedEncodedStamp;
 
   const passwordChecks = useMemo(
     () => [
@@ -119,9 +128,12 @@ export default function Profile() {
     e.preventDefault();
     setSavingProfile(true);
     try {
-      const { data } = await api.patch("/auth/me", { name, avatar });
+      const { data } = await api.patch("/auth/me", {
+        name,
+        avatar: currentEncodedStamp,
+      });
       updateUser(data.user);
-      toast.success("Profile updated");
+      toast.success("Profile & developer stamp updated");
     } catch (err) {
       const details = err.response?.data?.details;
       toast.error(details?.[0]?.message || err.response?.data?.error || "Could not update profile");
@@ -212,8 +224,6 @@ export default function Profile() {
   }
 
   const displayName = name.trim() || user?.name || user?.username || "Developer";
-  const previewAvatar = avatar.trim();
-  const showAvatarImage = Boolean(previewAvatar) && !avatarError;
   const memberSince = user?.createdAt
     ? new Date(user.createdAt).toLocaleDateString(undefined, {
         month: "short",
@@ -241,21 +251,11 @@ export default function Profile() {
         {/* Identity Summary Banner */}
         <section className="bg-surface border border-border rounded-2xl p-5 sm:p-6 shadow-paper flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="flex items-center gap-4 min-w-0">
-            {showAvatarImage ? (
-              <img
-                src={previewAvatar}
-                alt={user?.username || "Avatar"}
-                onError={() => setAvatarError(true)}
-                className="w-16 h-16 rounded-2xl object-cover border border-border shadow-paper-sm shrink-0 bg-surface2"
-              />
-            ) : (
-              <div
-                style={{ backgroundColor: colorForUser(user?.username || "User") }}
-                className="w-16 h-16 rounded-2xl text-white font-serif font-bold text-2xl flex items-center justify-center uppercase shrink-0 shadow-paper-sm"
-              >
-                {(user?.username || "U").slice(0, 1)}
-              </div>
-            )}
+            <UserAvatar
+              username={user?.username || "User"}
+              stamp={stamp}
+              size="xl"
+            />
 
             <div className="min-w-0 space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
@@ -446,34 +446,146 @@ export default function Profile() {
                   />
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="profile-avatar"
-                    className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono"
-                  >
-                    Avatar URL{" "}
-                    <span className="text-gray-500 font-sans lowercase font-normal">(https://...)</span>
-                  </label>
-                  <div className="relative">
-                    <Link2
-                      size={15}
-                      aria-hidden="true"
-                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
-                    />
-                    <input
-                      id="profile-avatar"
-                      type="url"
-                      value={avatar}
-                      onChange={(e) => setAvatar(e.target.value)}
-                      className="w-full bg-surface2/75 hover:bg-surface2 focus:bg-surface border border-border rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/35 focus:border-accent transition-all shadow-paper-sm"
-                      placeholder="https://example.com/avatar.png"
-                    />
+                {/* Developer Stamp Studio */}
+                <div className="rounded-2xl border border-border bg-surface2/45 p-4 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <UserAvatar
+                        username={user?.username || "User"}
+                        stamp={stamp}
+                        size="md"
+                      />
+                      <div>
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-200 font-mono">
+                          <Stamp size={12} className="text-accent" />
+                          <span>Developer Stamp</span>
+                        </div>
+                        <p className="text-[11px] text-gray-400">
+                          Craft a unique SVG glyph &amp; sealing-wax mark shown in rooms and chat
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setStamp((prev) => randomizeAvatarStamp(prev))}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border bg-surface hover:bg-surface2 text-[11px] font-medium text-gray-200 transition-colors shadow-paper-sm"
+                      >
+                        <Shuffle size={12} className="text-accent" />
+                        <span>Randomize</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStamp(DEFAULT_AVATAR_STAMP)}
+                        title="Reset to default Cipher Grid stamp"
+                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-border bg-surface hover:bg-surface2 text-[11px] text-gray-400 hover:text-gray-100 transition-colors"
+                      >
+                        <RotateCcw size={12} />
+                        <span className="hidden sm:inline">Reset</span>
+                      </button>
+                    </div>
                   </div>
-                  {avatarError && previewAvatar && (
-                    <p className="text-[11px] text-amber-500 mt-1">
-                      Could not load image preview from that URL — fallback initial badge is shown above.
-                    </p>
-                  )}
+
+                  {/* Emblem Glyph Selector */}
+                  <div>
+                    <div className="text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-2">
+                      Emblem Glyph
+                    </div>
+                    <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+                      {AVATAR_GLYPHS.map((g) => {
+                        const selected = stamp.glyph === g.id;
+                        return (
+                          <button
+                            key={g.id}
+                            type="button"
+                            onClick={() => setStamp((prev) => ({ ...prev, glyph: g.id }))}
+                            title={g.label}
+                            className={`flex flex-col items-center gap-1 p-1.5 rounded-xl border transition-all ${
+                              selected
+                                ? "bg-surface border-accent ring-1 ring-accent/40 shadow-paper-sm"
+                                : "bg-surface/60 border-border hover:bg-surface"
+                            }`}
+                          >
+                            <UserAvatar
+                              username={user?.username || "User"}
+                              stamp={{ ...stamp, glyph: g.id }}
+                              size="sm"
+                            />
+                            <span className="text-[9px] font-mono text-gray-300 truncate max-w-full">
+                              {g.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Ink & Wax Palette + Frame Style */}
+                  <div className="grid sm:grid-cols-2 gap-4 pt-1">
+                    <div>
+                      <div className="text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-2">
+                        Ink &amp; Wax Color
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {AVATAR_PALETTES.map((p) => {
+                          const selected = stamp.palette === p.id;
+                          const swatchColor = p.color || colorForUser(user?.username || "User");
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => setStamp((prev) => ({ ...prev, palette: p.id }))}
+                              title={p.label}
+                              aria-label={`Select ${p.label} ink color`}
+                              style={{ backgroundColor: swatchColor }}
+                              className={`relative w-7 h-7 rounded-full border-2 transition-transform ${
+                                selected
+                                  ? "border-gray-100 scale-110 ring-2 ring-accent/50"
+                                  : "border-surface hover:scale-105"
+                              }`}
+                            >
+                              {p.id === "auto" && (
+                                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-mono font-bold text-white">
+                                  A
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-2">
+                        Paper Frame
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {AVATAR_FRAMES.map((f) => {
+                          const selected = stamp.frame === f.id;
+                          return (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() => setStamp((prev) => ({ ...prev, frame: f.id }))}
+                              className={`flex flex-col items-center gap-1 py-1.5 px-1 rounded-xl border text-[10px] font-mono transition-all ${
+                                selected
+                                  ? "bg-surface border-accent text-gray-100 font-semibold shadow-paper-sm"
+                                  : "bg-surface/60 border-border text-gray-400 hover:text-gray-200 hover:bg-surface"
+                              }`}
+                            >
+                              <UserAvatar
+                                username={user?.username || "User"}
+                                stamp={{ ...stamp, frame: f.id }}
+                                size="xs"
+                              />
+                              <span className="truncate max-w-full">{f.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="pt-2 border-t border-border/70 flex items-center justify-between gap-3">

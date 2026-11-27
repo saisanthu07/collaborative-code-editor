@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Users, ShieldBan, Eye } from "lucide-react";
-import { colorForUser } from "../../utils/color.js";
+import UserAvatar from "../common/UserAvatar.jsx";
 
 function ParticipantsPanel({
   participants = [],
@@ -45,10 +45,10 @@ function ParticipantsPanel({
               className="flex flex-col gap-1.5 px-2.5 py-2 rounded-lg hover:bg-surface2 transition-colors text-xs border border-transparent hover:border-border/60"
             >
               <div className="flex items-center gap-2">
-                <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
-                  style={{ backgroundColor: colorForUser(p.username) }}
-                  aria-hidden="true"
+                <UserAvatar
+                  username={p.username}
+                  avatar={p.avatar}
+                  size="xs"
                 />
                 <span className="text-gray-200 font-medium truncate font-sans">
                   {p.username}

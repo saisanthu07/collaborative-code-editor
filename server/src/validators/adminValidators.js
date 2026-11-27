@@ -11,3 +11,16 @@ export const roomIdParamSchema = z.object({
 export const logIdParamSchema = z.object({
   logId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid activity log ID"),
 });
+
+export const appealIdParamSchema = z.object({
+  appealId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid appeal ID"),
+});
+
+export const moderationActionSchema = z.object({
+  reason: z.string().trim().max(300, "Reason must not exceed 300 characters").optional(),
+});
+
+export const reviewAppealSchema = z.object({
+  decision: z.enum(["APPROVED", "REJECTED"]),
+  adminNote: z.string().trim().max(500, "Admin note must not exceed 500 characters").optional(),
+});

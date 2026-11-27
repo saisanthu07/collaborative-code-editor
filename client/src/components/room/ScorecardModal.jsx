@@ -21,6 +21,8 @@ export default function ScorecardModal({ roomId, roomName = "Interview", onClose
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const closeBtnRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     closeBtnRef.current?.focus();
@@ -41,11 +43,11 @@ export default function ScorecardModal({ roomId, roomName = "Interview", onClose
       .finally(() => setLoading(false));
 
     function onKey(e) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current?.();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [roomId, onClose]);
+  }, [roomId]);
 
   async function handleSave(e) {
     e.preventDefault();

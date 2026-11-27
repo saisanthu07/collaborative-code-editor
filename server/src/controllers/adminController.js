@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/User.js";
 import Room from "../models/Room.js";
 import Execution from "../models/Execution.js";
@@ -6,7 +7,9 @@ import DocRevision from "../models/DocRevision.js";
 import CodeComment from "../models/CodeComment.js";
 import RefreshToken from "../models/RefreshToken.js";
 import ActivityLog from "../models/ActivityLog.js";
+import ModerationAppeal from "../models/ModerationAppeal.js";
 import { logEvent } from "../utils/logger.js";
+import { buildModerationPayload } from "../services/moderationService.js";
 import {
   disconnectAllRoomYjs,
   deleteRoomYjsDocs,
@@ -21,10 +24,12 @@ async function revokeAndDisconnectUser(req, targetUser, reason) {
 
   const io = req.app.get("io");
   if (io) {
+    const { moderation } = await buildModerationPayload(targetUser, reason);
     const sockets = await io.fetchSockets();
     const targetId = targetUser._id.toString();
     for (const s of sockets) {
       if (s.data?.identity?.userId === targetId) {
+        s.emit("account-moderated", moderation);
         s.emit("error-event", { error: reason });
         s.disconnect(true);
       }
@@ -35,16 +40,32 @@ async function revokeAndDisconnectUser(req, targetUser, reason) {
 export async function stats(req, res, next) {
   try {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const [totalUsers, activeUsers, activeRooms, executions, failedExecutions, messages] =
-      await Promise.all([
-        User.countDocuments(),
-        User.countDocuments({ lastActiveAt: { $gte: since } }),
-        Room.countDocuments({ lastActiveAt: { $gte: since } }),
-        Execution.countDocuments(),
-        Execution.countDocuments({ status: { $regex: /error|fail/i } }),
-        Message.countDocuments(),
-      ]);
-    res.json({ totalUsers, activeUsers, activeRooms, executions, failedExecutions, messages });
+    const [
+      totalUsers,
+      activeUsers,
+      activeRooms,
+      executions,
+      failedExecutions,
+      messages,
+      pendingAppeals,
+    ] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ lastActiveAt: { $gte: since } }),
+      Room.countDocuments({ lastActiveAt: { $gte: since } }),
+      Execution.countDocuments(),
+      Execution.countDocuments({ status: { $regex: /error|fail/i } }),
+      Message.countDocuments(),
+      ModerationAppeal.countDocuments({ status: "PENDING" }),
+    ]);
+    res.json({
+      totalUsers,
+      activeUsers,
+      activeRooms,
+      executions,
+      failedExecutions,
+      messages,
+      pendingAppeals,
+    });
   } catch (err) {
     next(err);
   }
@@ -52,8 +73,19 @@ export async function stats(req, res, next) {
 
 export async function listUsers(req, res, next) {
   try {
-    const users = await User.find().sort({ createdAt: -1 }).limit(200);
-    res.json({ users });
+    const [users, pendingAppeals] = await Promise.all([
+      User.find().sort({ createdAt: -1 }).limit(200),
+      mongoose.connection.readyState === 1
+        ? ModerationAppeal.find({ status: "PENDING" }).select("userId _id").lean()
+        : Promise.resolve([]),
+    ]);
+    const pendingUserIds = new Set(pendingAppeals.map((a) => a.userId.toString()));
+    const enriched = users.map((u) => {
+      const obj = typeof u.toJSON === "function" ? u.toJSON() : { ...u };
+      obj.hasPendingAppeal = pendingUserIds.has(obj._id.toString());
+      return obj;
+    });
+    res.json({ users: enriched });
   } catch (err) {
     next(err);
   }
@@ -73,14 +105,20 @@ export async function suspendUser(req, res, next) {
       return res.status(403).json({ error: "Cannot suspend an administrator" });
     }
 
+    const reason =
+      typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 300) : "";
+
     targetUser.status = "SUSPENDED";
+    targetUser.moderationReason = reason;
+    targetUser.moderatedAt = new Date();
     await targetUser.save();
-    await revokeAndDisconnectUser(req, targetUser, "Your account has been suspended");
+    await revokeAndDisconnectUser(req, targetUser, reason || "Your account has been suspended");
 
     logEvent("ADMIN_USER_SUSPEND", {
       adminId: req.user._id.toString(),
       userId: targetUser._id.toString(),
       targetUsername: targetUser.username,
+      ...(reason ? { reason } : {}),
     });
 
     res.json({ user: targetUser });
@@ -96,7 +134,24 @@ export async function unsuspendUser(req, res, next) {
     if (!targetUser) return res.status(404).json({ error: "User not found" });
 
     targetUser.status = "ACTIVE";
+    targetUser.moderationReason = "";
+    targetUser.moderatedAt = null;
     await targetUser.save();
+
+    if (mongoose.connection.readyState === 1) {
+      await ModerationAppeal.updateMany(
+        { userId: targetUser._id, status: "PENDING" },
+        {
+          $set: {
+            status: "APPROVED",
+            adminNote: "Account unsuspended by administrator",
+            reviewedBy: req.user._id,
+            reviewedByUsername: req.user.username || "admin",
+            reviewedAt: new Date(),
+          },
+        }
+      );
+    }
 
     logEvent("ADMIN_USER_UNSUSPEND", {
       adminId: req.user._id.toString(),
@@ -124,14 +179,20 @@ export async function banUser(req, res, next) {
       return res.status(403).json({ error: "Cannot ban an administrator" });
     }
 
+    const reason =
+      typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 300) : "";
+
     targetUser.status = "BANNED";
+    targetUser.moderationReason = reason;
+    targetUser.moderatedAt = new Date();
     await targetUser.save();
-    await revokeAndDisconnectUser(req, targetUser, "Your account has been banned");
+    await revokeAndDisconnectUser(req, targetUser, reason || "Your account has been banned");
 
     logEvent("ADMIN_USER_BAN", {
       adminId: req.user._id.toString(),
       userId: targetUser._id.toString(),
       targetUsername: targetUser.username,
+      ...(reason ? { reason } : {}),
     });
 
     res.json({ user: targetUser });
@@ -147,7 +208,24 @@ export async function unbanUser(req, res, next) {
     if (!targetUser) return res.status(404).json({ error: "User not found" });
 
     targetUser.status = "ACTIVE";
+    targetUser.moderationReason = "";
+    targetUser.moderatedAt = null;
     await targetUser.save();
+
+    if (mongoose.connection.readyState === 1) {
+      await ModerationAppeal.updateMany(
+        { userId: targetUser._id, status: "PENDING" },
+        {
+          $set: {
+            status: "APPROVED",
+            adminNote: "Account unbanned by administrator",
+            reviewedBy: req.user._id,
+            reviewedByUsername: req.user.username || "admin",
+            reviewedAt: new Date(),
+          },
+        }
+      );
+    }
 
     logEvent("ADMIN_USER_UNBAN", {
       adminId: req.user._id.toString(),
@@ -326,6 +404,83 @@ export async function clearActivityLogs(req, res, next) {
     }
     const result = await ActivityLog.deleteMany(filter);
     res.json({ success: true, deletedCount: result.deletedCount || 0 });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function listAppeals(req, res, next) {
+  try {
+    const [appeals, pendingCount] = await Promise.all([
+      ModerationAppeal.find()
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .lean(),
+      ModerationAppeal.countDocuments({ status: "PENDING" }),
+    ]);
+
+    // Sort PENDING appeals first while preserving newest-first order within groups
+    const order = { PENDING: 0, REJECTED: 1, APPROVED: 2 };
+    appeals.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+
+    res.json({ appeals, pendingCount });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function reviewAppeal(req, res, next) {
+  try {
+    const { appealId } = req.params;
+    const { decision, adminNote = "" } = req.body;
+
+    const appeal = await ModerationAppeal.findById(appealId);
+    if (!appeal) return res.status(404).json({ error: "Appeal not found" });
+
+    if (appeal.status !== "PENDING") {
+      return res.status(400).json({ error: "This appeal has already been reviewed" });
+    }
+
+    appeal.status = decision;
+    appeal.adminNote = adminNote;
+    appeal.reviewedBy = req.user._id;
+    appeal.reviewedByUsername = req.user.username || "admin";
+    appeal.reviewedAt = new Date();
+    await appeal.save();
+
+    let updatedUser = null;
+    if (decision === "APPROVED") {
+      updatedUser = await User.findById(appeal.userId);
+      if (updatedUser) {
+        updatedUser.status = "ACTIVE";
+        updatedUser.moderationReason = "";
+        updatedUser.moderatedAt = null;
+        await updatedUser.save();
+      }
+      if (mongoose.connection.readyState === 1) {
+        await ModerationAppeal.updateMany(
+          { userId: appeal.userId, status: "PENDING", _id: { $ne: appeal._id } },
+          {
+            $set: {
+              status: "APPROVED",
+              adminNote: adminNote || "Resolved with approved appeal",
+              reviewedBy: req.user._id,
+              reviewedByUsername: req.user.username || "admin",
+              reviewedAt: new Date(),
+            },
+          }
+        );
+      }
+    }
+
+    logEvent(decision === "APPROVED" ? "ADMIN_APPEAL_APPROVE" : "ADMIN_APPEAL_REJECT", {
+      adminId: req.user._id.toString(),
+      appealId: appeal._id.toString(),
+      userId: appeal.userId.toString(),
+      targetUsername: appeal.username,
+    });
+
+    res.json({ appeal, user: updatedUser });
   } catch (err) {
     next(err);
   }

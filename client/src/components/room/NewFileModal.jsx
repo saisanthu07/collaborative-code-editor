@@ -15,14 +15,18 @@ export default function NewFileModal({
 
   const modalRef = useRef(null);
   const inputRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
 
+  useEffect(() => {
     function handleKeyDown(e) {
       if (e.key === "Escape" && !loading) {
         e.preventDefault();
-        onClose();
+        onCloseRef.current?.();
         return;
       }
       if (e.key === "Tab") {
@@ -45,7 +49,7 @@ export default function NewFileModal({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [loading, onClose]);
+  }, [loading]);
 
   function handleNameChange(val) {
     setFileName(val);

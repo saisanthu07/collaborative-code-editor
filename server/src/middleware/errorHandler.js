@@ -22,5 +22,8 @@ export function errorHandler(err, req, res, next) {
       ? "Internal server error"
       : err.message || "Internal server error";
 
-  res.status(status).json({ error: message });
+  res.status(status).json({
+    error: message,
+    ...(err.payload && typeof err.payload === "object" ? err.payload : {}),
+  });
 }

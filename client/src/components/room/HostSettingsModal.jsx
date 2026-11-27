@@ -23,18 +23,20 @@ export default function HostSettingsModal({
   const [inviting, setInviting] = useState(false);
 
   const closeBtnRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     closeBtnRef.current?.focus();
     function handleKeyDown(e) {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        onCloseRef.current?.();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, []);
 
   const inviteUrl =
     typeof window !== "undefined"

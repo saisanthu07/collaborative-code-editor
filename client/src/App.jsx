@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/common/ErrorBoundary.jsx";
 import PageLoading from "./components/common/PageLoading.jsx";
 import ProtectedRoute from "./components/common/ProtectedRoute.jsx";
 import RequireAdmin from "./components/common/RequireAdmin.jsx";
+import ModerationModal from "./components/common/ModerationModal.jsx";
 
 const Landing = lazy(() => import("./pages/Landing.jsx"));
 const Login = lazy(() => import("./pages/Login.jsx"));
@@ -22,6 +23,7 @@ const AdminOverview = lazy(() => import("./pages/admin/AdminOverview.jsx"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers.jsx"));
 const AdminRooms = lazy(() => import("./pages/admin/AdminRooms.jsx"));
 const AdminLogs = lazy(() => import("./pages/admin/AdminLogs.jsx"));
+const AdminAppeals = lazy(() => import("./pages/admin/AdminAppeals.jsx"));
 const NotFound = lazy(() => import("./pages/NotFound.jsx"));
 
 export default function App() {
@@ -102,11 +104,13 @@ export default function App() {
             <Route path="users" element={<AdminUsers />} />
             <Route path="rooms" element={<AdminRooms />} />
             <Route path="logs" element={<AdminLogs />} />
+            <Route path="appeals" element={<AdminAppeals />} />
           </Route>
           {/* Catch-all 404 route */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
+      <ModerationModal />
     </ErrorBoundary>
   );
 }

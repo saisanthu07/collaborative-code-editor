@@ -31,7 +31,12 @@ export default function Login() {
       toast.success(`Welcome back, ${data.user.username}`);
       navigate(destination, { replace: true });
     } catch (err) {
-      toast.error(err.response?.data?.error || "Login failed");
+      const moderation = err.response?.data?.moderation;
+      if (moderation) {
+        useAuthStore.getState().setModerationNotice(moderation);
+      } else {
+        toast.error(err.response?.data?.error || "Login failed");
+      }
     } finally {
       setLoading(false);
     }
