@@ -7,7 +7,7 @@
 ![Node](https://img.shields.io/badge/Node.js-%3E%3D18-221c16?style=for-the-badge&logo=node.js)
 ![React](https://img.shields.io/badge/React-18-221c16?style=for-the-badge&logo=react)
 ![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=for-the-badge&logo=vite)
-![Tests](https://img.shields.io/badge/Tests-132%20Passing-3c6e47?style=for-the-badge)
+![Tests](https://img.shields.io/badge/Tests-139%20Passing-3c6e47?style=for-the-badge)
 
 <p align="center">
   <strong>A production-hardened collaborative IDE, Compily personal compiler, system-design studio, and technical interview platform.</strong><br>
@@ -171,7 +171,7 @@ collaborative-code-editor/
 │   │   ├── sockets/                 # index.js (Socket.IO + admin:alerts), yjsServer.js (y-websocket + Redis)
 │   │   ├── utils/                   # jwt.js, guestToken.js, logger.js, metrics.js, nanoid.js
 │   │   └── validators/              # Zod validation schemas
-│   └── tests/                       # 126 automated tests across 34 suites (node --test)
+│   └── tests/                       # 133 automated tests across 35 suites (node --test)
 │
 ├── scripts/dev.js                   # Concurrent client + server dev runner
 ├── render.yaml                      # Render Blueprint (Server + Static Client)
@@ -324,6 +324,7 @@ All REST routes are prefixed with `/api`.
 | `GET` | `/users` | User registry list (includes `hasPendingAppeal` flag) |
 | `PATCH` | `/users/:userId/suspend` / `unsuspend` | Suspends (with optional `reason` and `durationHours`) or restores user |
 | `PATCH` | `/users/:userId/ban` / `unban` | Bans (with optional `reason`) or unbans user (emits `account-moderated` & disconnects sockets) |
+| `PATCH` | `/users/:userId/role` | Promotes an active `USER` to `ADMIN` or demotes an `ADMIN` to `USER` (requires admin password confirmation, prevents self-demotion & last-admin removal) |
 | `DELETE` | `/users/:userId` | Deletes user and cascades owned rooms/sessions |
 | `GET` | `/appeals` | Lists moderation appeals (`PENDING` prioritized) and `pendingCount` |
 | `PATCH` | `/appeals/:appealId/review` | Approves (restores `ACTIVE` status + sends email) or rejects an appeal with optional `adminNote` |
@@ -337,7 +338,7 @@ All REST routes are prefixed with `/api`.
 
 ### 1. Socket.IO Events (`/socket.io`)
 - **Client → Server:** `join-room`, `leave-room`, `heartbeat`, `presence-idle`, `chat-message`, `permission-change`, `file-created`, `file-deleted`, `file-renamed`, `file-language-change`, `execution-started`, `timer-sync` (`mode`, `durationSeconds`, `remainingSeconds`, `isRunning`), `active-file-sync`, `whiteboard-stroke` (`pen`, `line`, `rect`, `circle`, `arrow`, `text`), `whiteboard-undo`, `whiteboard-clear`, `voice-join`, `voice-signal`, `voice-mute`, `voice-leave`.
-- **Server → Client:** `presence-update`, `chat-message`, `timer-synced`, `execution-started`, `execution-completed`, `permission-change`, `file-created`, `file-deleted`, `file-renamed`, `file-language-changed`, `room-locked`, `room-settings-updated`, `test-cases-updated`, `comment-added`, `comment-updated`, `comment-deleted`, `revision-restored`, `participant-file-changed`, `whiteboard-stroke`, `whiteboard-undone`, `whiteboard-cleared`, `room-ended`, `user-joined-voice`, `voice-signal`, `user-voice-mute`, `user-left-voice`, `account-moderated`, `admin:new-appeal`, `error-event`.
+- **Server → Client:** `presence-update`, `chat-message`, `timer-synced`, `execution-started`, `execution-completed`, `permission-change`, `file-created`, `file-deleted`, `file-renamed`, `file-language-changed`, `room-locked`, `room-settings-updated`, `test-cases-updated`, `comment-added`, `comment-updated`, `comment-deleted`, `revision-restored`, `participant-file-changed`, `whiteboard-stroke`, `whiteboard-undone`, `whiteboard-cleared`, `room-ended`, `user-joined-voice`, `voice-signal`, `user-voice-mute`, `user-left-voice`, `account-role-updated`, `account-moderated`, `admin:new-appeal`, `error-event`.
 
 ### 2. Yjs CRDT Relay (`/yjs`)
 Connect via `WebsocketProvider(VITE_YJS_URL, `${roomId}:${fileName}`, ydoc, { params: { token } })` and bind `ydoc.getText("monaco")` via `y-monaco`.
@@ -347,7 +348,7 @@ Connect via `WebsocketProvider(VITE_YJS_URL, `${roomId}:${fileName}`, ydoc, { pa
 ## 🧪 Testing & CI
 
 ```bash
-# Run all server unit & route tests (126 tests across 34 suites)
+# Run all server unit & route tests (133 tests across 35 suites)
 npm test --prefix server
 
 # Run client utility tests (6 tests)

@@ -1,6 +1,8 @@
 import { useEffect, lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
+import toast from "react-hot-toast";
 import { api, refreshAccessToken } from "./services/api.js";
+import { getSocket, disconnectSocket } from "./services/socket.js";
 import { useAuthStore } from "./store/authStore.js";
 import ErrorBoundary from "./components/common/ErrorBoundary.jsx";
 import PageLoading from "./components/common/PageLoading.jsx";
@@ -28,18 +30,26 @@ const AdminAppeals = lazy(() => import("./pages/admin/AdminAppeals.jsx"));
 const NotFound = lazy(() => import("./pages/NotFound.jsx"));
 
 export default function App() {
-  const { isInitialized, setAuth, logout } = useAuthStore();
+  const {
+    user,
+    token,
+    isInitialized,
+    setAuth,
+    updateUser,
+    setModerationNotice,
+    logout,
+  } = useAuthStore();
 
   useEffect(() => {
     let isMounted = true;
     async function hydrate() {
       try {
-        const token = await refreshAccessToken();
+        const refreshedToken = await refreshAccessToken();
         const { data: meData } = await api.get("/auth/me", {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${refreshedToken}` },
         });
         if (isMounted) {
-          setAuth(meData.user, token);
+          setAuth(meData.user, refreshedToken);
         }
       } catch {
         if (isMounted) {
@@ -52,6 +62,37 @@ export default function App() {
       isMounted = false;
     };
   }, [setAuth, logout]);
+
+  useEffect(() => {
+    if (!user?._id || !token) return;
+    const socket = getSocket(token);
+
+    const handleRoleUpdated = ({ role }) => {
+      const current = useAuthStore.getState().user;
+      if (!current || !role || current.role === role) return;
+      updateUser({ ...current, role });
+      if (role === "ADMIN") {
+        toast.success("You have been promoted to Administrator");
+      } else {
+        toast("Your administrator role was removed", { icon: "🛡️" });
+      }
+    };
+
+    const handleModerated = (moderation) => {
+      if (moderation) {
+        setModerationNotice(moderation);
+        logout();
+      }
+      disconnectSocket();
+    };
+
+    socket.on("account-role-updated", handleRoleUpdated);
+    socket.on("account-moderated", handleModerated);
+    return () => {
+      socket.off("account-role-updated", handleRoleUpdated);
+      socket.off("account-moderated", handleModerated);
+    };
+  }, [user?._id, token, updateUser, setModerationNotice, logout]);
 
   if (!isInitialized) {
     return <PageLoading message="Initializing CodeTogether..." />;

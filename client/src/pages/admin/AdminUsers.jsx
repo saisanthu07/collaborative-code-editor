@@ -1,22 +1,38 @@
 import { useEffect, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import toast from "react-hot-toast";
-import { UserX, UserCheck, Ban, ShieldCheck, Trash2, Search, RefreshCw, Scale } from "lucide-react";
+import {
+  UserX,
+  UserCheck,
+  Ban,
+  ShieldCheck,
+  Shield,
+  ShieldOff,
+  Trash2,
+  Search,
+  RefreshCw,
+  Scale,
+  Lock,
+} from "lucide-react";
 import { api } from "../../services/api.js";
+import { useAuthStore } from "../../store/authStore.js";
 import ConfirmModal from "../../components/common/ConfirmModal.jsx";
 import UserAvatar from "../../components/common/UserAvatar.jsx";
 
 export default function AdminUsers() {
   const outletContext = useOutletContext();
   const refreshPendingAppeals = outletContext?.refreshPendingAppeals;
+  const currentUser = useAuthStore((s) => s.user);
 
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [roleFilter, setRoleFilter] = useState("ALL");
   const [loading, setLoading] = useState(true);
-  const [confirmState, setConfirmState] = useState(null); // { type: "suspend" | "ban" | "delete", user }
+  const [confirmState, setConfirmState] = useState(null); // { type: "suspend" | "ban" | "delete" | "promote" | "demote", user }
   const [moderationReason, setModerationReason] = useState("");
   const [suspendDurationHours, setSuspendDurationHours] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
   const [confirmBusy, setConfirmBusy] = useState(false);
 
   async function loadUsers() {
@@ -69,7 +85,17 @@ export default function AdminUsers() {
 
   function handleDeleteUser(user) {
     setModerationReason("");
+    setAdminPassword("");
     setConfirmState({ type: "delete", user });
+  }
+
+  function handleRoleChangePrompt(user, nextRole) {
+    setModerationReason("");
+    setAdminPassword("");
+    setConfirmState({
+      type: nextRole === "ADMIN" ? "promote" : "demote",
+      user,
+    });
   }
 
   async function executeConfirmAction() {
@@ -89,15 +115,28 @@ export default function AdminUsers() {
           ...(reason ? { reason } : {}),
         });
         toast.success(`User ${confirmState.user.username} banned`);
+      } else if (confirmState.type === "promote" || confirmState.type === "demote") {
+        const nextRole = confirmState.type === "promote" ? "ADMIN" : "USER";
+        await api.patch(`/admin/users/${confirmState.user._id}/role`, {
+          role: nextRole,
+          currentPassword: adminPassword,
+        });
+        toast.success(
+          nextRole === "ADMIN"
+            ? `Promoted @${confirmState.user.username} to Administrator`
+            : `Demoted @${confirmState.user.username} to User`
+        );
       } else {
         await api.delete(`/admin/users/${confirmState.user._id}`);
         toast.success(`Deleted user ${confirmState.user.username}`);
       }
       setConfirmState(null);
       setModerationReason("");
+      setAdminPassword("");
       loadUsers();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Operation failed");
+      const details = err.response?.data?.details;
+      toast.error(details?.[0]?.message || err.response?.data?.error || "Operation failed");
     } finally {
       setConfirmBusy(false);
     }
@@ -106,6 +145,7 @@ export default function AdminUsers() {
   const q = search.trim().toLowerCase();
   const filtered = users.filter((u) => {
     if (statusFilter !== "ALL" && u.status !== statusFilter) return false;
+    if (roleFilter !== "ALL" && u.role !== roleFilter) return false;
     if (!q) return true;
     return (
       u.username?.toLowerCase().includes(q) ||
@@ -114,24 +154,50 @@ export default function AdminUsers() {
     );
   });
 
+  const isRoleModal =
+    confirmState?.type === "promote" || confirmState?.type === "demote";
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 bg-surface border border-border rounded-xl p-1 w-fit">
-          {["ALL", "ACTIVE", "SUSPENDED", "BANNED"].map((st) => (
-            <button
-              key={st}
-              type="button"
-              onClick={() => setStatusFilter(st)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-colors ${
-                statusFilter === st
-                  ? "bg-accent text-white font-semibold"
-                  : "text-gray-400 hover:text-gray-100"
-              }`}
-            >
-              {st}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-surface border border-border rounded-xl p-1 w-fit">
+            {["ALL", "ACTIVE", "SUSPENDED", "BANNED"].map((st) => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setStatusFilter(st)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-colors ${
+                  statusFilter === st
+                    ? "bg-accent text-white font-semibold"
+                    : "text-gray-400 hover:text-gray-100"
+                }`}
+              >
+                {st}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1 bg-surface border border-border rounded-xl p-1 w-fit">
+            {[
+              { id: "ALL", label: "All Roles" },
+              { id: "ADMIN", label: "Admins" },
+              { id: "USER", label: "Users" },
+            ].map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => setRoleFilter(r.id)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-colors ${
+                  roleFilter === r.id
+                    ? "bg-accent2 text-white font-semibold"
+                    : "text-gray-400 hover:text-gray-100"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -175,6 +241,11 @@ export default function AdminUsers() {
                         ADMIN
                       </span>
                     )}
+                    {currentUser?._id === u._id && (
+                      <span className="text-[10px] font-mono bg-surface2 text-gray-300 border border-border px-2 py-0.5 rounded-full">
+                        You
+                      </span>
+                    )}
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
                         u.status === "BANNED"
@@ -209,59 +280,81 @@ export default function AdminUsers() {
                 </div>
               </div>
 
-              {u.role !== "ADMIN" && (
-                <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+              <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                {currentUser?._id !== u._id && u.role === "USER" && u.status === "ACTIVE" && (
                   <button
                     type="button"
-                    onClick={() => handleSuspendToggle(u)}
-                    className={`text-xs flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border transition-colors ${
-                      u.status === "SUSPENDED"
-                        ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
-                        : "text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                    }`}
+                    onClick={() => handleRoleChangePrompt(u, "ADMIN")}
+                    className="text-xs flex items-center gap-1 px-2.5 py-1 rounded-lg border border-accent/30 bg-accent/10 text-accent hover:bg-accent/20 transition-colors font-medium"
                   >
-                    {u.status === "SUSPENDED" ? (
-                      <>
-                        <UserCheck size={13} /> Unsuspend
-                      </>
-                    ) : (
-                      <>
-                        <UserX size={13} /> Suspend
-                      </>
-                    )}
+                    <Shield size={13} /> Make Admin
                   </button>
+                )}
 
+                {currentUser?._id !== u._id && u.role === "ADMIN" && (
                   <button
                     type="button"
-                    onClick={() => handleBanToggle(u)}
-                    className={`text-xs flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border transition-colors ${
-                      u.status === "BANNED"
-                        ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
-                        : "text-rose-500 hover:bg-rose-500/10"
-                    }`}
+                    onClick={() => handleRoleChangePrompt(u, "USER")}
+                    className="text-xs flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-500/35 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors font-medium"
                   >
-                    {u.status === "BANNED" ? (
-                      <>
-                        <ShieldCheck size={13} /> Unban
-                      </>
-                    ) : (
-                      <>
-                        <Ban size={13} /> Ban
-                      </>
-                    )}
+                    <ShieldOff size={13} /> Demote Admin
                   </button>
+                )}
 
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteUser(u)}
-                    title={`Delete ${u.username}`}
-                    aria-label={`Delete ${u.username}`}
-                    className="text-xs flex items-center gap-1 px-2.5 py-1 rounded-lg border border-rose-500/30 text-rose-500 hover:bg-rose-500/10"
-                  >
-                    <Trash2 size={13} /> Delete
-                  </button>
-                </div>
-              )}
+                {u.role !== "ADMIN" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleSuspendToggle(u)}
+                      className={`text-xs flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border transition-colors ${
+                        u.status === "SUSPENDED"
+                          ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                          : "text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                      }`}
+                    >
+                      {u.status === "SUSPENDED" ? (
+                        <>
+                          <UserCheck size={13} /> Unsuspend
+                        </>
+                      ) : (
+                        <>
+                          <UserX size={13} /> Suspend
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleBanToggle(u)}
+                      className={`text-xs flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border transition-colors ${
+                        u.status === "BANNED"
+                          ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                          : "text-rose-500 hover:bg-rose-500/10"
+                      }`}
+                    >
+                      {u.status === "BANNED" ? (
+                        <>
+                          <ShieldCheck size={13} /> Unban
+                        </>
+                      ) : (
+                        <>
+                          <Ban size={13} /> Ban
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteUser(u)}
+                      title={`Delete ${u.username}`}
+                      aria-label={`Delete ${u.username}`}
+                      className="text-xs flex items-center gap-1 px-2.5 py-1 rounded-lg border border-rose-500/30 text-rose-500 hover:bg-rose-500/10"
+                    >
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           ))
         )}
@@ -270,31 +363,88 @@ export default function AdminUsers() {
       <ConfirmModal
         open={Boolean(confirmState)}
         title={
-          confirmState?.type === "suspend"
+          confirmState?.type === "promote"
+            ? `Promote "${confirmState?.user?.username}" to Admin?`
+            : confirmState?.type === "demote"
+            ? `Demote "${confirmState?.user?.username}" to User?`
+            : confirmState?.type === "suspend"
             ? `Suspend "${confirmState?.user?.username}"?`
             : confirmState?.type === "ban"
             ? `Ban "${confirmState?.user?.username}"?`
             : `Delete "${confirmState?.user?.username}"?`
         }
         message={
-          confirmState?.type === "suspend"
+          confirmState?.type === "promote"
+            ? "They will immediately gain full Archival Administration access to manage users, rooms, appeals, and audit logs."
+            : confirmState?.type === "demote"
+            ? "Their administrator privileges and active refresh sessions will be revoked immediately."
+            : confirmState?.type === "suspend"
             ? "They will be disconnected immediately and shown a suspension popup where they can submit an appeal."
             : confirmState?.type === "ban"
             ? "They will be signed out of all active sessions, disconnected immediately, and shown a ban popup with appeal access."
             : "This permanently deletes the user account and all of their owned collaborative rooms."
         }
         confirmLabel={
-          confirmState?.type === "suspend"
+          confirmState?.type === "promote"
+            ? "Promote to Admin"
+            : confirmState?.type === "demote"
+            ? "Demote to User"
+            : confirmState?.type === "suspend"
             ? "Suspend User"
             : confirmState?.type === "ban"
             ? "Ban User"
             : "Delete User"
         }
-        tone={confirmState?.type === "delete" ? "danger" : "warning"}
+        tone={
+          confirmState?.type === "promote"
+            ? "accent"
+            : confirmState?.type === "delete"
+            ? "danger"
+            : "warning"
+        }
         loading={confirmBusy}
-        onClose={() => !confirmBusy && setConfirmState(null)}
+        confirmDisabled={isRoleModal && !adminPassword}
+        onClose={() => {
+          if (!confirmBusy) {
+            setConfirmState(null);
+            setAdminPassword("");
+          }
+        }}
         onConfirm={executeConfirmAction}
       >
+        {isRoleModal && (
+          <div>
+            <label
+              htmlFor="admin-role-password"
+              className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1.5"
+            >
+              Confirm Your Admin Password
+            </label>
+            <div className="relative">
+              <Lock
+                size={13}
+                aria-hidden="true"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+              />
+              <input
+                id="admin-role-password"
+                type="password"
+                autoComplete="current-password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && adminPassword && !confirmBusy) {
+                    e.preventDefault();
+                    executeConfirmAction();
+                  }
+                }}
+                placeholder="Enter your password to authorize"
+                className="w-full bg-surface2 border border-border rounded-xl pl-8 pr-3 py-2 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+          </div>
+        )}
+
         {(confirmState?.type === "suspend" || confirmState?.type === "ban") && (
           <div className="space-y-3">
             {confirmState?.type === "suspend" && (

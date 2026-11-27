@@ -10,6 +10,7 @@ import {
   appealIdParamSchema,
   moderationActionSchema,
   reviewAppealSchema,
+  changeUserRoleSchema,
 } from "../validators/adminValidators.js";
 
 const router = Router();
@@ -39,6 +40,12 @@ router.patch(
   "/users/:userId/unban",
   validateRequest(userIdParamSchema, "params"),
   adminController.unbanUser
+);
+router.patch(
+  "/users/:userId/role",
+  validateRequest(userIdParamSchema, "params"),
+  validateRequest(changeUserRoleSchema),
+  adminController.changeUserRole
 );
 router.delete(
   "/users/:userId",

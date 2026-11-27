@@ -9,6 +9,7 @@ export default function ConfirmModal({
   cancelLabel = "Cancel",
   tone = "danger", // "danger" | "warning" | "accent"
   loading = false,
+  confirmDisabled = false,
   children,
   onClose,
   onConfirm,
@@ -107,7 +108,7 @@ export default function ConfirmModal({
             <button
               type="button"
               onClick={onConfirm}
-              disabled={loading}
+              disabled={loading || confirmDisabled}
               className={`px-4 py-2 text-xs font-semibold text-white rounded-xl shadow-paper-sm disabled:opacity-60 transition-all active:scale-95 ${toneClasses.btn}`}
             >
               {loading ? "Processing..." : confirmLabel}

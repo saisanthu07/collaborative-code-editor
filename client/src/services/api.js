@@ -77,6 +77,18 @@ api.interceptors.response.use(
       return Promise.reject(err);
     }
 
+    if (
+      status === 403 &&
+      err.response?.data?.error === "Admin access required" &&
+      /\/admin(?:\/|$)/.test(err.config?.url || "")
+    ) {
+      const store = useAuthStore.getState();
+      if (store.user?.role === "ADMIN") {
+        store.updateUser({ ...store.user, role: "USER" });
+      }
+      return Promise.reject(err);
+    }
+
     const original = err.config;
     const requestUrl = original?.url || "";
     const isAuthEndpoint = /\/auth\/(login|register|refresh|logout|appeal)(?:$|\?)/.test(

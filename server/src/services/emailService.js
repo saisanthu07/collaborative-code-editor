@@ -168,3 +168,29 @@ export async function sendModerationDecisionEmail({ to, username, decision, admi
     `,
   });
 }
+
+export async function sendRoleChangeEmail({ to, username, newRole, changedBy = "an administrator" }) {
+  const safeName = escapeHtml(username || "there");
+  const safeActor = escapeHtml(changedBy);
+  const isPromoted = newRole === "ADMIN";
+  const subject = isPromoted
+    ? "You have been promoted to CodeTogether Administrator"
+    : "Your CodeTogether Administrator role was updated";
+
+  return sendTransactionalEmail({
+    to,
+    subject,
+    text: `Hi ${username || "there"},\n\nYour CodeTogether platform role was updated to ${newRole} by ${changedBy}.\n`,
+    html: `
+      <div style="font-family: Georgia, serif; max-width: 520px; margin: 0 auto; padding: 24px; background: #F7F4EB; color: #221C16; border: 1px solid #DDD5C7; border-radius: 12px;">
+        <h2 style="margin: 0 0 12px; color: ${isPromoted ? "#3C6E47" : "#C2542D"};">${
+      isPromoted ? "Administrator Access Granted" : "Platform Role Updated"
+    }</h2>
+        <p style="font-family: sans-serif; font-size: 14px; line-height: 1.5;">Hi ${safeName},</p>
+        <p style="font-family: sans-serif; font-size: 14px; line-height: 1.5;">Your CodeTogether account role was updated to <strong>${escapeHtml(
+          newRole
+        )}</strong> by <strong>@${safeActor}</strong>.</p>
+      </div>
+    `,
+  });
+}

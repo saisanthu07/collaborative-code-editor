@@ -25,3 +25,11 @@ export const reviewAppealSchema = z.object({
   decision: z.enum(["APPROVED", "REJECTED"]),
   adminNote: z.string().trim().max(500, "Admin note must not exceed 500 characters").optional(),
 });
+
+export const changeUserRoleSchema = z.object({
+  role: z.enum(["USER", "ADMIN"]),
+  currentPassword: z
+    .string()
+    .min(1, "Administrator password confirmation is required")
+    .max(72),
+});

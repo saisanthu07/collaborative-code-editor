@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import bcrypt from "bcrypt";
 import User from "../models/User.js";
 import Room from "../models/Room.js";
 import Execution from "../models/Execution.js";
@@ -10,7 +11,7 @@ import ActivityLog from "../models/ActivityLog.js";
 import ModerationAppeal from "../models/ModerationAppeal.js";
 import { logEvent } from "../utils/logger.js";
 import { buildModerationPayload } from "../services/moderationService.js";
-import { sendModerationDecisionEmail } from "../services/emailService.js";
+import { sendModerationDecisionEmail, sendRoleChangeEmail } from "../services/emailService.js";
 import {
   disconnectAllRoomYjs,
   deleteRoomYjsDocs,
@@ -508,6 +509,107 @@ export async function reviewAppeal(req, res, next) {
     });
 
     res.json({ appeal, user: updatedUser });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function changeUserRole(req, res, next) {
+  try {
+    const { userId } = req.params;
+    const { role, currentPassword } = req.body;
+
+    if (userId === req.user._id.toString()) {
+      return res.status(400).json({ error: "Cannot change your own administrator role" });
+    }
+
+    if (!req.user.passwordHash) {
+      return res.status(403).json({ error: "Password verification unavailable for this session" });
+    }
+
+    const passwordValid = await bcrypt.compare(currentPassword, req.user.passwordHash);
+    if (!passwordValid) {
+      return res.status(403).json({ error: "Incorrect administrator password" });
+    }
+
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (targetUser.role === role) {
+      return res.status(400).json({ error: `User already has the ${role} role` });
+    }
+
+    if (role === "ADMIN" && targetUser.status !== "ACTIVE") {
+      return res.status(400).json({
+        error: "Cannot promote a suspended or banned user to administrator",
+      });
+    }
+
+    if (targetUser.role === "ADMIN" && role === "USER") {
+      const otherActiveAdmins = await User.countDocuments({
+        role: "ADMIN",
+        status: "ACTIVE",
+        _id: { $ne: targetUser._id },
+      });
+      if (otherActiveAdmins === 0) {
+        return res.status(409).json({
+          error: "Cannot demote the last active administrator",
+        });
+      }
+    }
+
+    const previousRole = targetUser.role;
+    targetUser.role = role;
+    await targetUser.save();
+
+    if (role === "USER") {
+      await RefreshToken.updateMany(
+        { userId: targetUser._id, revokedAt: null },
+        { revokedAt: new Date() }
+      );
+    }
+
+    const io = req.app?.get("io");
+    if (io) {
+      const sockets = await io.fetchSockets();
+      const targetId = targetUser._id.toString();
+      for (const s of sockets) {
+        if (s.data?.identity?.userId === targetId) {
+          s.data.identity.role = role;
+          if (role === "ADMIN") {
+            s.join("admin:alerts");
+          } else {
+            s.leave("admin:alerts");
+          }
+          s.emit("account-role-updated", { role });
+        }
+      }
+    }
+
+    logEvent(role === "ADMIN" ? "ADMIN_USER_PROMOTE" : "ADMIN_USER_DEMOTE", {
+      adminId: req.user._id.toString(),
+      targetUserId: targetUser._id.toString(),
+      targetUsername: targetUser.username,
+      previousRole,
+      newRole: role,
+    });
+
+    if (targetUser.email) {
+      try {
+        await sendRoleChangeEmail({
+          to: targetUser.email,
+          username: targetUser.username,
+          newRole: role,
+          changedBy: req.user.username || "admin",
+        });
+      } catch {
+        // Email notification failure should not block role update
+      }
+    }
+
+    res.json({ user: targetUser });
   } catch (err) {
     next(err);
   }
