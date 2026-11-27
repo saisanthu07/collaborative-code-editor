@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import CompilySnippet from "../models/CompilySnippet.js";
 import Execution from "../models/Execution.js";
 import { runCode, runCodeBatch } from "../services/executionService.js";
@@ -121,6 +122,104 @@ export async function deleteSnippet(req, res, next) {
       return res.status(404).json({ error: "Snippet not found" });
     }
     res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function toggleShareSnippet(req, res, next) {
+  try {
+    const snippet = await CompilySnippet.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    });
+    if (!snippet) {
+      return res.status(404).json({ error: "Snippet not found" });
+    }
+
+    snippet.isPublic = Boolean(req.body.isPublic);
+    if (snippet.isPublic && !snippet.shareSlug) {
+      snippet.shareSlug = crypto.randomBytes(5).toString("hex");
+    }
+    await snippet.save();
+
+    logEvent("COMPILY_SNIPPET_SHARE", {
+      userId: req.user._id.toString(),
+      snippetId: snippet._id.toString(),
+      isPublic: snippet.isPublic,
+    });
+
+    res.json({ snippet });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getPublicSnippet(req, res, next) {
+  try {
+    const snippet = await CompilySnippet.findOne({
+      shareSlug: req.params.slug,
+      isPublic: true,
+    })
+      .populate("userId", "username avatar")
+      .lean();
+
+    if (!snippet) {
+      return res.status(404).json({ error: "Shared snippet not found or is private" });
+    }
+
+    const author =
+      snippet.userId && typeof snippet.userId === "object"
+        ? {
+            username: snippet.userId.username || "Developer",
+            avatar: snippet.userId.avatar || "",
+          }
+        : { username: "Developer", avatar: "" };
+
+    res.json({
+      snippet: {
+        _id: snippet._id,
+        title: snippet.title,
+        language: snippet.language,
+        code: snippet.code,
+        stdin: snippet.stdin,
+        shareSlug: snippet.shareSlug,
+        updatedAt: snippet.updatedAt,
+        author,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function forkPublicSnippet(req, res, next) {
+  try {
+    const source = await CompilySnippet.findOne({
+      shareSlug: req.params.slug,
+      isPublic: true,
+    }).lean();
+
+    if (!source) {
+      return res.status(404).json({ error: "Shared snippet not found or is private" });
+    }
+
+    const forkedTitle = `${source.title} (Fork)`.slice(0, 100);
+    const snippet = await CompilySnippet.create({
+      userId: req.user._id,
+      title: forkedTitle,
+      language: source.language,
+      code: source.code,
+      stdin: source.stdin || "",
+    });
+
+    logEvent("COMPILY_SNIPPET_FORK", {
+      userId: req.user._id.toString(),
+      sourceSlug: req.params.slug,
+      snippetId: snippet._id.toString(),
+    });
+
+    res.status(201).json({ snippet });
   } catch (err) {
     next(err);
   }

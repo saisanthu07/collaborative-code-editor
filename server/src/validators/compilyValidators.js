@@ -17,3 +17,11 @@ export const saveSnippetSchema = z.object({
 export const snippetIdParamSchema = z.object({
   id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid snippet ID"),
 });
+
+export const toggleShareSchema = z.object({
+  isPublic: z.boolean(),
+});
+
+export const shareSlugParamSchema = z.object({
+  slug: z.string().regex(/^[a-z0-9_-]{6,24}$/, "Invalid share slug"),
+});

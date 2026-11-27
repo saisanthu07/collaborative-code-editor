@@ -39,6 +39,7 @@ import CommentsPanel from "../components/room/CommentsPanel.jsx";
 import WhiteboardPanel from "../components/room/WhiteboardPanel.jsx";
 import RevisionsModal from "../components/room/RevisionsModal.jsx";
 import ScorecardModal from "../components/room/ScorecardModal.jsx";
+import ReplayModal from "../components/room/ReplayModal.jsx";
 import CommandPalette from "../components/room/CommandPalette.jsx";
 import ParticipantsPanel from "../components/room/ParticipantsPanel.jsx";
 import ShareModal from "../components/room/ShareModal.jsx";
@@ -107,6 +108,7 @@ export default function Room() {
   const [showHostSettings, setShowHostSettings] = useState(false);
   const [showRevisions, setShowRevisions] = useState(false);
   const [showScorecard, setShowScorecard] = useState(false);
+  const [showReplay, setShowReplay] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [yjsStatus, setYjsStatus] = useState("connecting");
   const [savingSettings, setSavingSettings] = useState(false);
@@ -554,6 +556,7 @@ export default function Room() {
               id: c.id || idx + 1,
               input: c.input || "",
               expected: c.expected || "",
+              isHidden: Boolean(c.isHidden),
             }));
             api.put(`/rooms/${roomId}/test-cases`, { testCases: payload }).catch(() => {});
           }, 500);
@@ -1161,6 +1164,17 @@ export default function Room() {
             />
             <VoiceRoom socket={socket} roomId={roomId} />
 
+            <button
+              type="button"
+              onClick={() => setShowReplay(true)}
+              aria-label="Session Timeline & Replay"
+              title="Session Timeline & Replay"
+              className="flex items-center gap-1 text-xs text-gray-300 hover:text-gray-100 bg-surface2 border border-border rounded-lg px-2 py-1.5 transition-colors shadow-paper-sm"
+            >
+              <RotateCcw size={13} className="text-accent" />
+              <span className="hidden xl:inline">Replay</span>
+            </button>
+
             {isRoomOwner && (
               <button
                 type="button"
@@ -1462,6 +1476,7 @@ export default function Room() {
               files={room?.files || []}
               activeFileName={activeFileName}
               getActiveCode={() => editorRef.current?.getValue()}
+              isHost={isRoomOwner || isHost}
             />
           </div>
         </div>
@@ -1645,6 +1660,13 @@ export default function Room() {
           roomId={roomId}
           roomName={room?.name}
           onClose={() => setShowScorecard(false)}
+        />
+      )}
+
+      {showReplay && (
+        <ReplayModal
+          roomId={roomId}
+          onClose={() => setShowReplay(false)}
         />
       )}
 

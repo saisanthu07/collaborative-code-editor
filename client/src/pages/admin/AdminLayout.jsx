@@ -12,6 +12,9 @@ import {
 } from "lucide-react";
 import AppShell from "../../components/common/AppShell.jsx";
 import { api } from "../../services/api.js";
+import { getSocket } from "../../services/socket.js";
+import { useAuthStore } from "../../store/authStore.js";
+import toast from "react-hot-toast";
 
 const TABS = [
   { to: "/admin", label: "Overview", icon: LayoutDashboard, end: true },
@@ -24,6 +27,7 @@ const TABS = [
 export default function AdminLayout() {
   const [pendingAppeals, setPendingAppeals] = useState(0);
   const location = useLocation();
+  const { user, token } = useAuthStore();
 
   const refreshPendingAppeals = useCallback(async () => {
     try {
@@ -37,6 +41,19 @@ export default function AdminLayout() {
   useEffect(() => {
     refreshPendingAppeals();
   }, [refreshPendingAppeals, location.pathname]);
+
+  useEffect(() => {
+    if (!token || user?.role !== "ADMIN") return;
+    const socket = getSocket(token);
+    const handleNewAppeal = ({ appeal }) => {
+      setPendingAppeals((c) => c + 1);
+      toast(`New appeal submitted by @${appeal?.username || "user"}`, { icon: "⚖️" });
+    };
+    socket.on("admin:new-appeal", handleNewAppeal);
+    return () => {
+      socket.off("admin:new-appeal", handleNewAppeal);
+    };
+  }, [token, user?.role]);
 
   return (
     <AppShell

@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import Room from "../models/Room.js";
 import { LANGUAGES } from "../constants/languages.js";
+import { getQuestionById } from "../constants/questionBank.js";
 
 export function generateInviteCode() {
   return crypto.randomBytes(12).toString("hex");
@@ -128,18 +129,45 @@ function buildTemplateFiles(language, template = "blank") {
   ];
 }
 
-export async function createRoom(owner, { name, description, language, visibility, template = "blank" }) {
+export async function createRoom(
+  owner,
+  { name, description, language, visibility, template = "blank", questionId = "" }
+) {
   const inviteCode = visibility === "PRIVATE" ? generateInviteCode() : null;
-  const files = buildTemplateFiles(language, template);
+  const question = questionId ? getQuestionById(questionId) : null;
+
+  let files = buildTemplateFiles(language, template);
+  let testCases;
+
+  if (question) {
+    const starterCode =
+      question.starter[language] ||
+      question.starter.javascript ||
+      "";
+    files = [
+      {
+        name: defaultFileName(language),
+        language,
+        content: starterCode,
+      },
+      {
+        name: "prompt.md",
+        language: "javascript",
+        content: question.prompt,
+      },
+    ];
+    testCases = question.testCases;
+  }
 
   const room = await Room.create({
     name,
-    description,
+    description: description || (question ? `${question.title} (${question.difficulty})` : ""),
     language,
     visibility,
     inviteCode,
     ownerId: owner._id,
     files,
+    ...(testCases ? { testCases } : {}),
     members: [
       {
         userId: owner._id,

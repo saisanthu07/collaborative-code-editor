@@ -28,6 +28,16 @@ const compilySnippetSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    isPublic: {
+      type: Boolean,
+      default: false,
+    },
+    shareSlug: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
   },
   { timestamps: true }
 );

@@ -4,9 +4,21 @@ import { authMiddleware } from "../middleware/authMiddleware.js";
 import { validateRequest } from "../middleware/validateRequest.js";
 import { executeLimiter } from "../middleware/rateLimiter.js";
 import { executeSchema, executeBatchSchema } from "../validators/roomValidators.js";
-import { saveSnippetSchema, snippetIdParamSchema } from "../validators/compilyValidators.js";
+import {
+  saveSnippetSchema,
+  snippetIdParamSchema,
+  toggleShareSchema,
+  shareSlugParamSchema,
+} from "../validators/compilyValidators.js";
 
 const router = Router();
+
+// Public shared snippet lookup (no auth required)
+router.get(
+  "/public/:slug",
+  validateRequest(shareSlugParamSchema, "params"),
+  compilyController.getPublicSnippet
+);
 
 router.use(authMiddleware);
 
@@ -30,6 +42,17 @@ router.delete(
   "/snippets/:id",
   validateRequest(snippetIdParamSchema, "params"),
   compilyController.deleteSnippet
+);
+router.patch(
+  "/snippets/:id/share",
+  validateRequest(snippetIdParamSchema, "params"),
+  validateRequest(toggleShareSchema),
+  compilyController.toggleShareSnippet
+);
+router.post(
+  "/public/:slug/fork",
+  validateRequest(shareSlugParamSchema, "params"),
+  compilyController.forkPublicSnippet
 );
 
 export default router;

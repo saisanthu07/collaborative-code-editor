@@ -11,6 +11,41 @@ export function signAppealToken(userId) {
   }
 }
 
+export async function autoRestoreIfSuspensionExpired(user) {
+  if (
+    !user ||
+    user.status !== "SUSPENDED" ||
+    !user.suspendedUntil ||
+    new Date(user.suspendedUntil).getTime() > Date.now()
+  ) {
+    return false;
+  }
+
+  user.status = "ACTIVE";
+  user.moderationReason = "";
+  user.moderatedAt = null;
+  user.suspendedUntil = null;
+  if (typeof user.save === "function") {
+    await user.save();
+  }
+
+  if (mongoose.connection.readyState === 1) {
+    await ModerationAppeal.updateMany(
+      { userId: user._id, status: "PENDING" },
+      {
+        $set: {
+          status: "APPROVED",
+          adminNote: "Timed suspension expired automatically",
+          reviewedByUsername: "system",
+          reviewedAt: new Date(),
+        },
+      }
+    ).catch(() => {});
+  }
+
+  return true;
+}
+
 export async function getLatestAppealForUser(userId) {
   if (mongoose.connection.readyState !== 1) return null;
   try {
@@ -36,6 +71,7 @@ export async function buildModerationPayload(user, fallbackReason = "") {
       username: user.username,
       reason: user.moderationReason || fallbackReason || "",
       moderatedAt: user.moderatedAt || null,
+      suspendedUntil: user.suspendedUntil || null,
       latestAppeal,
       appealToken,
     },

@@ -151,6 +151,11 @@ export default function ModerationModal() {
                 Updated {new Date(moderationNotice.moderatedAt).toLocaleString()}
               </div>
             )}
+            {!isBanned && moderationNotice.suspendedUntil && (
+              <div className="text-[11px] font-mono text-amber-600 dark:text-amber-400 pt-0.5">
+                Auto-restores on {new Date(moderationNotice.suspendedUntil).toLocaleString()}
+              </div>
+            )}
           </div>
 
           {/* Pending Appeal Status */}

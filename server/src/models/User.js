@@ -25,6 +25,7 @@ const userSchema = new mongoose.Schema(
     status: { type: String, enum: ["ACTIVE", "SUSPENDED", "BANNED"], default: "ACTIVE" },
     moderationReason: { type: String, default: "" },
     moderatedAt: { type: Date, default: null },
+    suspendedUntil: { type: Date, default: null },
     emailVerified: { type: Boolean, default: false },
     emailVerificationTokenHash: { type: String, default: null },
     emailVerificationExpiresAt: { type: Date, default: null },

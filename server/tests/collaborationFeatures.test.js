@@ -11,8 +11,10 @@ import {
 import {
   activeFileSyncSchema,
   whiteboardStrokeSchema,
+  whiteboardUndoSchema,
   whiteboardClearSchema,
 } from "../src/validators/socketValidators.js";
+import { getQuestionById } from "../src/constants/questionBank.js";
 import { runCodeViaPiston } from "../src/services/executionService.js";
 import { getOne } from "../src/controllers/roomController.js";
 import Room from "../src/models/Room.js";
@@ -96,6 +98,24 @@ describe("Enterprise Collaboration Features", () => {
       false
     );
     assert.equal(whiteboardClearSchema.safeParse({ roomId: "abcdef1234" }).success, true);
+    assert.equal(
+      whiteboardUndoSchema.safeParse({ roomId: "abcdef1234", strokeId: "stroke-1" }).success,
+      true
+    );
+    assert.equal(
+      whiteboardStrokeSchema.safeParse({
+        roomId: "abcdef1234",
+        stroke: {
+          id: "txt-1",
+          type: "text",
+          color: "#d97706",
+          width: 3,
+          text: "Redis Pub/Sub",
+          points: [{ x: 0.4, y: 0.3 }],
+        },
+      }).success,
+      true
+    );
   });
 
   test("runCodeViaPiston includes active entrypoint first and extra project files", async () => {
@@ -155,5 +175,43 @@ describe("Enterprise Collaboration Features", () => {
     assert.equal(ownerPayload.room.scorecard.recommendation, "HIRE");
     assert.equal(ownerPayload.room.inviteCode, "secret123");
     assert.equal(Room.schema.path("scorecard").options.select, false);
+  });
+
+  test("getOne hides hidden test case inputs/expected from non-owners and Question Bank resolves prompts", async () => {
+    const q = getQuestionById("two-sum");
+    assert.ok(q);
+    assert.equal(q.testCases.some((t) => t.isHidden), true);
+
+    const roomWithHidden = {
+      roomId: "abcdef1234",
+      name: "Algo Interview",
+      inviteCode: "secret123",
+      testCases: [
+        { id: 1, input: "1 2", expected: "3", isHidden: false },
+        { id: 2, input: "secret", expected: "42", isHidden: true },
+      ],
+      members: [],
+      toObject() {
+        return { ...this };
+      },
+    };
+
+    let candidatePayload = null;
+    await getOne(
+      { user: { _id: "u2" }, isRoomOwner: false, room: roomWithHidden },
+      { json: (d) => (candidatePayload = d) }
+    );
+    assert.equal(candidatePayload.room.testCases[0].input, "1 2");
+    assert.equal(candidatePayload.room.testCases[1].isHidden, true);
+    assert.equal(candidatePayload.room.testCases[1].input, "");
+    assert.equal(candidatePayload.room.testCases[1].expected, "");
+
+    let hostPayload = null;
+    await getOne(
+      { user: { _id: "u1" }, isRoomOwner: true, room: roomWithHidden },
+      { json: (d) => (hostPayload = d) }
+    );
+    assert.equal(hostPayload.room.testCases[1].input, "secret");
+    assert.equal(hostPayload.room.testCases[1].expected, "42");
   });
 });

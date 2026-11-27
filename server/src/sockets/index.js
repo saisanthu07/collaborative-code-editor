@@ -24,6 +24,7 @@ import {
   voiceLeaveSchema,
   activeFileSyncSchema,
   whiteboardStrokeSchema,
+  whiteboardUndoSchema,
   whiteboardClearSchema,
 } from "../validators/socketValidators.js";
 
@@ -280,6 +281,7 @@ export function registerSocketHandlers(io, redisClient = null) {
           username: user.username,
           userId: user._id.toString(),
           guestId: null,
+          role: user.role || "USER",
           avatar: user.avatar || "",
         };
         return next();
@@ -305,6 +307,9 @@ export function registerSocketHandlers(io, redisClient = null) {
   io.on("connection", (socket) => {
     socket.data.rateLimiter = makeRateLimiter();
     const identity = socket.data.identity;
+    if (identity?.role === "ADMIN") {
+      socket.join("admin:alerts");
+    }
 
     socket.on(
       "join-room",
@@ -768,6 +773,30 @@ export function registerSocketHandlers(io, redisClient = null) {
             }
           );
           socket.to(roomId).emit("whiteboard-stroke", { stroke: fullStroke });
+        },
+        { requireInRoom: true }
+      )
+    );
+
+    socket.on(
+      "whiteboard-undo",
+      safeHandler(
+        socket,
+        whiteboardUndoSchema,
+        async ({ roomId, strokeId }) => {
+          const room = await Room.findOne({ roomId });
+          if (!room || !canEdit(socket.data.role, room)) {
+            socket.emit("error-event", { error: "Permission denied for this action" });
+            return;
+          }
+          await Room.updateOne(
+            { roomId },
+            {
+              $pull: { whiteboardStrokes: { id: strokeId } },
+              $set: { lastActiveAt: new Date() },
+            }
+          );
+          socket.to(roomId).emit("whiteboard-undone", { strokeId });
         },
         { requireInRoom: true }
       )

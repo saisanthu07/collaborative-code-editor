@@ -14,6 +14,8 @@ import {
   XCircle,
   Globe,
   RefreshCw,
+  EyeOff,
+  Lock,
 } from "lucide-react";
 
 function buildPreviewDoc(files = [], activeFileName = "", activeCode = "") {
@@ -58,6 +60,7 @@ function OutputConsole({
   files = [],
   activeFileName = "",
   getActiveCode,
+  isHost = false,
 }) {
   const [activeTab, setActiveTab] = useState("output"); // "output" | "stdin" | "testcases" | "preview"
   const [selectedCaseIdx, setSelectedCaseIdx] = useState(0);
@@ -394,6 +397,9 @@ function OutputConsole({
                   }`}
                 >
                   <span>Case {idx + 1}</span>
+                  {tc.isHidden && (
+                    <EyeOff size={10} className="text-amber-500" title="Hidden grading test" />
+                  )}
                   {tc.status === "passed" && (
                     <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400" />
                   )}
@@ -422,6 +428,26 @@ function OutputConsole({
                   <span className="font-semibold text-gray-200 text-xs font-mono">
                     Case {selectedCaseIdx + 1}
                   </span>
+                  {currentCase.isHidden && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                      <Lock size={9} /> Hidden
+                    </span>
+                  )}
+                  {isHost && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleUpdateCase(selectedCaseIdx, "isHidden", !currentCase.isHidden)
+                      }
+                      className={`text-[10px] font-mono px-2 py-0.5 rounded-md border transition-colors ${
+                        currentCase.isHidden
+                          ? "bg-amber-500/15 text-amber-500 border-amber-500/35"
+                          : "bg-surface2 text-gray-400 border-border hover:text-gray-200"
+                      }`}
+                    >
+                      {currentCase.isHidden ? "Make Public" : "Mark Hidden"}
+                    </button>
+                  )}
                   {currentCase.status === "passed" && (
                     <span className="text-emerald-800 dark:text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 text-[11px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1">
                       <CheckCircle2 size={11} />
@@ -448,37 +474,46 @@ function OutputConsole({
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-400 mb-1 font-mono uppercase tracking-wider">
-                    Input (stdin)
-                  </label>
-                  <textarea
-                    value={currentCase.input}
-                    onChange={(e) =>
-                      handleUpdateCase(selectedCaseIdx, "input", e.target.value)
-                    }
-                    placeholder="Input values for this case"
-                    rows={3}
-                    className="w-full bg-surface2 border border-border rounded-lg p-2.5 text-xs text-gray-100 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-accent shadow-paper-sm"
-                  />
+              {currentCase.isHidden && !isHost ? (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-gray-200 flex items-center gap-2.5">
+                  <Lock size={14} className="text-amber-500 shrink-0" />
+                  <span>
+                    Hidden grading test case — input and expected output are visible only to the room host. Click <strong>Run All Cases</strong> to verify pass/fail status.
+                  </span>
                 </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-400 mb-1 font-mono uppercase tracking-wider">
+                      Input (stdin)
+                    </label>
+                    <textarea
+                      value={currentCase.input}
+                      onChange={(e) =>
+                        handleUpdateCase(selectedCaseIdx, "input", e.target.value)
+                      }
+                      placeholder="Input values for this case"
+                      rows={3}
+                      className="w-full bg-surface2 border border-border rounded-lg p-2.5 text-xs text-gray-100 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-accent shadow-paper-sm"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-400 mb-1 font-mono uppercase tracking-wider">
-                    Expected Output
-                  </label>
-                  <textarea
-                    value={currentCase.expected}
-                    onChange={(e) =>
-                      handleUpdateCase(selectedCaseIdx, "expected", e.target.value)
-                    }
-                    placeholder="Expected output to verify"
-                    rows={3}
-                    className="w-full bg-surface2 border border-border rounded-lg p-2.5 text-xs text-gray-100 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-accent shadow-paper-sm"
-                  />
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-400 mb-1 font-mono uppercase tracking-wider">
+                      Expected Output
+                    </label>
+                    <textarea
+                      value={currentCase.expected}
+                      onChange={(e) =>
+                        handleUpdateCase(selectedCaseIdx, "expected", e.target.value)
+                      }
+                      placeholder="Expected output to verify"
+                      rows={3}
+                      className="w-full bg-surface2 border border-border rounded-lg p-2.5 text-xs text-gray-100 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-accent shadow-paper-sm"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {currentCase.status !== "idle" && (
                 <div className="pt-2.5 border-t border-border space-y-1.5 font-mono">

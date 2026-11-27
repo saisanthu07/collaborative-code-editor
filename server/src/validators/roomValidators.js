@@ -11,6 +11,7 @@ export const createRoomSchema = z.object({
   language: z.enum(languageKeys).default("javascript"),
   visibility: z.enum(["PUBLIC", "PRIVATE"]).default("PRIVATE"),
   template: z.enum(ROOM_TEMPLATES).optional().default("blank"),
+  questionId: z.string().max(64).optional(),
 });
 
 export const updateRoomSchema = z.object({
@@ -59,6 +60,7 @@ export const testCaseItemSchema = z.object({
   id: z.number().int().min(1).max(100),
   input: z.string().max(10_000).default(""),
   expected: z.string().max(10_000).default(""),
+  isHidden: z.boolean().optional().default(false),
 });
 
 export const updateTestCasesSchema = z.object({

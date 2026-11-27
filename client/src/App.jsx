@@ -16,6 +16,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword.jsx"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail.jsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.jsx"));
 const Compily = lazy(() => import("./pages/Compily.jsx"));
+const SharedSnippet = lazy(() => import("./pages/SharedSnippet.jsx"));
 const Room = lazy(() => import("./pages/Room.jsx"));
 const Profile = lazy(() => import("./pages/Profile.jsx"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout.jsx"));
@@ -82,6 +83,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/s/:slug" element={<SharedSnippet />} />
           {/* Rooms are reachable by guests too — access control is enforced in Room.jsx & server-side */}
           <Route path="/room/:roomId" element={<Room />} />
           <Route

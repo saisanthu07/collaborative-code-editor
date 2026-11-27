@@ -13,6 +13,7 @@ import {
   computeIdenticonCells,
   resolveStampColor,
 } from "../src/utils/avatar.js";
+import { QUESTION_BANK } from "../src/constants/questionBank.js";
 
 describe("Client utilities", () => {
   test("colorForUser returns deterministic hex colors", () => {
@@ -68,5 +69,14 @@ describe("Client utilities", () => {
     }
     assert.equal(cells.flat().filter(Boolean).length >= 7, true);
     assert.equal(resolveStampColor("terracotta", "alice"), "#C2542D");
+  });
+
+  test("QUESTION_BANK exports structured interview problems", () => {
+    assert.equal(QUESTION_BANK.length >= 5, true);
+    for (const q of QUESTION_BANK) {
+      assert.ok(q.id);
+      assert.ok(q.title);
+      assert.ok(q.difficulty);
+    }
   });
 });

@@ -133,3 +133,38 @@ export async function sendVerificationEmail({ to, username, verifyUrl, token }) 
     `,
   });
 }
+
+export async function sendModerationDecisionEmail({ to, username, decision, adminNote = "" }) {
+  const safeName = escapeHtml(username || "there");
+  const isApproved = decision === "APPROVED";
+  const safeNote = escapeHtml(adminNote || "");
+  const subject = isApproved
+    ? "Your CodeTogether appeal has been approved"
+    : "Update on your CodeTogether account appeal";
+
+  return sendTransactionalEmail({
+    to,
+    subject,
+    text: `Hi ${username || "there"},\n\nYour account moderation appeal has been ${
+      isApproved ? "approved and your account access is restored" : "declined"
+    }.${adminNote ? `\n\nReviewer note: ${adminNote}` : ""}\n`,
+    html: `
+      <div style="font-family: Georgia, serif; max-width: 520px; margin: 0 auto; padding: 24px; background: #F7F4EB; color: #221C16; border: 1px solid #DDD5C7; border-radius: 12px;">
+        <h2 style="margin: 0 0 12px; color: ${isApproved ? "#3C6E47" : "#C2542D"};">${
+      isApproved ? "Account Access Restored" : "Appeal Decision Update"
+    }</h2>
+        <p style="font-family: sans-serif; font-size: 14px; line-height: 1.5;">Hi ${safeName},</p>
+        <p style="font-family: sans-serif; font-size: 14px; line-height: 1.5;">${
+          isApproved
+            ? "An administrator reviewed and approved your appeal. Your CodeTogether account is now active again."
+            : "An administrator reviewed your appeal and declined reactivation at this time."
+        }</p>
+        ${
+          safeNote
+            ? `<div style="margin: 14px 0; padding: 12px; background: #FFFFFF; border: 1px solid #DDD5C7; border-radius: 8px; font-family: sans-serif; font-size: 13px;"><strong>Reviewer Note:</strong> ${safeNote}</div>`
+            : ""
+        }
+      </div>
+    `,
+  });
+}

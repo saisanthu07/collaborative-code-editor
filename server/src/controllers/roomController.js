@@ -25,12 +25,23 @@ import {
 } from "../sockets/yjsServer.js";
 import { signGuestToken, verifyGuestToken } from "../utils/guestToken.js";
 
+function sanitizeTestCasesForViewer(testCases = [], isOwner = false) {
+  if (!Array.isArray(testCases)) return [];
+  if (isOwner) return testCases;
+  return testCases.map((tc) =>
+    tc.isHidden
+      ? { id: tc.id, input: "", expected: "", isHidden: true }
+      : tc
+  );
+}
+
 function sanitizeRoomForGuest(roomDoc) {
   const roomObj = roomDoc.toObject ? roomDoc.toObject() : { ...roomDoc };
   delete roomObj.starredBy;
   delete roomObj.ownerId;
   delete roomObj.inviteCode;
   delete roomObj.scorecard;
+  roomObj.testCases = sanitizeTestCasesForViewer(roomObj.testCases, false);
   if (Array.isArray(roomObj.members)) {
     roomObj.members = roomObj.members.map((m) => ({
       username: m.username,
@@ -187,6 +198,7 @@ export async function getOne(req, res) {
   if (!req.isRoomOwner) {
     delete roomObj.inviteCode;
     delete roomObj.scorecard;
+    roomObj.testCases = sanitizeTestCasesForViewer(roomObj.testCases, false);
   }
   res.json({ room: roomObj });
 }
@@ -408,6 +420,7 @@ export async function join(req, res, next) {
       if (!isOwner) {
         delete roomObj.inviteCode;
         delete roomObj.scorecard;
+        roomObj.testCases = sanitizeTestCasesForViewer(roomObj.testCases, false);
       }
 
       logEvent("ROOM_JOIN", { roomId, username, userId: req.user._id.toString() });
@@ -609,13 +622,49 @@ export async function executeBatch(req, res, next) {
         ? files
         : req.room.files?.map((f) => ({ name: f.name, content: f.content || "" })) || [];
 
-    const results = await runCodeBatch({
+    const storedCasesMap = new Map(
+      (req.room.testCases || []).map((tc) => [tc.id, tc])
+    );
+
+    const resolvedCases = cases.map((c) => {
+      const stored = storedCasesMap.get(c.id);
+      if (stored?.isHidden && !req.isRoomOwner) {
+        return {
+          id: c.id,
+          input: stored.input || "",
+          expected: stored.expected || "",
+          isHidden: true,
+        };
+      }
+      return {
+        ...c,
+        isHidden: Boolean(stored?.isHidden),
+      };
+    });
+
+    const rawResults = await runCodeBatch({
       language,
       sourceCode,
       activeFileName,
       files: bundleFiles,
-      cases,
+      cases: resolvedCases,
     });
+
+    const results = rawResults.map((r, i) => {
+      const hidden = Boolean(resolvedCases[i]?.isHidden);
+      if (hidden && !req.isRoomOwner) {
+        return {
+          id: r.id,
+          input: "",
+          expected: "",
+          actual: r.status === "passed" ? "Passed hidden test" : "Hidden test failed",
+          status: r.status,
+          isHidden: true,
+        };
+      }
+      return { ...r, isHidden: hidden };
+    });
+
     res.json({ results });
   } catch (err) {
     logEvent("EXEC_BATCH_FAILURE", { roomId: req.room?.roomId, error: err.message });
@@ -625,19 +674,80 @@ export async function executeBatch(req, res, next) {
 
 export async function updateTestCases(req, res, next) {
   try {
-    const { testCases } = req.body;
+    let nextCases = req.body.testCases;
+    if (!req.isRoomOwner) {
+      // Preserve authoritative hidden test cases created by host
+      const existingHidden = (req.room.testCases || []).filter((tc) => tc.isHidden);
+      const hiddenIds = new Set(existingHidden.map((tc) => tc.id));
+      const publicUpdates = nextCases
+        .filter((tc) => !hiddenIds.has(tc.id))
+        .map((tc) => ({ ...tc, isHidden: false }));
+      nextCases = [...publicUpdates, ...existingHidden].slice(0, 15);
+    }
+
     const room = await Room.findOneAndUpdate(
       { roomId: req.room.roomId },
-      { $set: { testCases, lastActiveAt: new Date() } },
+      { $set: { testCases: nextCases, lastActiveAt: new Date() } },
       { new: true }
     );
 
     const io = req.app.get("io");
     if (io) {
-      io.to(req.room.roomId).emit("test-cases-updated", { testCases: room.testCases });
+      io.to(req.room.roomId).emit("test-cases-updated", {
+        testCases: sanitizeTestCasesForViewer(room.testCases, false),
+      });
     }
 
-    res.json({ testCases: room.testCases });
+    res.json({
+      testCases: sanitizeTestCasesForViewer(room.testCases, req.isRoomOwner),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getTimeline(req, res, next) {
+  try {
+    const roomId = req.room.roomId;
+    const [revisions, executions, messages] = await Promise.all([
+      DocRevision.find({ roomId }).sort({ createdAt: -1 }).limit(40).lean(),
+      Execution.find({ roomId }).sort({ createdAt: -1 }).limit(40).lean(),
+      Message.find({ roomId }).sort({ createdAt: -1 }).limit(40).lean(),
+    ]);
+
+    const events = [
+      ...revisions.map((r) => ({
+        id: `rev-${r._id}`,
+        kind: "revision",
+        title: `Checkpoint "${r.label}" on ${r.fileName}`,
+        actor: r.createdBy || "Editor",
+        detail: r.content || "",
+        fileName: r.fileName,
+        createdAt: r.createdAt,
+      })),
+      ...executions.map((e) => ({
+        id: `exec-${e._id}`,
+        kind: "execution",
+        title: `Ran ${e.language} · ${e.status}`,
+        actor: "Runner",
+        detail: e.stdout || e.stderr || e.compileOutput || "(no output)",
+        sourceCode: e.sourceCode || "",
+        executionTime: e.executionTime,
+        createdAt: e.createdAt,
+      })),
+      ...messages
+        .filter((m) => !m.system)
+        .map((m) => ({
+          id: `msg-${m._id}`,
+          kind: "chat",
+          title: `Note from ${m.username}`,
+          actor: m.username,
+          detail: m.text,
+          createdAt: m.createdAt,
+        })),
+    ].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    res.json({ events });
   } catch (err) {
     next(err);
   }

@@ -34,6 +34,7 @@ const testCaseSchema = new mongoose.Schema(
     id: { type: Number, required: true },
     input: { type: String, default: "" },
     expected: { type: String, default: "" },
+    isHidden: { type: Boolean, default: false },
   },
   { _id: false }
 );
@@ -52,9 +53,15 @@ const timerStateSchema = new mongoose.Schema(
 const strokeSchema = new mongoose.Schema(
   {
     id: { type: String, required: true },
+    type: {
+      type: String,
+      enum: ["pen", "line", "rect", "circle", "arrow", "text"],
+      default: "pen",
+    },
     color: { type: String, default: "#d97706" },
     width: { type: Number, default: 3 },
     points: [{ x: Number, y: Number }],
+    text: { type: String, default: "" },
     username: { type: String, default: "User" },
   },
   { _id: false }

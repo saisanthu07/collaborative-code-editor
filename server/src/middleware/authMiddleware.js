@@ -1,6 +1,9 @@
 import { verifyToken } from "../utils/jwt.js";
 import User from "../models/User.js";
-import { buildModerationPayload } from "../services/moderationService.js";
+import {
+  buildModerationPayload,
+  autoRestoreIfSuspensionExpired,
+} from "../services/moderationService.js";
 
 function extractToken(req) {
   const header = req.headers.authorization;
@@ -22,6 +25,7 @@ export async function authMiddleware(req, res, next) {
     if (!user) {
       return res.status(401).json({ error: "User not found" });
     }
+    await autoRestoreIfSuspensionExpired(user);
     if (user.status === "BANNED") {
       return res.status(403).json({
         error: "Account banned",
@@ -67,6 +71,7 @@ export async function optionalAuthMiddleware(req, res, next) {
     if (!user) {
       return res.status(401).json({ error: "User not found" });
     }
+    await autoRestoreIfSuspensionExpired(user);
     if (user.status === "BANNED") {
       return res.status(403).json({
         error: "Account banned",

@@ -11,6 +11,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           "react-vendor": ["react", "react-dom", "react-router-dom", "zustand"],
+          "motion-vendor": ["framer-motion"],
+          "icons-vendor": ["lucide-react"],
           "monaco-vendor": ["monaco-editor", "@monaco-editor/react"],
           "collab-vendor": ["yjs", "y-websocket", "y-monaco", "socket.io-client"],
         },

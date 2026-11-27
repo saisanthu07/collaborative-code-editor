@@ -16,6 +16,7 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [confirmState, setConfirmState] = useState(null); // { type: "suspend" | "ban" | "delete", user }
   const [moderationReason, setModerationReason] = useState("");
+  const [suspendDurationHours, setSuspendDurationHours] = useState("");
   const [confirmBusy, setConfirmBusy] = useState(false);
 
   async function loadUsers() {
@@ -47,6 +48,7 @@ export default function AdminUsers() {
       return;
     }
     setModerationReason("");
+    setSuspendDurationHours("168");
     setConfirmState({ type: "suspend", user });
   }
 
@@ -75,9 +77,11 @@ export default function AdminUsers() {
     setConfirmBusy(true);
     try {
       const reason = moderationReason.trim();
+      const durationHours = Number(suspendDurationHours) || null;
       if (confirmState.type === "suspend") {
         await api.patch(`/admin/users/${confirmState.user._id}/suspend`, {
           ...(reason ? { reason } : {}),
+          ...(durationHours ? { durationHours } : {}),
         });
         toast.success(`User ${confirmState.user.username} suspended`);
       } else if (confirmState.type === "ban") {
@@ -197,6 +201,11 @@ export default function AdminUsers() {
                       Reason: {u.moderationReason}
                     </div>
                   )}
+                  {u.status === "SUSPENDED" && u.suspendedUntil && (
+                    <div className="text-[10px] font-mono text-amber-500 mt-0.5">
+                      Suspended until {new Date(u.suspendedUntil).toLocaleString()}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -287,22 +296,45 @@ export default function AdminUsers() {
         onConfirm={executeConfirmAction}
       >
         {(confirmState?.type === "suspend" || confirmState?.type === "ban") && (
-          <div>
-            <label
-              htmlFor="moderation-reason-input"
-              className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1.5"
-            >
-              Reason shown to user (optional)
-            </label>
-            <textarea
-              id="moderation-reason-input"
-              rows={2}
-              maxLength={300}
-              value={moderationReason}
-              onChange={(e) => setModerationReason(e.target.value)}
-              placeholder="e.g., Repeated violation of room conduct guidelines"
-              className="w-full bg-surface2 border border-border rounded-xl px-3 py-2 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent"
-            />
+          <div className="space-y-3">
+            {confirmState?.type === "suspend" && (
+              <div>
+                <label
+                  htmlFor="suspension-duration-select"
+                  className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1.5"
+                >
+                  Suspension Duration
+                </label>
+                <select
+                  id="suspension-duration-select"
+                  value={suspendDurationHours}
+                  onChange={(e) => setSuspendDurationHours(e.target.value)}
+                  className="w-full bg-surface2 border border-border rounded-xl px-3 py-2 text-xs text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  <option value="24">24 Hours</option>
+                  <option value="168">7 Days</option>
+                  <option value="720">30 Days</option>
+                  <option value="">Indefinite (Manual Unsuspend)</option>
+                </select>
+              </div>
+            )}
+            <div>
+              <label
+                htmlFor="moderation-reason-input"
+                className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1.5"
+              >
+                Reason shown to user (optional)
+              </label>
+              <textarea
+                id="moderation-reason-input"
+                rows={2}
+                maxLength={300}
+                value={moderationReason}
+                onChange={(e) => setModerationReason(e.target.value)}
+                placeholder="e.g., Repeated violation of room conduct guidelines"
+                className="w-full bg-surface2 border border-border rounded-xl px-3 py-2 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
           </div>
         )}
       </ConfirmModal>

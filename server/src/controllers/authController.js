@@ -301,6 +301,20 @@ export async function submitAppeal(req, res, next) {
       });
     }
 
+    const cooldownSince = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentRejected = await ModerationAppeal.findOne({
+      userId: user._id,
+      status: "REJECTED",
+      reviewedAt: { $gt: cooldownSince },
+    }).lean();
+
+    if (recentRejected) {
+      return res.status(429).json({
+        error: "Please wait 24 hours after a declined appeal before submitting a new one.",
+        appeal: recentRejected,
+      });
+    }
+
     const appeal = await ModerationAppeal.create({
       userId: user._id,
       username: user.username,
@@ -310,6 +324,8 @@ export async function submitAppeal(req, res, next) {
       message,
       status: "PENDING",
     });
+
+    req.app?.get("io")?.to("admin:alerts").emit("admin:new-appeal", { appeal });
 
     logEvent("MODERATION_APPEAL_SUBMITTED", {
       userId: user._id.toString(),

@@ -10,6 +10,7 @@ import ActivityLog from "../models/ActivityLog.js";
 import ModerationAppeal from "../models/ModerationAppeal.js";
 import { logEvent } from "../utils/logger.js";
 import { buildModerationPayload } from "../services/moderationService.js";
+import { sendModerationDecisionEmail } from "../services/emailService.js";
 import {
   disconnectAllRoomYjs,
   deleteRoomYjsDocs,
@@ -107,10 +108,17 @@ export async function suspendUser(req, res, next) {
 
     const reason =
       typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 300) : "";
+    const durationHours =
+      typeof req.body?.durationHours === "number" && req.body.durationHours > 0
+        ? req.body.durationHours
+        : null;
 
     targetUser.status = "SUSPENDED";
     targetUser.moderationReason = reason;
     targetUser.moderatedAt = new Date();
+    targetUser.suspendedUntil = durationHours
+      ? new Date(Date.now() + durationHours * 60 * 60 * 1000)
+      : null;
     await targetUser.save();
     await revokeAndDisconnectUser(req, targetUser, reason || "Your account has been suspended");
 
@@ -119,6 +127,7 @@ export async function suspendUser(req, res, next) {
       userId: targetUser._id.toString(),
       targetUsername: targetUser.username,
       ...(reason ? { reason } : {}),
+      ...(durationHours ? { durationHours } : {}),
     });
 
     res.json({ user: targetUser });
@@ -136,6 +145,7 @@ export async function unsuspendUser(req, res, next) {
     targetUser.status = "ACTIVE";
     targetUser.moderationReason = "";
     targetUser.moderatedAt = null;
+    targetUser.suspendedUntil = null;
     await targetUser.save();
 
     if (mongoose.connection.readyState === 1) {
@@ -185,6 +195,7 @@ export async function banUser(req, res, next) {
     targetUser.status = "BANNED";
     targetUser.moderationReason = reason;
     targetUser.moderatedAt = new Date();
+    targetUser.suspendedUntil = null;
     await targetUser.save();
     await revokeAndDisconnectUser(req, targetUser, reason || "Your account has been banned");
 
@@ -210,6 +221,7 @@ export async function unbanUser(req, res, next) {
     targetUser.status = "ACTIVE";
     targetUser.moderationReason = "";
     targetUser.moderatedAt = null;
+    targetUser.suspendedUntil = null;
     await targetUser.save();
 
     if (mongoose.connection.readyState === 1) {
@@ -455,6 +467,7 @@ export async function reviewAppeal(req, res, next) {
         updatedUser.status = "ACTIVE";
         updatedUser.moderationReason = "";
         updatedUser.moderatedAt = null;
+        updatedUser.suspendedUntil = null;
         await updatedUser.save();
       }
       if (mongoose.connection.readyState === 1) {
@@ -470,6 +483,20 @@ export async function reviewAppeal(req, res, next) {
             },
           }
         );
+      }
+    }
+
+    const recipientEmail = updatedUser?.email || appeal.email;
+    if (recipientEmail) {
+      try {
+        await sendModerationDecisionEmail({
+          to: recipientEmail,
+          username: appeal.username,
+          decision,
+          adminNote,
+        });
+      } catch {
+        // Email delivery should never fail appeal review
       }
     }
 

@@ -1,8 +1,20 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import CompilySnippet from "../src/models/CompilySnippet.js";
-import { saveSnippetSchema, snippetIdParamSchema } from "../src/validators/compilyValidators.js";
-import { listSnippets, saveSnippet, deleteSnippet } from "../src/controllers/compilyController.js";
+import {
+  saveSnippetSchema,
+  snippetIdParamSchema,
+  toggleShareSchema,
+  shareSlugParamSchema,
+} from "../src/validators/compilyValidators.js";
+import {
+  listSnippets,
+  saveSnippet,
+  deleteSnippet,
+  toggleShareSnippet,
+  getPublicSnippet,
+  forkPublicSnippet,
+} from "../src/controllers/compilyController.js";
 
 describe("Compily validators", () => {
   test("saveSnippetSchema validates valid snippet payload", () => {
@@ -142,6 +154,100 @@ describe("Compily snippet controller", () => {
       assert.equal(body.error, "Snippet not found");
     } finally {
       CompilySnippet.findOneAndDelete = origDelete;
+    }
+  });
+
+  test("toggleShareSnippet, getPublicSnippet, and forkPublicSnippet validate and work cleanly", async () => {
+    assert.equal(toggleShareSchema.safeParse({ isPublic: true }).success, true);
+    assert.equal(shareSlugParamSchema.safeParse({ slug: "a1b2c3d4e5" }).success, true);
+    assert.equal(shareSlugParamSchema.safeParse({ slug: "ab" }).success, false);
+
+    const origFindOne = CompilySnippet.findOne;
+    const origCreate = CompilySnippet.create;
+
+    try {
+      const mockSnippetDoc = {
+        _id: "507f1f77bcf86cd799439099",
+        userId: "507f1f77bcf86cd799439011",
+        title: "QuickSort",
+        language: "javascript",
+        code: "console.log(1);",
+        stdin: "",
+        isPublic: false,
+        shareSlug: null,
+        async save() {},
+      };
+
+      CompilySnippet.findOne = async () => mockSnippetDoc;
+      let sharedBody = null;
+      await toggleShareSnippet(
+        {
+          user: { _id: "507f1f77bcf86cd799439011" },
+          params: { id: "507f1f77bcf86cd799439099" },
+          body: { isPublic: true },
+        },
+        { json: (d) => (sharedBody = d) },
+        (e) => {
+          if (e) throw e;
+        }
+      );
+      assert.equal(sharedBody.snippet.isPublic, true);
+      assert.ok(sharedBody.snippet.shareSlug);
+
+      CompilySnippet.findOne = () => ({
+        populate: () => ({
+          lean: async () => ({
+            _id: "507f1f77bcf86cd799439099",
+            title: "QuickSort",
+            language: "javascript",
+            code: "console.log(1);",
+            stdin: "",
+            shareSlug: "abc1234567",
+            updatedAt: new Date(),
+            userId: { username: "alice", avatar: "stamp:lambda:terracotta:wax" },
+          }),
+        }),
+      });
+      let publicBody = null;
+      await getPublicSnippet(
+        { params: { slug: "abc1234567" } },
+        { json: (d) => (publicBody = d) },
+        (e) => {
+          if (e) throw e;
+        }
+      );
+      assert.equal(publicBody.snippet.author.username, "alice");
+      assert.equal(publicBody.snippet.userId, undefined);
+
+      CompilySnippet.findOne = () => ({
+        lean: async () => ({
+          title: "QuickSort",
+          language: "javascript",
+          code: "console.log(1);",
+          stdin: "",
+        }),
+      });
+      CompilySnippet.create = async (doc) => ({ _id: "507f1f77bcf86cd799439077", ...doc });
+      let forkStatus = null;
+      let forkBody = null;
+      await forkPublicSnippet(
+        { user: { _id: "507f1f77bcf86cd799439022" }, params: { slug: "abc1234567" } },
+        {
+          status(code) {
+            forkStatus = code;
+            return this;
+          },
+          json: (d) => (forkBody = d),
+        },
+        (e) => {
+          if (e) throw e;
+        }
+      );
+      assert.equal(forkStatus, 201);
+      assert.equal(forkBody.snippet.title, "QuickSort (Fork)");
+    } finally {
+      CompilySnippet.findOne = origFindOne;
+      CompilySnippet.create = origCreate;
     }
   });
 });

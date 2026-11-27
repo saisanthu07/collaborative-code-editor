@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import Editor from "@monaco-editor/react";
 import toast from "react-hot-toast";
 import {
@@ -20,9 +21,14 @@ import {
   Wand2,
   Columns2,
   Rows2,
+  Share2,
+  Copy,
+  Globe,
+  Lock,
 } from "lucide-react";
 import "../config/monaco.js";
 import { api } from "../services/api.js";
+import { copyToClipboard } from "../utils/clipboard.js";
 import { useThemeStore } from "../store/themeStore.js";
 import { LANGUAGES, monacoLangFor } from "../constants/languages.js";
 import { getCompilyTemplate } from "../constants/compilyTemplates.js";
@@ -65,19 +71,38 @@ export default function Compily() {
   const [cursorPos, setCursorPos] = useState({ line: 1, column: 1 });
 
   const editorRef = useRef(null);
+  const location = useLocation();
   const activeTemplate = useMemo(() => getCompilyTemplate(language), [language]);
+  const [sharingSnippet, setSharingSnippet] = useState(false);
+
+  const activeSnippet = useMemo(
+    () => snippets.find((s) => s._id === activeSnippetId) || null,
+    [snippets, activeSnippetId]
+  );
 
   const loadSnippets = useCallback(async () => {
     setSnippetsLoading(true);
     try {
       const { data } = await api.get("/compily/snippets");
-      setSnippets(data.snippets || []);
+      const list = data.snippets || [];
+      setSnippets(list);
+      const targetId = location.state?.loadSnippetId;
+      if (targetId) {
+        const match = list.find((s) => s._id === targetId);
+        if (match) {
+          setActiveSnippetId(match._id);
+          setTitle(match.title);
+          setLanguage(match.language);
+          setCode(match.code || "");
+          setStdin(match.stdin || "");
+        }
+      }
     } catch {
       // non-fatal
     } finally {
       setSnippetsLoading(false);
     }
-  }, []);
+  }, [location.state?.loadSnippetId]);
 
   useEffect(() => {
     loadSnippets();
@@ -245,6 +270,42 @@ export default function Compily() {
     }
   }
 
+  async function handleToggleShare() {
+    let targetId = activeSnippetId;
+    if (!targetId) {
+      toast.error("Save the snippet first before creating a share link");
+      return;
+    }
+    setSharingSnippet(true);
+    try {
+      const nextPublic = !activeSnippet?.isPublic;
+      const { data } = await api.patch(`/compily/snippets/${targetId}/share`, {
+        isPublic: nextPublic,
+      });
+      setSnippets((prev) =>
+        prev.map((s) => (s._id === targetId ? data.snippet : s))
+      );
+      if (data.snippet?.isPublic && data.snippet?.shareSlug) {
+        const shareUrl = `${window.location.origin}/s/${data.snippet.shareSlug}`;
+        await copyToClipboard(shareUrl);
+        toast.success("Public link enabled & copied to clipboard!");
+      } else {
+        toast.success("Snippet is now private");
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Could not update share settings");
+    } finally {
+      setSharingSnippet(false);
+    }
+  }
+
+  async function handleCopyShareUrl() {
+    if (!activeSnippet?.shareSlug) return;
+    const shareUrl = `${window.location.origin}/s/${activeSnippet.shareSlug}`;
+    const ok = await copyToClipboard(shareUrl);
+    if (ok) toast.success("Share link copied");
+  }
+
   const filteredSnippets = useMemo(() => {
     const q = snippetSearch.trim().toLowerCase();
     if (!q) return snippets;
@@ -388,6 +449,38 @@ export default function Compily() {
                 {savingSnippet ? "Saving..." : activeSnippetId ? "Update" : "Save"}
               </span>
             </button>
+
+            {activeSnippetId && (
+              <div className="hidden sm:inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleToggleShare}
+                  disabled={sharingSnippet}
+                  title={activeSnippet?.isPublic ? "Publicly shared (click to make private)" : "Create public share link"}
+                  className={`inline-flex items-center gap-1.5 text-xs border rounded-lg px-2.5 py-1.5 font-medium transition-colors shadow-paper-sm disabled:opacity-60 ${
+                    activeSnippet?.isPublic
+                      ? "bg-accent/15 text-accent border-accent/35"
+                      : "bg-surface2 text-gray-300 border-border hover:text-gray-100"
+                  }`}
+                >
+                  {activeSnippet?.isPublic ? <Globe size={13} /> : <Share2 size={13} />}
+                  <span className="hidden xl:inline">
+                    {activeSnippet?.isPublic ? "Shared" : "Share"}
+                  </span>
+                </button>
+                {activeSnippet?.isPublic && activeSnippet?.shareSlug && (
+                  <button
+                    type="button"
+                    onClick={handleCopyShareUrl}
+                    title="Copy public snippet link"
+                    aria-label="Copy public snippet link"
+                    className="p-1.5 rounded-lg bg-surface2 border border-border text-gray-300 hover:text-accent transition-colors shadow-paper-sm"
+                  >
+                    <Copy size={13} />
+                  </button>
+                )}
+              </div>
+            )}
 
             <button
               type="button"

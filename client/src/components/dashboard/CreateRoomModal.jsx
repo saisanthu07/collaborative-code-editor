@@ -11,6 +11,7 @@ import {
   Check,
 } from "lucide-react";
 import { LANGUAGES } from "../../constants/languages.js";
+import { QUESTION_BANK } from "../../constants/questionBank.js";
 
 export const ROOM_TEMPLATES = [
   {
@@ -274,6 +275,40 @@ export default function CreateRoomModal({
                 );
               })}
             </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="room-question-select"
+              className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5 font-mono"
+            >
+              Interview Question Bank{" "}
+              <span className="text-gray-500 font-sans lowercase font-normal">(optional · includes hidden tests)</span>
+            </label>
+            <select
+              id="room-question-select"
+              value={form.questionId || ""}
+              onChange={(e) => {
+                const qId = e.target.value;
+                const q = QUESTION_BANK.find((item) => item.id === qId);
+                setForm((prev) => ({
+                  ...prev,
+                  questionId: qId,
+                  template: qId ? "algorithms" : prev.template,
+                  name: !prev.name.trim() && q ? `${q.title} Interview` : prev.name,
+                }));
+              }}
+              className="w-full bg-surface2/75 hover:bg-surface2 focus:bg-surface border border-border rounded-xl px-3 py-2.5 text-xs sm:text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent/35 focus:border-accent shadow-paper-sm"
+            >
+              <option value="" className="bg-surface text-gray-100">
+                None — use starter template only
+              </option>
+              {QUESTION_BANK.map((q) => (
+                <option key={q.id} value={q.id} className="bg-surface text-gray-100">
+                  [{q.difficulty}] {q.title} — {q.category}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

@@ -18,6 +18,7 @@ export const appealIdParamSchema = z.object({
 
 export const moderationActionSchema = z.object({
   reason: z.string().trim().max(300, "Reason must not exceed 300 characters").optional(),
+  durationHours: z.number().int().min(1).max(8760).nullable().optional(),
 });
 
 export const reviewAppealSchema = z.object({

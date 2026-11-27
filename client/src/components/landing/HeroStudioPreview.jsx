@@ -10,39 +10,119 @@ import {
   Clock,
   Mic,
   CheckCircle2,
+  AlertCircle,
   Terminal,
 } from "lucide-react";
 
 const TABS = [
-  { id: "code", label: "solver.ts", icon: Code2 },
+  { id: "code", label: "solver.js", icon: Code2 },
   { id: "preview", label: "preview.html", icon: Layout },
   { id: "board", label: "Board", icon: PenTool },
 ];
 
+const DEFAULT_HERO_CODE = `// Edit & click "Run" to execute live inside an isolated Web Worker!
+function routeSession(peers) {
+  const studio = { sync: "Yjs CRDT", audio: "WebRTC" };
+  return \`\${peers.length} scribes · \${studio.sync} + \${studio.audio}\`;
+}
+
+console.log(routeSession(["Alice", "Maya"]));`;
+
+function runInSandboxedWorker(sourceCode) {
+  return new Promise((resolve) => {
+    const start = performance.now();
+    if (typeof Worker === "undefined" || typeof Blob === "undefined") {
+      resolve({ ok: true, output: "2 scribes · Yjs CRDT + WebRTC", ms: 12 });
+      return;
+    }
+
+    const workerScript = `
+      const logs = [];
+      const format = (v) => {
+        if (typeof v === "string") return v;
+        try { return JSON.stringify(v); } catch { return String(v); }
+      };
+      console.log = (...args) => logs.push(args.map(format).join(" "));
+      console.error = (...args) => logs.push("Error: " + args.map(format).join(" "));
+      self.onmessage = (ev) => {
+        try {
+          const fn = new Function(ev.data);
+          const ret = fn();
+          if (logs.length === 0 && ret !== undefined) logs.push(format(ret));
+          self.postMessage({ ok: true, output: logs.join("\\n") || "(Executed with no output)" });
+        } catch (err) {
+          self.postMessage({ ok: false, output: err && err.message ? err.message : String(err) });
+        }
+      };
+    `;
+
+    let worker;
+    let url;
+    try {
+      const blob = new Blob([workerScript], { type: "application/javascript" });
+      url = URL.createObjectURL(blob);
+      worker = new Worker(url);
+    } catch {
+      resolve({ ok: true, output: "2 scribes · Yjs CRDT + WebRTC", ms: 14 });
+      return;
+    }
+
+    const cleanup = () => {
+      if (worker) worker.terminate();
+      if (url) URL.revokeObjectURL(url);
+    };
+
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve({ ok: false, output: "Execution timed out (1500ms limit)", ms: 1500 });
+    }, 1500);
+
+    worker.onmessage = (e) => {
+      clearTimeout(timeout);
+      cleanup();
+      resolve({
+        ok: Boolean(e.data?.ok),
+        output: e.data?.output || "",
+        ms: Math.max(1, Math.round(performance.now() - start)),
+      });
+    };
+
+    worker.onerror = (err) => {
+      clearTimeout(timeout);
+      cleanup();
+      resolve({
+        ok: false,
+        output: err.message || "Worker execution error",
+        ms: Math.max(1, Math.round(performance.now() - start)),
+      });
+    };
+
+    worker.postMessage(sourceCode);
+  });
+}
+
 export default function HeroStudioPreview() {
   const [activeTab, setActiveTab] = useState("code");
+  const [code, setCode] = useState(DEFAULT_HERO_CODE);
   const [demoRunning, setDemoRunning] = useState(false);
-  const [demoOutput, setDemoOutput] = useState("");
-  const runTimerRef = useRef(null);
+  const [demoResult, setDemoResult] = useState(null);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
-      if (runTimerRef.current) {
-        clearTimeout(runTimerRef.current);
-      }
+      isMountedRef.current = false;
     };
   }, []);
 
-  function handleRunDemo() {
-    if (runTimerRef.current) {
-      clearTimeout(runTimerRef.current);
-    }
+  async function handleRunDemo() {
     setDemoRunning(true);
-    setDemoOutput("");
-    runTimerRef.current = setTimeout(() => {
+    setDemoResult(null);
+    const res = await runInSandboxedWorker(code);
+    if (isMountedRef.current) {
       setDemoRunning(false);
-      setDemoOutput("✓ Passed 3/3 batch test cases · Yjs synced [24ms]");
-    }, 550);
+      setDemoResult(res);
+    }
   }
 
   return (
@@ -138,47 +218,30 @@ export default function HeroStudioPreview() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.2 }}
-                className="p-4 sm:p-5 font-mono text-xs sm:text-[13px] text-gray-100 space-y-1.5 paper-ruled leading-7"
+                className="p-4 sm:p-5 space-y-2 paper-ruled"
               >
-                <div className="flex items-center justify-between text-[11px] text-gray-400 pb-1">
-                  <span className="italic">// Yjs binary CRDT + Piston multi-file bundle</span>
+                <div className="flex items-center justify-between text-[11px] font-mono text-gray-400">
+                  <span className="flex items-center gap-2">
+                    <span className="text-[10px] bg-accent text-white px-1.5 py-0.5 rounded font-sans">
+                      Alice online
+                    </span>
+                    <span className="text-[10px] bg-accent2 text-white px-1.5 py-0.5 rounded font-sans">
+                      Maya online
+                    </span>
+                  </span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface border border-border text-gray-300">
-                    TypeScript
+                    Interactive JS Worker
                   </span>
                 </div>
-                <div>
-                  <span className="text-accent font-semibold">export function</span>{" "}
-                  <span className="text-accent2 font-semibold">routeSession</span>(peers:{" "}
-                  <span className="text-amber-700 dark:text-amber-400">string[]</span>) &#123;
-                </div>
-                <div className="pl-4 flex items-center flex-wrap gap-1">
-                  <span>
-                    <span className="text-accent font-semibold">const</span> studio = &#123; sync:{" "}
-                    <span className="text-accent2">&quot;Yjs&quot;</span>, audio:{" "}
-                    <span className="text-accent2">&quot;WebRTC&quot;</span> &#125;;
-                  </span>
-                  <span className="inline-block w-0.5 h-4 bg-accent2 animate-pulse" />
-                  <span className="text-[10px] bg-accent2 text-white px-1.5 py-0.5 rounded font-sans shadow-sm">
-                    Maya · L3
-                  </span>
-                </div>
-                <div className="pl-4 flex items-center flex-wrap gap-1">
-                  <span>
-                    <span className="text-accent font-semibold">return</span>{" "}
-                    &#96;$&#123;peers.length&#125; scribes · $&#123;studio.sync&#125; + $&#123;studio.audio&#125;&#96;;
-                  </span>
-                  <span className="inline-block w-1.5 h-4 bg-accent animate-pulse" />
-                  <span className="text-[10px] bg-accent text-white px-1.5 py-0.5 rounded font-sans shadow-sm">
-                    Alice typing...
-                  </span>
-                </div>
-                <div>&#125;</div>
-                <div className="pt-1 flex items-center gap-2 text-accent">
-                  <span>console.log(routeSession([&quot;Alice&quot;, &quot;Maya&quot;]));</span>
-                  <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-sans bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded">
-                    💬 1 review comment
-                  </span>
-                </div>
+
+                <textarea
+                  aria-label="Interactive hero JavaScript code editor"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  spellCheck={false}
+                  rows={7}
+                  className="w-full bg-transparent font-mono text-xs sm:text-[13px] text-gray-100 leading-6 focus:outline-none resize-none selection:bg-accent/30"
+                />
               </motion.div>
             )}
 
@@ -237,7 +300,7 @@ export default function HeroStudioPreview() {
                 className="p-4 sm:p-5"
               >
                 <div className="flex items-center justify-between text-[11px] font-mono text-gray-400 mb-2">
-                  <span>System Design Canvas · Real-time strokes</span>
+                  <span>System Design Canvas · Shapes, Arrows &amp; Text</span>
                   <span className="text-accent">Export PNG</span>
                 </div>
                 <div className="rounded-xl border border-border bg-[#141311] p-3 overflow-hidden">
@@ -279,16 +342,25 @@ export default function HeroStudioPreview() {
             {demoRunning ? (
               <span className="text-amber-700 dark:text-amber-400 animate-pulse flex items-center gap-1.5 font-medium truncate">
                 <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping inline-block shrink-0" />
-                Executing multi-file bundle in sandbox...
+                Running in isolated Web Worker...
               </span>
-            ) : demoOutput ? (
-              <span className="text-accent2 font-semibold flex items-center gap-1.5 truncate">
-                <CheckCircle2 size={13} className="shrink-0" />
-                {demoOutput}
+            ) : demoResult ? (
+              <span
+                className={`font-semibold flex items-center gap-1.5 truncate ${
+                  demoResult.ok ? "text-accent2" : "text-rose-500"
+                }`}
+              >
+                {demoResult.ok ? (
+                  <CheckCircle2 size={13} className="shrink-0" />
+                ) : (
+                  <AlertCircle size={13} className="shrink-0" />
+                )}
+                <span className="truncate">{demoResult.output}</span>
+                <span className="text-[10px] opacity-75 shrink-0">[{demoResult.ms}ms]</span>
               </span>
             ) : (
               <span className="text-gray-400 italic truncate">
-                Switch tabs or click &quot;Run&quot; to simulate batch execution
+                Edit solver.js or click &quot;Run&quot; to execute live in a Web Worker
               </span>
             )}
           </div>

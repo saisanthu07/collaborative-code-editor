@@ -153,6 +153,14 @@ router.post(
   roomController.restoreRevision
 );
 
+// Session Replay Timeline
+router.get(
+  "/:roomId/timeline",
+  optionalAuthMiddleware,
+  roomAccessMiddleware,
+  roomController.getTimeline
+);
+
 // Inline Code Comments
 router.get(
   "/:roomId/comments",

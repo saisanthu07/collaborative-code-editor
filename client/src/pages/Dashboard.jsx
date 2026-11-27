@@ -32,6 +32,7 @@ const INITIAL_FORM = {
   language: "javascript",
   visibility: "PRIVATE",
   template: "blank",
+  questionId: "",
 };
 
 export default function Dashboard() {

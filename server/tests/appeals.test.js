@@ -13,7 +13,11 @@ import {
 } from "../src/validators/adminValidators.js";
 import { submitAppeal } from "../src/controllers/authController.js";
 import { suspendUser, reviewAppeal, listAppeals } from "../src/controllers/adminController.js";
-import { buildModerationPayload, signAppealToken } from "../src/services/moderationService.js";
+import {
+  buildModerationPayload,
+  signAppealToken,
+  autoRestoreIfSuspensionExpired,
+} from "../src/services/moderationService.js";
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-that-is-over-32-chars-long";
 
@@ -272,6 +276,68 @@ describe("Account Suspension / Ban Appeals", () => {
     } finally {
       findMock.mock.restore();
       countMock.mock.restore();
+    }
+  });
+
+  test("autoRestoreIfSuspensionExpired restores expired timed suspensions", async () => {
+    let saved = false;
+    const expiredUser = {
+      _id: new mongoose.Types.ObjectId(),
+      status: "SUSPENDED",
+      moderationReason: "Cooldown",
+      moderatedAt: new Date(Date.now() - 48 * 3600_000),
+      suspendedUntil: new Date(Date.now() - 1000),
+      async save() {
+        saved = true;
+      },
+    };
+
+    const restored = await autoRestoreIfSuspensionExpired(expiredUser);
+    assert.equal(restored, true);
+    assert.equal(saved, true);
+    assert.equal(expiredUser.status, "ACTIVE");
+    assert.equal(expiredUser.suspendedUntil, null);
+  });
+
+  test("submitAppeal enforces 24h cooldown after a REJECTED appeal", async () => {
+    const userId = new mongoose.Types.ObjectId();
+    const appealToken = signAppealToken(userId);
+    const bannedUser = {
+      _id: userId,
+      username: "cooldown_user",
+      email: "cool@example.com",
+      status: "BANNED",
+    };
+
+    const findUserMock = mock.method(User, "findById", async () => bannedUser);
+    let callCount = 0;
+    const findOneMock = mock.method(ModerationAppeal, "findOne", () => ({
+      lean: async () => {
+        callCount += 1;
+        if (callCount === 1) return null; // no PENDING
+        return { _id: "rej1", status: "REJECTED", reviewedAt: new Date() }; // recent REJECTED
+      },
+    }));
+
+    try {
+      const res = createMockRes();
+      await submitAppeal(
+        {
+          body: {
+            appealToken,
+            message: "Trying to submit another appeal immediately after rejection.",
+          },
+        },
+        res,
+        (err) => {
+          if (err) throw err;
+        }
+      );
+
+      assert.equal(res.getStatus(), 429);
+    } finally {
+      findUserMock.mock.restore();
+      findOneMock.mock.restore();
     }
   });
 });

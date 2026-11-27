@@ -103,13 +103,20 @@ export const whiteboardStrokeSchema = z.object({
   roomId: roomIdSchema,
   stroke: z.object({
     id: z.string().min(1).max(64),
+    type: z.enum(["pen", "line", "rect", "circle", "arrow", "text"]).optional().default("pen"),
     color: z.string().min(3).max(20),
     width: z.number().min(1).max(30),
+    text: z.string().max(200).optional(),
     points: z
       .array(z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }))
       .min(1)
       .max(2000),
   }),
+});
+
+export const whiteboardUndoSchema = z.object({
+  roomId: roomIdSchema,
+  strokeId: z.string().min(1).max(64),
 });
 
 export const whiteboardClearSchema = z.object({
